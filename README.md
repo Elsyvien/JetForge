@@ -15,6 +15,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
+- No runtime network access, telemetry, or proprietary template content.
 
 ## Install Locally
 
@@ -22,6 +23,12 @@ Package the extension:
 
 ```bash
 npm run package
+```
+
+Run the full local release check:
+
+```bash
+npm run verify
 ```
 
 Install the generated package:
@@ -99,6 +106,8 @@ Completions are available for template markers after typing `<`, plus directive 
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
 
+Diagnostics, Quick Fixes, completions, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
+
 ## Formatting Helpers
 
 TxtJet modes include conservative indentation rules for common control blocks such as:
@@ -117,6 +126,19 @@ Settings:
 
 - `txtjet.autoDetect.enabled`
 - `txtjet.defaultTargetLanguage`
+- `txtjet.diagnostics.enabled`
+- `txtjet.diagnostics.severity`
+- `txtjet.diagnostics.maxFileSizeKb`
+- `txtjet.codeActions.enabled`
+- `txtjet.completions.enabled`
+- `txtjet.statusBar.enabled`
+
+Privacy and workplace use:
+
+- The extension runs locally inside VSCode.
+- It does not send source files, template content, diagnostics, or usage data anywhere.
+- It does not connect to internal company systems.
+- Example files are artificial and sanitized; local/private examples are excluded from the package.
 
 Local-only development examples should stay untracked and out of the package.
 

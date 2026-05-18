@@ -251,6 +251,43 @@
             "txtjet-python"
           ],
           "description": "Fallback TxtJet target language used when Auto Detect is disabled."
+        },
+        "txtjet.diagnostics.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable lightweight TxtJet syntax diagnostics."
+        },
+        "txtjet.diagnostics.severity": {
+          "type": "string",
+          "default": "warning",
+          "enum": [
+            "error",
+            "warning",
+            "information",
+            "hint"
+          ],
+          "description": "Severity used for TxtJet syntax diagnostics."
+        },
+        "txtjet.diagnostics.maxFileSizeKb": {
+          "type": "number",
+          "default": 1024,
+          "minimum": 0,
+          "description": "Maximum UTF-8 file size in KB for running TxtJet diagnostics. Set to 0 to disable the size limit."
+        },
+        "txtjet.codeActions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Quick Fix actions for TxtJet diagnostics."
+        },
+        "txtjet.completions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable TxtJet marker and directive completions."
+        },
+        "txtjet.statusBar.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the TxtJet generated output mode selector in the status bar."
         }
       }
     },
@@ -313,6 +350,8 @@
   "scripts": {
     "compile": "tsc -p ./",
     "test": "npm run compile && node out/detector.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/codeActions.test.js && node out/grammar.test.js",
+    "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
+    "verify": "npm test && npm run validate:json && npm run package",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package"
   },

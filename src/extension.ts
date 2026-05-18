@@ -25,6 +25,7 @@ const LANGUAGE_OPTIONS: Array<{ label: string; shortLabel: string; description: 
 const MODE_STORAGE_KEY = "txtjet.documentLanguageModes.v2";
 const CONFIG_SECTION = "txtjet";
 const DIAGNOSTIC_SOURCE = "txtjet";
+const DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB = 1024;
 
 export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -110,6 +111,18 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => updateDiagnostics(diagnostics, event.document))
+  );
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((event) => {
+      if (!event.affectsConfiguration(CONFIG_SECTION)) {
+        return;
+      }
+
+      updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
+      for (const document of vscode.workspace.textDocuments) {
+        updateDiagnostics(diagnostics, document);
+      }
+    })
   );
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((document) => diagnostics.delete(document.uri))
@@ -210,6 +223,12 @@ function updateStatusBar(
   document?: vscode.TextDocument,
   context?: vscode.ExtensionContext
 ): void {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document?.uri);
+  if (!config.get<boolean>("statusBar.enabled", true)) {
+    statusBar.hide();
+    return;
+  }
+
   if (!document || !isTxtJetFile(document)) {
     statusBar.hide();
     return;
@@ -230,22 +249,54 @@ function updateStatusBar(
 
 function updateDiagnostics(collection: vscode.DiagnosticCollection, document: vscode.TextDocument): void {
   if (!isTxtJetFile(document)) {
+    collection.delete(document.uri);
     return;
   }
 
-  const diagnostics = scanTxtJetIssues(document.getText()).map((issue) => issueToDiagnostic(document, issue));
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  if (!config.get<boolean>("diagnostics.enabled", true)) {
+    collection.delete(document.uri);
+    return;
+  }
+
+  const maxFileSizeKb = config.get<number>("diagnostics.maxFileSizeKb", DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB);
+  if (maxFileSizeKb > 0 && Buffer.byteLength(document.getText(), "utf8") > maxFileSizeKb * 1024) {
+    collection.delete(document.uri);
+    return;
+  }
+
+  const severity = diagnosticSeverityFromSetting(config.get<string>("diagnostics.severity", "warning"));
+  const diagnostics = scanTxtJetIssues(document.getText()).map((issue) => issueToDiagnostic(document, issue, severity));
   collection.set(document.uri, diagnostics);
 }
 
-function issueToDiagnostic(document: vscode.TextDocument, issue: TxtJetIssue): vscode.Diagnostic {
+function issueToDiagnostic(
+  document: vscode.TextDocument,
+  issue: TxtJetIssue,
+  severity: vscode.DiagnosticSeverity
+): vscode.Diagnostic {
   const diagnostic = new vscode.Diagnostic(
     new vscode.Range(document.positionAt(issue.start), document.positionAt(issue.end)),
     issue.message,
-    vscode.DiagnosticSeverity.Warning
+    severity
   );
   diagnostic.source = DIAGNOSTIC_SOURCE;
   diagnostic.code = issue.code;
   return diagnostic;
+}
+
+function diagnosticSeverityFromSetting(value: string | undefined): vscode.DiagnosticSeverity {
+  switch (value) {
+    case "error":
+      return vscode.DiagnosticSeverity.Error;
+    case "information":
+      return vscode.DiagnosticSeverity.Information;
+    case "hint":
+      return vscode.DiagnosticSeverity.Hint;
+    case "warning":
+    default:
+      return vscode.DiagnosticSeverity.Warning;
+  }
 }
 
 function registerCodeActionProvider(): vscode.Disposable {
@@ -253,6 +304,11 @@ function registerCodeActionProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       provideCodeActions(document, range, context) {
+        const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+        if (!config.get<boolean>("codeActions.enabled", true)) {
+          return [];
+        }
+
         const text = document.getText();
         return context.diagnostics
           .filter((diagnostic) => diagnostic.source === DIAGNOSTIC_SOURCE && diagnostic.range.intersection(range))
@@ -303,6 +359,11 @@ function registerCompletionProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       provideCompletionItems(document, position) {
+        const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+        if (!config.get<boolean>("completions.enabled", true)) {
+          return [];
+        }
+
         if (isInsideDirective(document, position)) {
           return directiveCompletions();
         }

@@ -5,6 +5,8 @@
 - Improved template delimiter highlighting inside target-language strings, comments, and preprocessor regions.
 - Expanded embedded template injection coverage from expressions to directives, declarations, and scriptlets.
 - Added grammar regression checks for the embedded template injection grammar.
+- Added workspace-safe settings for diagnostics, Quick Fixes, completions, status bar visibility, and diagnostic file-size limits.
+- Documented local-only behavior, no runtime telemetry, and no runtime network access for internal workplace review.
 
 ## 0.0.3
 
