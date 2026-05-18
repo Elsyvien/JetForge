@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.5
+
+- Packaged the workplace-ready hardening as a Marketplace-updateable release.
+- Kept the internal rollout controls for diagnostics, Quick Fixes, completions, status bar visibility, and diagnostic file-size limits.
+- Kept the documented local-only behavior with no runtime telemetry and no runtime network access.
+
 ## 0.0.4
 
 - Improved template delimiter highlighting inside target-language strings, comments, and preprocessor regions.

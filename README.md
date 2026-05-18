@@ -34,7 +34,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.4.vsix
+code --install-extension txtjet-syntax-0.0.5.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
