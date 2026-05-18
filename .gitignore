@@ -5,6 +5,7 @@ node_modules/
 # Local packaging output is committed intentionally only when selected.
 # Keep private/reference files out of Git.
 example.txt
+example.txtjet
 example.txtjet.txt
 private-examples/
 

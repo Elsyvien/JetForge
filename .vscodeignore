@@ -4,6 +4,7 @@ GOAL.md
 .vscode-test/**
 node_modules/**
 example.txt
+example.txtjet
 example.txtjet.txt
 private-examples/**
 *.vsix
