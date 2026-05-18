@@ -52,7 +52,8 @@
       {
         "id": "txtjet-java",
         "aliases": [
-          "TxtJet Java",
+          "TxtJet Java Output",
+          "TxtJet Generated Java",
           "txtjet-java"
         ],
         "configuration": "./language-configuration.json"
@@ -60,7 +61,8 @@
       {
         "id": "txtjet-html",
         "aliases": [
-          "TxtJet HTML",
+          "TxtJet HTML Output",
+          "TxtJet Generated HTML",
           "txtjet-html"
         ],
         "configuration": "./language-configuration.json"
@@ -68,7 +70,8 @@
       {
         "id": "txtjet-xml",
         "aliases": [
-          "TxtJet XML",
+          "TxtJet XML Output",
+          "TxtJet Generated XML",
           "txtjet-xml"
         ],
         "configuration": "./language-configuration.json"
@@ -76,7 +79,8 @@
       {
         "id": "txtjet-c",
         "aliases": [
-          "TxtJet C",
+          "TxtJet C Output",
+          "TxtJet Generated C",
           "txtjet-c"
         ],
         "configuration": "./language-configuration.json"
@@ -84,7 +88,8 @@
       {
         "id": "txtjet-python",
         "aliases": [
-          "TxtJet Python",
+          "TxtJet Python Output",
+          "TxtJet Generated Python",
           "txtjet-python"
         ],
         "configuration": "./language-configuration.json"
@@ -187,35 +192,35 @@
     "commands": [
       {
         "command": "txtjet.detectTargetLanguage",
-        "title": "TxtJet: Detect Target Language"
+        "title": "TxtJet: Auto Detect Generated Output Mode"
       },
       {
         "command": "txtjet.selectTargetLanguage",
-        "title": "TxtJet: Select Target Language"
+        "title": "TxtJet: Select Generated Output Mode"
       },
       {
         "command": "txtjet.setLanguage.default",
-        "title": "TxtJet: Use Generic Mode"
+        "title": "TxtJet: Use Generic Template Mode"
       },
       {
         "command": "txtjet.setLanguage.java",
-        "title": "TxtJet: Use Java Mode"
+        "title": "TxtJet: Use Generated Java Output Mode"
       },
       {
         "command": "txtjet.setLanguage.html",
-        "title": "TxtJet: Use HTML Mode"
+        "title": "TxtJet: Use Generated HTML Output Mode"
       },
       {
         "command": "txtjet.setLanguage.xml",
-        "title": "TxtJet: Use XML Mode"
+        "title": "TxtJet: Use Generated XML Output Mode"
       },
       {
         "command": "txtjet.setLanguage.c",
-        "title": "TxtJet: Use C Mode"
+        "title": "TxtJet: Use Generated C Output Mode"
       },
       {
         "command": "txtjet.setLanguage.python",
-        "title": "TxtJet: Use Python Mode"
+        "title": "TxtJet: Use Generated Python Output Mode"
       },
       {
         "command": "txtjet.clearLanguage.active",

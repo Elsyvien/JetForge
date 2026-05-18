@@ -40,24 +40,27 @@ Open a `.txtjet` file. VSCode should select the `txtjet` language mode automatic
 
 If the generated outer content should be highlighted as a specific language, use the language mode selector and choose one of:
 
-- `TxtJet Java`
-- `TxtJet HTML`
-- `TxtJet XML`
-- `TxtJet C`
-- `TxtJet Python`
+- `TxtJet Java Output`
+- `TxtJet HTML Output`
+- `TxtJet XML Output`
+- `TxtJet C Output`
+- `TxtJet Python Output`
+
+These modes describe the generated output language outside template blocks. Embedded Java inside `<% ... %>`, `<%= ... %>`, `<%! ... %>`, and `<%@ ... %>` is highlighted in every TxtJet mode.
 
 The extension does not auto-detect the generated target language.
 Auto Alpha can also infer the target language from content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
 
 If the VSCode language selector is inconvenient, use the TxtJet commands:
 
-- `TxtJet: Select Target Language`
-- `TxtJet: Use C Mode`
-- `TxtJet: Use Python Mode`
-- `TxtJet: Use XML Mode`
-- `TxtJet: Use HTML Mode`
-- `TxtJet: Use Java Mode`
-- `TxtJet: Use Generic Mode`
+- `TxtJet: Select Generated Output Mode`
+- `TxtJet: Auto Detect Generated Output Mode`
+- `TxtJet: Use Generated C Output Mode`
+- `TxtJet: Use Generated Python Output Mode`
+- `TxtJet: Use Generated XML Output Mode`
+- `TxtJet: Use Generated HTML Output Mode`
+- `TxtJet: Use Generated Java Output Mode`
+- `TxtJet: Use Generic Template Mode`
 - `TxtJet: Clear Remembered Target Language`
 - `TxtJet: Clear All Remembered Target Languages`
 

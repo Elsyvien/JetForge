@@ -11,16 +11,16 @@ const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet-python"
 ]);
 
-const LANGUAGE_OPTIONS: Array<{ label: string; description: string; languageId: TxtJetTargetLanguage; command: string }> = [
-  { label: "TxtJet", description: "Generic template text", languageId: "txtjet", command: "txtjet.setLanguage.default" },
-  { label: "TxtJet Java", description: "Java output", languageId: "txtjet-java", command: "txtjet.setLanguage.java" },
-  { label: "TxtJet HTML", description: "HTML output", languageId: "txtjet-html", command: "txtjet.setLanguage.html" },
-  { label: "TxtJet XML", description: "XML output", languageId: "txtjet-xml", command: "txtjet.setLanguage.xml" },
-  { label: "TxtJet C", description: "C output", languageId: "txtjet-c", command: "txtjet.setLanguage.c" },
-  { label: "TxtJet Python", description: "Python output", languageId: "txtjet-python", command: "txtjet.setLanguage.python" }
+const LANGUAGE_OPTIONS: Array<{ label: string; shortLabel: string; description: string; languageId: TxtJetTargetLanguage; command: string }> = [
+  { label: "Generic TxtJet Template", shortLabel: "Generic", description: "Outer content is plain template text; embedded Java is still highlighted.", languageId: "txtjet", command: "txtjet.setLanguage.default" },
+  { label: "Generated Java Output", shortLabel: "Java output", description: "Use only when the generated outer content is Java.", languageId: "txtjet-java", command: "txtjet.setLanguage.java" },
+  { label: "Generated HTML Output", shortLabel: "HTML output", description: "Use only when the generated outer content is HTML.", languageId: "txtjet-html", command: "txtjet.setLanguage.html" },
+  { label: "Generated XML Output", shortLabel: "XML output", description: "Use only when the generated outer content is XML.", languageId: "txtjet-xml", command: "txtjet.setLanguage.xml" },
+  { label: "Generated C Output", shortLabel: "C output", description: "Use only when the generated outer content is C/C header code.", languageId: "txtjet-c", command: "txtjet.setLanguage.c" },
+  { label: "Generated Python Output", shortLabel: "Python output", description: "Use only when the generated outer content is Python.", languageId: "txtjet-python", command: "txtjet.setLanguage.python" }
 ];
 
-const MODE_STORAGE_KEY = "txtjet.documentLanguageModes";
+const MODE_STORAGE_KEY = "txtjet.documentLanguageModes.v2";
 const CONFIG_SECTION = "txtjet";
 const DIAGNOSTIC_SOURCE = "txtjet";
 
@@ -50,19 +50,20 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const picked = await vscode.window.showQuickPick(
-        LANGUAGE_OPTIONS.map((option) => ({
-          label: option.label,
-          description: option.description,
-          languageId: option.languageId
-        })),
+        languageQuickPickItems(editor.document),
         {
-          title: "Select TxtJet target language",
-          placeHolder: "Choose the generated output language for this template"
+          title: "Select generated output mode",
+          placeHolder: "Choose the generated output language. Embedded Java is always highlighted."
         }
       );
 
       if (picked) {
-        await setLanguage(context, editor.document, picked.languageId, statusBar, true);
+        if (picked.languageId === "auto") {
+          await clearStoredLanguage(context, editor.document);
+          await applyDetectedLanguage(context, editor.document, true, statusBar);
+        } else {
+          await setLanguage(context, editor.document, picked.languageId, statusBar, true);
+        }
       }
     })
   );
@@ -208,8 +209,8 @@ function updateStatusBar(statusBar: vscode.StatusBarItem, document?: vscode.Text
   }
 
   const current = LANGUAGE_OPTIONS.find((option) => option.languageId === document.languageId);
-  statusBar.text = current ? `TxtJet: ${current.label.replace("TxtJet ", "")}` : "TxtJet: Select";
-  statusBar.tooltip = "Select TxtJet target language";
+  statusBar.text = current ? `TxtJet: ${current.shortLabel}` : "TxtJet: Select output";
+  statusBar.tooltip = "Select generated output mode. Embedded Java is always highlighted.";
   statusBar.show();
 }
 
@@ -322,6 +323,30 @@ function markerCompletionRange(document: vscode.TextDocument, position: vscode.P
     return undefined;
   }
   return new vscode.Range(position.translate(0, -1), position);
+}
+
+function languageQuickPickItems(document: vscode.TextDocument): Array<vscode.QuickPickItem & { languageId: TxtJetTargetLanguage | "auto" }> {
+  const detected = detectLanguage(document);
+  return [
+    {
+      label: "Auto Detect Generated Output",
+      description: detected === "txtjet" ? "No strong target language detected" : labelForLanguage(detected),
+      detail: "Clears the remembered mode for this file and uses detection.",
+      languageId: "auto"
+    },
+    ...LANGUAGE_OPTIONS.map((option) => ({
+      label: option.label,
+      description: option.languageId === detected ? "Detected for this file" : option.description,
+      detail: option.languageId === "txtjet-java"
+        ? "This is for generated Java output. Template Java blocks are highlighted in every mode."
+        : undefined,
+      languageId: option.languageId
+    }))
+  ];
+}
+
+function labelForLanguage(languageId: TxtJetTargetLanguage): string {
+  return LANGUAGE_OPTIONS.find((option) => option.languageId === languageId)?.label ?? "Generic TxtJet Template";
 }
 
 function detectLanguage(document: vscode.TextDocument): TxtJetTargetLanguage {
