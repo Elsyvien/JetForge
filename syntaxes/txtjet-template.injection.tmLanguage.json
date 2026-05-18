@@ -1,44 +1,23 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "TxtJet",
-  "scopeName": "text.txtjet",
+  "name": "TxtJet Template Injection",
+  "scopeName": "text.txtjet.injection",
+  "injectionSelector": "L:source.txtjet.java, L:text.txtjet.html, L:text.txtjet.xml, L:source.txtjet.c, L:source.txtjet.python",
   "patterns": [
     {
-      "include": "#txtjet-template"
+      "include": "#directive"
     },
     {
-      "include": "source.python"
+      "include": "#expression"
     },
     {
-      "include": "source.c"
+      "include": "#declaration"
     },
     {
-      "include": "source.java"
-    },
-    {
-      "include": "text.html.basic"
-    },
-    {
-      "include": "text.xml"
+      "include": "#scriptlet"
     }
   ],
   "repository": {
-    "txtjet-template": {
-      "patterns": [
-        {
-          "include": "#directive"
-        },
-        {
-          "include": "#expression"
-        },
-        {
-          "include": "#declaration"
-        },
-        {
-          "include": "#scriptlet"
-        }
-      ]
-    },
     "directive": {
       "name": "meta.directive.txtjet",
       "begin": "(<%@)\\s*([A-Za-z_][\\w.-]*)?",

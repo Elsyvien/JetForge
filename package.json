@@ -129,6 +129,20 @@
           "source.java": "java",
           "source.python": "python"
         }
+      },
+      {
+        "scopeName": "text.txtjet.injection",
+        "path": "./syntaxes/txtjet-template.injection.tmLanguage.json",
+        "injectTo": [
+          "source.txtjet.java",
+          "text.txtjet.html",
+          "text.txtjet.xml",
+          "source.txtjet.c",
+          "source.txtjet.python"
+        ],
+        "embeddedLanguages": {
+          "source.java": "java"
+        }
       }
     ],
     "snippets": [
