@@ -1,0 +1,6 @@
+<%@ jet package="example.fixtures" class="PythonFixture" %>
+from dataclasses import dataclass
+
+@dataclass
+class Fixture:
+    value: int

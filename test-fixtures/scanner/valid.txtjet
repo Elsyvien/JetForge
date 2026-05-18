@@ -1,0 +1,5 @@
+<%@ jet package="example.fixtures" class="ValidFixture" %>
+<%
+    String value = "ok";
+%>
+<%= value %>

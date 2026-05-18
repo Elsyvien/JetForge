@@ -1,0 +1,6 @@
+<%@ jet package="example.fixtures" class="JavaFixture" %>
+package generated.fixture;
+
+public class GeneratedFixture {
+    private String value;
+}

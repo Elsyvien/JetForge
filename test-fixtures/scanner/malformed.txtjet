@@ -1,0 +1,6 @@
+<%@ jet package="example.fixtures" class="MalformedFixture" %>
+%>
+<%@ %>
+<%@ 123bad value="x" %>
+<%@ include file="missing-close %>
+<% unclosed();

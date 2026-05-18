@@ -81,6 +81,24 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.clearLanguage.active", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || !isTxtJetFile(editor.document)) {
+        return;
+      }
+
+      await clearStoredLanguage(context, editor.document);
+      await setLanguage(context, editor.document, "txtjet", statusBar, false);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.clearLanguage.all", async () => {
+      await context.workspaceState.update(MODE_STORAGE_KEY, {});
+      updateStatusBar(statusBar, vscode.window.activeTextEditor?.document);
+    })
+  );
+
+  context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
       void applyDetectedLanguage(context, document, false, statusBar);
       updateDiagnostics(diagnostics, document);
@@ -330,4 +348,11 @@ async function storeLanguage(
     ...stored,
     [document.uri.toString()]: languageId
   });
+}
+
+async function clearStoredLanguage(context: vscode.ExtensionContext, document: vscode.TextDocument): Promise<void> {
+  const uri = document.uri.toString();
+  const stored = { ...context.workspaceState.get<Record<string, TxtJetTargetLanguage>>(MODE_STORAGE_KEY, {}) };
+  delete stored[uri];
+  await context.workspaceState.update(MODE_STORAGE_KEY, stored);
 }

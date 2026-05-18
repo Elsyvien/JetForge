@@ -14,6 +14,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Java highlighting inside embedded template blocks.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
+- Remembered per-file language choices with commands to clear them.
 
 ## Install Locally
 
@@ -30,6 +31,8 @@ code --install-extension txtjet-syntax-0.0.1.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
+
+CI packages the extension as a workflow artifact. Marketplace publishing is intentionally not automated yet.
 
 ## Usage
 
@@ -55,6 +58,8 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 - `TxtJet: Use HTML Mode`
 - `TxtJet: Use Java Mode`
 - `TxtJet: Use Generic Mode`
+- `TxtJet: Clear Remembered Target Language`
+- `TxtJet: Clear All Remembered Target Languages`
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
@@ -108,7 +113,7 @@ Settings:
 - `txtjet.autoDetect.enabled`
 - `txtjet.defaultTargetLanguage`
 
-Development-only private examples must stay untracked and out of the package.
+Local-only development examples should stay untracked and out of the package.
 
 ## License
 

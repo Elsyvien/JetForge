@@ -1,0 +1,3 @@
+<%@ jet package="example.fixtures" class="XmlFixture" %>
+<?xml version="1.0" encoding="UTF-8"?>
+<root><item name="<%= name %>"><%= value %></item></root>

@@ -3,8 +3,8 @@ node_modules/
 .vscode-test/
 out/
 
-# Local packaging output is committed intentionally only when selected.
-# Keep private/reference files out of Git.
+# Local packaging output and reference files
+*.vsix
 example.txt
 example.txtjet
 example.txtjet.txt

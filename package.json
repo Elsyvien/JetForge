@@ -1,9 +1,10 @@
 {
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
-  "description": "Syntax highlighting and basic editor support for .txtjet Java emitter templates.",
+  "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
   "version": "0.0.1",
-  "publisher": "internal",
+  "publisher": "max-staneker",
+  "author": "Max Staneker",
   "license": "MIT",
   "icon": "assets/icon.png",
   "main": "./out/extension.js",
@@ -11,17 +12,29 @@
     "type": "git",
     "url": "https://github.com/Elsyvien/JetForge.git"
   },
+  "bugs": {
+    "url": "https://github.com/Elsyvien/JetForge/issues"
+  },
+  "homepage": "https://github.com/Elsyvien/JetForge#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Programming Languages"
   ],
+  "galleryBanner": {
+    "color": "#111827",
+    "theme": "dark"
+  },
   "keywords": [
     "txtjet",
     "jet",
     "template",
-    "java"
+    "java",
+    "jsp",
+    "emitter",
+    "syntax",
+    "highlighting"
   ],
   "contributes": {
     "languages": [
@@ -203,6 +216,14 @@
       {
         "command": "txtjet.setLanguage.python",
         "title": "TxtJet: Use Python Mode"
+      },
+      {
+        "command": "txtjet.clearLanguage.active",
+        "title": "TxtJet: Clear Remembered Target Language"
+      },
+      {
+        "command": "txtjet.clearLanguage.all",
+        "title": "TxtJet: Clear All Remembered Target Languages"
       }
     ],
     "configuration": {
@@ -261,6 +282,13 @@
         {
           "command": "txtjet.setLanguage.python",
           "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.clearLanguage.active",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.clearLanguage.all"
         }
       ]
     }
@@ -273,7 +301,9 @@
     "onLanguage:txtjet-c",
     "onLanguage:txtjet-python",
     "onCommand:txtjet.selectTargetLanguage",
-    "onCommand:txtjet.detectTargetLanguage"
+    "onCommand:txtjet.detectTargetLanguage",
+    "onCommand:txtjet.clearLanguage.active",
+    "onCommand:txtjet.clearLanguage.all"
   ],
   "scripts": {
     "compile": "tsc -p ./",

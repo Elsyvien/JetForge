@@ -1,0 +1,9 @@
+<%@ jet package="example.fixtures" class="CFixture" %>
+#ifndef GENERATED_FIXTURE_H
+#define GENERATED_FIXTURE_H
+
+typedef struct generated_fixture_s {
+    unsigned int value;
+} generated_fixture_t;
+
+#endif

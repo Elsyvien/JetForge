@@ -1,0 +1,5 @@
+<%@ jet package="example.fixtures" class="HtmlFixture" %>
+<!doctype html>
+<html>
+  <body><%= title %></body>
+</html>
