@@ -1,0 +1,60 @@
+{
+  "TxtJet scriptlet": {
+    "prefix": "scriptlet",
+    "body": [
+      "<%",
+      "    $0",
+      "%>"
+    ],
+    "description": "Insert a Java scriptlet block."
+  },
+  "TxtJet expression": {
+    "prefix": "expr",
+    "body": [
+      "<%= $1 %>"
+    ],
+    "description": "Insert a Java expression block."
+  },
+  "TxtJet declaration": {
+    "prefix": "decl",
+    "body": [
+      "<%!",
+      "    $0",
+      "%>"
+    ],
+    "description": "Insert a Java declaration block."
+  },
+  "TxtJet JET directive": {
+    "prefix": "jet",
+    "body": [
+      "<%@ jet package=\"$1\" class=\"$2\" %>"
+    ],
+    "description": "Insert a JET directive."
+  },
+  "TxtJet include directive": {
+    "prefix": "include",
+    "body": [
+      "<%@ include file=\"$1\" %>"
+    ],
+    "description": "Insert an include directive."
+  },
+  "TxtJet if block": {
+    "prefix": "if",
+    "body": [
+      "<% if ($1) { %>",
+      "$0",
+      "<% } %>"
+    ],
+    "description": "Insert an if template block."
+  },
+  "TxtJet for loop": {
+    "prefix": "for",
+    "body": [
+      "<% for ($1 : $2) { %>",
+      "$0",
+      "<% } %>"
+    ],
+    "description": "Insert a for-each template block."
+  }
+}
+

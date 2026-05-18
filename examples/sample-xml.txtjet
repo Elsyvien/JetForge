@@ -1,0 +1,11 @@
+<%@ jet package="example.txtjet.samples" class="XmlSample" imports="java.util.Map" %>
+<%
+    Map<String, String> settings = Map.of("mode", "demo", "enabled", "true");
+%>
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+<% for (String key : settings.keySet()) { %>
+  <setting name="<%= key %>"><%= settings.get(key) %></setting>
+<% } %>
+</settings>
+

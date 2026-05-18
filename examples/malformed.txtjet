@@ -1,0 +1,10 @@
+<%@ jet package="example.txtjet.samples" class="MalformedSample" %>
+<%
+    String value = "missing close delimiter";
+
+<%= value %>
+
+%>
+Unexpected closing marker below is useful for future diagnostics:
+%>
+

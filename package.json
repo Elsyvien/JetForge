@@ -1,0 +1,163 @@
+{
+  "name": "txtjet-syntax",
+  "displayName": "TxtJet Syntax",
+  "description": "Syntax highlighting and basic editor support for .txtjet Java emitter templates.",
+  "version": "0.0.1",
+  "publisher": "internal",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Elsyvien/JetForge.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "txtjet",
+    "jet",
+    "template",
+    "java"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "txtjet",
+        "aliases": [
+          "TxtJet",
+          "txtjet"
+        ],
+        "extensions": [
+          ".txtjet"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "txtjet-java",
+        "aliases": [
+          "TxtJet Java",
+          "txtjet-java"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "txtjet-html",
+        "aliases": [
+          "TxtJet HTML",
+          "txtjet-html"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "txtjet-xml",
+        "aliases": [
+          "TxtJet XML",
+          "txtjet-xml"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "txtjet-c",
+        "aliases": [
+          "TxtJet C",
+          "txtjet-c"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "txtjet-python",
+        "aliases": [
+          "TxtJet Python",
+          "txtjet-python"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "txtjet",
+        "scopeName": "text.txtjet",
+        "path": "./syntaxes/txtjet.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java"
+        }
+      },
+      {
+        "language": "txtjet-java",
+        "scopeName": "source.txtjet.java",
+        "path": "./syntaxes/txtjet-java.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java"
+        }
+      },
+      {
+        "language": "txtjet-html",
+        "scopeName": "text.txtjet.html",
+        "path": "./syntaxes/txtjet-html.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java",
+          "text.html.basic": "html"
+        }
+      },
+      {
+        "language": "txtjet-xml",
+        "scopeName": "text.txtjet.xml",
+        "path": "./syntaxes/txtjet-xml.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java",
+          "text.xml": "xml"
+        }
+      },
+      {
+        "language": "txtjet-c",
+        "scopeName": "source.txtjet.c",
+        "path": "./syntaxes/txtjet-c.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java",
+          "source.c": "c"
+        }
+      },
+      {
+        "language": "txtjet-python",
+        "scopeName": "source.txtjet.python",
+        "path": "./syntaxes/txtjet-python.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java",
+          "source.python": "python"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "txtjet",
+        "path": "./snippets/txtjet.code-snippets"
+      },
+      {
+        "language": "txtjet-java",
+        "path": "./snippets/txtjet.code-snippets"
+      },
+      {
+        "language": "txtjet-html",
+        "path": "./snippets/txtjet.code-snippets"
+      },
+      {
+        "language": "txtjet-xml",
+        "path": "./snippets/txtjet.code-snippets"
+      },
+      {
+        "language": "txtjet-c",
+        "path": "./snippets/txtjet.code-snippets"
+      },
+      {
+        "language": "txtjet-python",
+        "path": "./snippets/txtjet.code-snippets"
+      }
+    ]
+  },
+  "scripts": {
+    "package": "npx @vscode/vsce package"
+  }
+}

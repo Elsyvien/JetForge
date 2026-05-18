@@ -1,0 +1,11 @@
+.git/**
+.gitignore
+GOAL.md
+.vscode-test/**
+node_modules/**
+example.txt
+example.txtjet.txt
+private-examples/**
+*.vsix
+*.log
+.DS_Store

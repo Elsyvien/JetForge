@@ -1,0 +1,136 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TxtJet C",
+  "scopeName": "source.txtjet.c",
+  "patterns": [
+    {
+      "include": "#txtjet-template"
+    },
+    {
+      "include": "source.c"
+    }
+  ],
+  "repository": {
+    "txtjet-template": {
+      "patterns": [
+        {
+          "include": "#directive"
+        },
+        {
+          "include": "#expression"
+        },
+        {
+          "include": "#declaration"
+        },
+        {
+          "include": "#scriptlet"
+        }
+      ]
+    },
+    "directive": {
+      "name": "meta.directive.txtjet",
+      "begin": "(<%@)\\s*([A-Za-z_][\\w.-]*)?",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.begin.txtjet"
+        },
+        "2": {
+          "name": "keyword.control.directive.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.end.txtjet"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#directive-attribute"
+        },
+        {
+          "include": "#directive-string"
+        }
+      ]
+    },
+    "expression": {
+      "name": "meta.embedded.expression.java.txtjet",
+      "begin": "(<%=)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.begin.txtjet keyword.operator.expression.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.end.txtjet"
+        }
+      },
+      "contentName": "source.java",
+      "patterns": [
+        {
+          "include": "source.java"
+        }
+      ]
+    },
+    "declaration": {
+      "name": "meta.embedded.declaration.java.txtjet",
+      "begin": "(<%!)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.begin.txtjet keyword.operator.declaration.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.end.txtjet"
+        }
+      },
+      "contentName": "source.java",
+      "patterns": [
+        {
+          "include": "source.java"
+        }
+      ]
+    },
+    "scriptlet": {
+      "name": "meta.embedded.block.java.txtjet",
+      "begin": "(<%)",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.begin.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.section.embedded.end.txtjet"
+        }
+      },
+      "contentName": "source.java",
+      "patterns": [
+        {
+          "include": "source.java"
+        }
+      ]
+    },
+    "directive-attribute": {
+      "name": "entity.other.attribute-name.txtjet",
+      "match": "\\b[A-Za-z_][\\w.-]*(?=\\s*=)"
+    },
+    "directive-string": {
+      "name": "string.quoted.double.txtjet",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.txtjet",
+          "match": "\\\\."
+        }
+      ]
+    }
+  }
+}
+

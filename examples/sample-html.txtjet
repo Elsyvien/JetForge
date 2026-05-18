@@ -1,0 +1,15 @@
+<%@ jet package="example.txtjet.samples" class="HtmlSample" imports="java.util.List" %>
+<%
+    List<String> navItems = List.of("Home", "Docs", "Contact");
+%>
+<!doctype html>
+<html lang="en">
+  <body>
+    <nav>
+<% for (String item : navItems) { %>
+      <a href="/<%= item.toLowerCase() %>"><%= item %></a>
+<% } %>
+    </nav>
+  </body>
+</html>
+

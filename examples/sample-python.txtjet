@@ -1,0 +1,13 @@
+<%@ jet package="example.txtjet.samples" class="PythonSample" imports="java.util.List" %>
+<%
+    List<String> colors = List.of("red", "green", "blue");
+%>
+from enum import Enum
+
+class GeneratedColor(Enum):
+<% for (String color : colors) { %>
+    <%= color.toUpperCase() %> = "<%= color %>"
+<% } %>
+
+DEFAULT_COLOR = "<%= colors.get(0) %>"
+

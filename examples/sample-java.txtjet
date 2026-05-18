@@ -1,0 +1,18 @@
+<%@ jet package="example.txtjet.samples" class="JavaSample" imports="java.util.List" %>
+<%
+    List<String> fields = List.of("id", "name", "active");
+%>
+package generated.sample;
+
+public class GeneratedRecord {
+<% for (String field : fields) { %>
+    private String <%= field %>;
+<% } %>
+
+<%!
+    private String capitalize(String value) {
+        return value.substring(0, 1).toUpperCase() + value.substring(1);
+    }
+%>
+}
+

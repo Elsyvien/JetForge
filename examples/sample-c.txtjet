@@ -1,0 +1,15 @@
+<%@ jet package="example.txtjet.samples" class="CSample" imports="java.util.List" %>
+<%
+    List<String> names = List.of("ready", "error", "busy");
+%>
+#ifndef GENERATED_STATUS_H
+#define GENERATED_STATUS_H
+
+typedef enum generated_status_e {
+<% for (String name : names) { %>
+    GENERATED_STATUS_<%= name.toUpperCase() %>,
+<% } %>
+} generated_status_t;
+
+#endif
+

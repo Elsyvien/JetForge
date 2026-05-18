@@ -1,0 +1,13 @@
+# Dependencies and local tooling
+node_modules/
+.vscode-test/
+
+# Local packaging output is committed intentionally only when selected.
+# Keep private/reference files out of Git.
+example.txt
+example.txtjet.txt
+private-examples/
+
+# OS/editor noise
+.DS_Store
+*.log
