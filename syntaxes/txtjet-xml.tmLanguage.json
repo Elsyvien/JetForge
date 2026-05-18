@@ -50,6 +50,9 @@
         },
         {
           "include": "#directive-string"
+        },
+        {
+          "include": "#directive-single-string"
         }
       ]
     },
@@ -124,6 +127,17 @@
       "name": "string.quoted.double.txtjet",
       "begin": "\"",
       "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.txtjet",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "directive-single-string": {
+      "name": "string.quoted.single.txtjet",
+      "begin": "'",
+      "end": "'",
       "patterns": [
         {
           "name": "constant.character.escape.txtjet",

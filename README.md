@@ -27,7 +27,7 @@ npm run package
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.2.vsix
+code --install-extension txtjet-syntax-0.0.3.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -65,7 +65,7 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
-Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. Auto Alpha checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
+Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Alpha checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
 
 You can rerun detection manually with the command:
 
@@ -95,6 +95,8 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - unterminated quoted strings inside directives
 
 Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks.
+
+Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
 
 ## Formatting Helpers
 

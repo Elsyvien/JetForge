@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -312,7 +312,7 @@
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/scanner.test.js && node out/extensionSupport.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/codeActions.test.js",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package"
   },

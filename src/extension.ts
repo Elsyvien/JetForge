@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, shouldOfferMarkerCompletions } from "./extensionSupport";
 import { scanTxtJetIssues, TxtJetIssue } from "./scanner";
@@ -52,7 +53,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const picked = await vscode.window.showQuickPick(
-        languageQuickPickItems(editor.document),
+        languageQuickPickItems(context, editor.document),
         {
           title: "Select generated output mode",
           placeHolder: "Choose the generated output language. Embedded Java is always highlighted."
@@ -97,7 +98,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.clearLanguage.all", async () => {
       await context.workspaceState.update(MODE_STORAGE_KEY, {});
-      updateStatusBar(statusBar, vscode.window.activeTextEditor?.document);
+      updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
     })
   );
 
@@ -115,6 +116,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(registerCompletionProvider());
+  context.subscriptions.push(registerCodeActionProvider());
 
   for (const document of vscode.workspace.textDocuments) {
     void applyDetectedLanguage(context, document, false, statusBar);
@@ -122,12 +124,12 @@ export function activate(context: vscode.ExtensionContext): void {
   }
 
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor((editor) => updateStatusBar(statusBar, editor?.document))
+    vscode.window.onDidChangeActiveTextEditor((editor) => updateStatusBar(statusBar, editor?.document, context))
   );
   context.subscriptions.push(
-    vscode.workspace.onDidCloseTextDocument(() => updateStatusBar(statusBar, vscode.window.activeTextEditor?.document))
+    vscode.workspace.onDidCloseTextDocument(() => updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context))
   );
-  updateStatusBar(statusBar, vscode.window.activeTextEditor?.document);
+  updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
 }
 
 export function deactivate(): void {
@@ -195,23 +197,34 @@ async function setLanguage(
   }
 
   if (document.languageId === languageId) {
-    updateStatusBar(statusBar, document);
+    updateStatusBar(statusBar, document, context);
     return;
   }
 
   const updatedDocument = await vscode.languages.setTextDocumentLanguage(document, languageId);
-  updateStatusBar(statusBar, updatedDocument);
+  updateStatusBar(statusBar, updatedDocument, context);
 }
 
-function updateStatusBar(statusBar: vscode.StatusBarItem, document?: vscode.TextDocument): void {
+function updateStatusBar(
+  statusBar: vscode.StatusBarItem,
+  document?: vscode.TextDocument,
+  context?: vscode.ExtensionContext
+): void {
   if (!document || !isTxtJetFile(document)) {
     statusBar.hide();
     return;
   }
 
   const current = LANGUAGE_OPTIONS.find((option) => option.languageId === document.languageId);
+  const storedLanguage = context ? getStoredLanguage(context, document) : undefined;
+  const persistenceLabel = storedLanguage ? "remembered manual mode" : "auto/default mode";
   statusBar.text = current ? `TxtJet: ${current.shortLabel}` : "TxtJet: Select output";
-  statusBar.tooltip = "Select generated output mode. Embedded Java is always highlighted.";
+  statusBar.tooltip = [
+    "Select generated output mode.",
+    `Current language id: ${document.languageId}.`,
+    `Persistence: ${persistenceLabel}.`,
+    "Embedded Java is always highlighted."
+  ].join(" ");
   statusBar.show();
 }
 
@@ -233,6 +246,56 @@ function issueToDiagnostic(document: vscode.TextDocument, issue: TxtJetIssue): v
   diagnostic.source = DIAGNOSTIC_SOURCE;
   diagnostic.code = issue.code;
   return diagnostic;
+}
+
+function registerCodeActionProvider(): vscode.Disposable {
+  return vscode.languages.registerCodeActionsProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      provideCodeActions(document, range, context) {
+        const text = document.getText();
+        return context.diagnostics
+          .filter((diagnostic) => diagnostic.source === DIAGNOSTIC_SOURCE && diagnostic.range.intersection(range))
+          .map((diagnostic) => diagnosticToCodeAction(document, text, diagnostic))
+          .filter((action): action is vscode.CodeAction => Boolean(action));
+      }
+    },
+    {
+      providedCodeActionKinds: [vscode.CodeActionKind.QuickFix]
+    }
+  );
+}
+
+function diagnosticToCodeAction(
+  document: vscode.TextDocument,
+  text: string,
+  diagnostic: vscode.Diagnostic
+): vscode.CodeAction | undefined {
+  if (typeof diagnostic.code !== "string") {
+    return undefined;
+  }
+
+  const issue = {
+    code: diagnostic.code as TxtJetIssue["code"],
+    start: document.offsetAt(diagnostic.range.start),
+    end: document.offsetAt(diagnostic.range.end)
+  };
+  const fix = buildTxtJetCodeActionEdit(text, issue);
+  if (!fix) {
+    return undefined;
+  }
+
+  const action = new vscode.CodeAction(fix.title, vscode.CodeActionKind.QuickFix);
+  action.diagnostics = [diagnostic];
+  action.isPreferred = true;
+  const edit = new vscode.WorkspaceEdit();
+  edit.replace(
+    document.uri,
+    new vscode.Range(document.positionAt(fix.edit.start), document.positionAt(fix.edit.end)),
+    fix.edit.newText
+  );
+  action.edit = edit;
+  return action;
 }
 
 function registerCompletionProvider(): vscode.Disposable {
@@ -324,21 +387,32 @@ function markerCompletionRange(document: vscode.TextDocument, position: vscode.P
   return new vscode.Range(position.translate(0, -1), position);
 }
 
-function languageQuickPickItems(document: vscode.TextDocument): Array<vscode.QuickPickItem & { languageId: TxtJetTargetLanguage | "auto" }> {
+function languageQuickPickItems(
+  context: vscode.ExtensionContext,
+  document: vscode.TextDocument
+): Array<vscode.QuickPickItem & { languageId: TxtJetTargetLanguage | "auto" }> {
   const detected = detectLanguage(document);
+  const storedLanguage = getStoredLanguage(context, document);
   return [
     {
       label: "Auto Detect Generated Output",
       description: detected === "txtjet" ? "No strong target language detected" : labelForLanguage(detected),
-      detail: "Clears the remembered mode for this file and applies detection once.",
+      detail: storedLanguage
+        ? "Clears the remembered manual mode and applies detection once."
+        : "Applies detection once without remembering the result.",
       languageId: "auto"
     },
     ...LANGUAGE_OPTIONS.map((option) => ({
       label: option.label,
-      description: option.languageId === detected ? "Detected for this file" : option.description,
+      description: option.languageId === storedLanguage
+        ? "Remembered for this file"
+        : option.languageId === detected
+          ? "Detected for this file"
+          : option.description,
       detail: option.languageId === "txtjet-java"
         ? "This is for generated Java output. Template Java blocks are highlighted in every mode."
         : undefined,
+      picked: option.languageId === document.languageId,
       languageId: option.languageId
     }))
   ];

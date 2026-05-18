@@ -9,6 +9,8 @@ assert.equal(scanTxtJetIssues("<%@ %>").at(0)?.code, "empty-directive");
 assert.equal(scanTxtJetIssues("<%@ 123bad value=\"x\" %>").at(0)?.code, "malformed-directive");
 assert.equal(scanTxtJetIssues("<%@ jet package=\"example class=\"Demo\" %>").at(0)?.code, "unterminated-directive-string");
 assert.deepEqual(scanTxtJetIssues("<%@ jet package=\"example\" class=\"Demo\" %>"), []);
+assert.deepEqual(scanTxtJetIssues("<%@ jet package='example' class='Demo' %>"), []);
+assert.equal(scanTxtJetIssues("<%@ jet package='example %>").at(0)?.code, "unterminated-directive-string");
 assert.deepEqual(scanTxtJetIssues(fixture("valid")).map((issue) => issue.code), []);
 assert.deepEqual(scanTxtJetIssues(fixture("malformed")).map((issue) => issue.code), [
   "unexpected-close",

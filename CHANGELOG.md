@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.3
+
+- Added Quick Fix actions for common TxtJet diagnostics.
+- Clarified language mode persistence in the selector and status bar tooltip.
+- Added single-quoted directive string highlighting.
+- Updated tests and packaging metadata for the `0.0.3` Marketplace upload.
+
 ## 0.0.2
 
 - Clarified generated output language modes in the language selector and commands.
