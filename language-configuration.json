@@ -74,6 +74,23 @@
       "{",
       "}"
     ]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^.*<%\\s*(?:if|for|while|switch|try|else\\b|else\\s+if)\\b.*\\{\\s*%>\\s*$",
+    "decreaseIndentPattern": "^\\s*<%\\s*}\\s*(?:else\\s*\\{)?\\s*%>\\s*$"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "^.*<%\\s*(?:if|for|while|switch|try|else\\b|else\\s+if)\\b.*\\{\\s*%>\\s*$",
+      "action": {
+        "indent": "indent"
+      }
+    },
+    {
+      "beforeText": "^\\s*<%\\s*}\\s*%>\\s*$",
+      "action": {
+        "indent": "outdent"
+      }
+    }
   ]
 }
-

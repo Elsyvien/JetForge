@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "TxtJet Embedded Expression Injection",
   "scopeName": "text.txtjet.embedded-expression.injection",
-  "injectionSelector": "L:(source.txtjet.java, text.txtjet.html, text.txtjet.xml, source.txtjet.c, source.txtjet.python) string.quoted",
+  "injectionSelector": "L:(source.txtjet.java, text.txtjet.html, text.txtjet.xml, source.txtjet.c, source.txtjet.python) (string.quoted, meta.preprocessor, comment)",
   "patterns": [
     {
       "name": "meta.embedded.expression.java.txtjet",

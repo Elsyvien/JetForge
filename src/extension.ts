@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
+import { scanTxtJetIssues, TxtJetIssue } from "./scanner";
 
 const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet",
@@ -21,11 +22,14 @@ const LANGUAGE_OPTIONS: Array<{ label: string; description: string; languageId: 
 
 const MODE_STORAGE_KEY = "txtjet.documentLanguageModes";
 const CONFIG_SECTION = "txtjet";
+const DIAGNOSTIC_SOURCE = "txtjet";
 
 export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
   context.subscriptions.push(statusBar);
+  const diagnostics = vscode.languages.createDiagnosticCollection("txtjet");
+  context.subscriptions.push(diagnostics);
 
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.detectTargetLanguage", async () => {
@@ -79,11 +83,21 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
       void applyDetectedLanguage(context, document, false, statusBar);
+      updateDiagnostics(diagnostics, document);
     })
   );
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((event) => updateDiagnostics(diagnostics, event.document))
+  );
+  context.subscriptions.push(
+    vscode.workspace.onDidCloseTextDocument((document) => diagnostics.delete(document.uri))
+  );
+
+  context.subscriptions.push(registerCompletionProvider());
 
   for (const document of vscode.workspace.textDocuments) {
     void applyDetectedLanguage(context, document, false, statusBar);
+    updateDiagnostics(diagnostics, document);
   }
 
   context.subscriptions.push(
@@ -179,6 +193,117 @@ function updateStatusBar(statusBar: vscode.StatusBarItem, document?: vscode.Text
   statusBar.text = current ? `TxtJet: ${current.label.replace("TxtJet ", "")}` : "TxtJet: Select";
   statusBar.tooltip = "Select TxtJet target language";
   statusBar.show();
+}
+
+function updateDiagnostics(collection: vscode.DiagnosticCollection, document: vscode.TextDocument): void {
+  if (!isTxtJetFile(document)) {
+    return;
+  }
+
+  const diagnostics = scanTxtJetIssues(document.getText()).map((issue) => issueToDiagnostic(document, issue));
+  collection.set(document.uri, diagnostics);
+}
+
+function issueToDiagnostic(document: vscode.TextDocument, issue: TxtJetIssue): vscode.Diagnostic {
+  const diagnostic = new vscode.Diagnostic(
+    new vscode.Range(document.positionAt(issue.start), document.positionAt(issue.end)),
+    issue.message,
+    vscode.DiagnosticSeverity.Warning
+  );
+  diagnostic.source = DIAGNOSTIC_SOURCE;
+  diagnostic.code = issue.code;
+  return diagnostic;
+}
+
+function registerCompletionProvider(): vscode.Disposable {
+  return vscode.languages.registerCompletionItemProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      provideCompletionItems(document, position) {
+        if (isInsideDirective(document, position)) {
+          return directiveCompletions();
+        }
+
+        if (isInsideTemplateBlock(document, position)) {
+          return [];
+        }
+
+        return markerCompletions(markerCompletionRange(document, position));
+      }
+    },
+    "<",
+    "@",
+    " "
+  );
+}
+
+function markerCompletions(range: vscode.Range | undefined): vscode.CompletionItem[] {
+  return [
+    snippet("<%", "TxtJet scriptlet", "<%\n\t$0\n%>", range),
+    snippet("<%=", "TxtJet expression", "<%= $1 %>", range),
+    snippet("<%!", "TxtJet declaration", "<%!\n\t$0\n%>", range),
+    snippet("<%@", "TxtJet directive", "<%@ $1 %>", range)
+  ];
+}
+
+function directiveCompletions(): vscode.CompletionItem[] {
+  return [
+    keyword("jet", "TxtJet directive"),
+    keyword("include", "Include directive"),
+    attribute("package"),
+    attribute("class"),
+    attribute("imports"),
+    attribute("file")
+  ];
+}
+
+function snippet(label: string, detail: string, insertText: string, range?: vscode.Range): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Snippet);
+  item.detail = detail;
+  item.insertText = new vscode.SnippetString(insertText);
+  item.range = range;
+  return item;
+}
+
+function keyword(label: string, detail: string): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Keyword);
+  item.detail = detail;
+  return item;
+}
+
+function attribute(label: string): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Property);
+  item.detail = "TxtJet directive attribute";
+  item.insertText = new vscode.SnippetString(`${label}="$1"`);
+  return item;
+}
+
+function isInsideDirective(document: vscode.TextDocument, position: vscode.Position): boolean {
+  const offset = document.offsetAt(position);
+  const textBefore = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
+  const directiveOpen = textBefore.lastIndexOf("<%@");
+  const lastClose = textBefore.lastIndexOf("%>");
+  return directiveOpen > lastClose;
+}
+
+function isInsideTemplateBlock(document: vscode.TextDocument, position: vscode.Position): boolean {
+  const textBefore = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
+  const blockOpen = Math.max(
+    textBefore.lastIndexOf("<%@"),
+    textBefore.lastIndexOf("<%="),
+    textBefore.lastIndexOf("<%!"),
+    textBefore.lastIndexOf("<%")
+  );
+  const lastClose = textBefore.lastIndexOf("%>");
+  return blockOpen > lastClose;
+}
+
+function markerCompletionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range | undefined {
+  const linePrefix = document.lineAt(position.line).text.slice(0, position.character);
+  if (!linePrefix.endsWith("<")) {
+    return undefined;
+  }
+  return new vscode.Range(position.translate(0, -1), position);
 }
 
 function detectLanguage(document: vscode.TextDocument): TxtJetTargetLanguage {

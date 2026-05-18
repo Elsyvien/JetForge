@@ -4,8 +4,7 @@
   "description": "Syntax highlighting and basic editor support for .txtjet Java emitter templates.",
   "version": "0.0.1",
   "publisher": "internal",
-  "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "icon": "assets/icon.png",
   "main": "./out/extension.js",
   "repository": {
@@ -278,7 +277,7 @@
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/scanner.test.js",
     "vscode:prepublish": "npm run compile",
     "package": "npx @vscode/vsce package"
   },

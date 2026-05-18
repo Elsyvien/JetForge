@@ -1,6 +1,6 @@
 # TxtJet Syntax
 
-Private/internal VSCode extension for `.txtjet` Java emitter template files.
+VSCode extension for `.txtjet` Java emitter template files.
 
 ## Features
 
@@ -12,7 +12,7 @@ Private/internal VSCode extension for `.txtjet` Java emitter template files.
   - `<%! ... %>`
   - `<%@ ... %>`
 - Java highlighting inside embedded template blocks.
-- Basic brackets, pairs, comments, and snippets.
+- Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
 
 ## Install Locally
@@ -78,13 +78,38 @@ Snippets are available in all TxtJet modes:
 - `if`
 - `for`
 
+## Diagnostics And Completions
+
+The extension reports lightweight TxtJet syntax diagnostics:
+
+- unclosed `<% ... %>` blocks
+- unexpected `%>` delimiters
+- malformed or empty directives
+- unterminated quoted strings inside directives
+
+Completions are available for template markers, directive names, and common directive attributes.
+
+## Formatting Helpers
+
+TxtJet modes include conservative indentation rules for common control blocks such as:
+
+```jsp
+<% if (condition) { %>
+    ...
+<% } %>
+```
+
 ## Development Notes
 
-Version 1 does not provide Java semantic analysis, template-context IntelliSense, or diagnostics. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+Version 1 does not provide Java semantic analysis or template-context IntelliSense. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
 
 Settings:
 
 - `txtjet.autoDetect.enabled`
 - `txtjet.defaultTargetLanguage`
 
-Private development examples must stay untracked and out of the package.
+Development-only private examples must stay untracked and out of the package.
+
+## License
+
+MIT

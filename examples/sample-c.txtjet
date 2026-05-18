@@ -11,5 +11,12 @@ typedef enum generated_status_e {
 <% } %>
 } generated_status_t;
 
-#endif
+#define GENERATED_STATUS_COUNT <%= names.size() %>
 
+typedef struct generated_packet_s {
+<% for (String name : names) { %>
+    unsigned int <%= name %>_count;
+<% } %>
+} generated_packet_t;
+
+#endif

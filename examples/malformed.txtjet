@@ -8,3 +8,6 @@
 Unexpected closing marker below is useful for future diagnostics:
 %>
 
+<%@ %>
+<%@ 123bad value="x" %>
+<%@ include file="missing-close %>
