@@ -3,7 +3,7 @@
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
   "version": "0.0.1",
-  "publisher": "max-staneker",
+  "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
   "icon": "assets/icon.png",
