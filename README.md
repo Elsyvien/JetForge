@@ -27,7 +27,7 @@ npm run package
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.3.vsix
+code --install-extension txtjet-syntax-0.0.4.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -47,6 +47,7 @@ If the generated outer content should be highlighted as a specific language, use
 - `TxtJet Python Output`
 
 These modes describe the generated output language outside template blocks. Embedded Java inside `<% ... %>`, `<%= ... %>`, `<%! ... %>`, and `<%@ ... %>` is highlighted in every TxtJet mode.
+Template delimiters are also injected into common outer-language strings, comments, and preprocessor regions so generated C/XML/HTML/Python/Java text does not hide TxtJet blocks.
 
 Auto Alpha can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
 

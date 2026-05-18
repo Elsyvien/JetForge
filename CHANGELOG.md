@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.4
+
+- Improved template delimiter highlighting inside target-language strings, comments, and preprocessor regions.
+- Expanded embedded template injection coverage from expressions to directives, declarations, and scriptlets.
+- Added grammar regression checks for the embedded template injection grammar.
+
 ## 0.0.3
 
 - Added Quick Fix actions for common TxtJet diagnostics.

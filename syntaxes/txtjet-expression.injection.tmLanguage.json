@@ -1,15 +1,103 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "TxtJet Embedded Expression Injection",
+  "name": "TxtJet Embedded Template Injection",
   "scopeName": "text.txtjet.embedded-expression.injection",
   "injectionSelector": "L:(source.txtjet.java, text.txtjet.html, text.txtjet.xml, source.txtjet.c, source.txtjet.python) (string.quoted, meta.preprocessor, comment)",
   "patterns": [
+    {
+      "name": "meta.directive.txtjet",
+      "begin": "(<%@)\\s*([A-Za-z_][\\w.-]*)?",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.template.begin.txtjet"
+        },
+        "2": {
+          "name": "keyword.control.directive.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.template.end.txtjet"
+        }
+      },
+      "patterns": [
+        {
+          "name": "entity.other.attribute-name.txtjet",
+          "match": "\\b[A-Za-z_][\\w.-]*(?=\\s*=)"
+        },
+        {
+          "name": "string.quoted.double.txtjet",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.txtjet",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.txtjet",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.txtjet",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "meta.embedded.expression.java.txtjet",
       "begin": "(<%=)",
       "beginCaptures": {
         "1": {
           "name": "keyword.control.template.expression.begin.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.template.end.txtjet"
+        }
+      },
+      "contentName": "source.java",
+      "patterns": [
+        {
+          "include": "source.java"
+        }
+      ]
+    },
+    {
+      "name": "meta.embedded.declaration.java.txtjet",
+      "begin": "(<%!)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.template.declaration.begin.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.template.end.txtjet"
+        }
+      },
+      "contentName": "source.java",
+      "patterns": [
+        {
+          "include": "source.java"
+        }
+      ]
+    },
+    {
+      "name": "meta.embedded.block.java.txtjet",
+      "begin": "(<%)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.template.begin.txtjet"
         }
       },
       "end": "(%>)",
