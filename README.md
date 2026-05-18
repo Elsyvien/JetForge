@@ -58,6 +58,8 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
+Manual selections are remembered for the file in the current workspace. Auto Alpha also checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
+
 You can rerun detection manually with the command:
 
 ```txt
@@ -79,5 +81,10 @@ Snippets are available in all TxtJet modes:
 ## Development Notes
 
 Version 1 does not provide Java semantic analysis, template-context IntelliSense, or diagnostics. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+
+Settings:
+
+- `txtjet.autoDetect.enabled`
+- `txtjet.defaultTargetLanguage`
 
 Private development examples must stay untracked and out of the package.

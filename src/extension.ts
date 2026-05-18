@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { detectTargetLanguage, TxtJetTargetLanguage } from "./detector";
+import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 
 const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet",
@@ -19,6 +19,9 @@ const LANGUAGE_OPTIONS: Array<{ label: string; description: string; languageId: 
   { label: "TxtJet Python", description: "Python output", languageId: "txtjet-python", command: "txtjet.setLanguage.python" }
 ];
 
+const MODE_STORAGE_KEY = "txtjet.documentLanguageModes";
+const CONFIG_SECTION = "txtjet";
+
 export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
@@ -31,7 +34,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await applyDetectedLanguage(editor.document, true);
+      await applyDetectedLanguage(context, editor.document, true, statusBar);
     })
   );
 
@@ -55,7 +58,7 @@ export function activate(context: vscode.ExtensionContext): void {
       );
 
       if (picked) {
-        await setLanguage(editor.document, picked.languageId);
+        await setLanguage(context, editor.document, picked.languageId, statusBar, true);
       }
     })
   );
@@ -68,19 +71,19 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        await setLanguage(editor.document, option.languageId);
+        await setLanguage(context, editor.document, option.languageId, statusBar, true);
       })
     );
   }
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
-      void applyDetectedLanguage(document, false);
+      void applyDetectedLanguage(context, document, false, statusBar);
     })
   );
 
   for (const document of vscode.workspace.textDocuments) {
-    void applyDetectedLanguage(document, false);
+    void applyDetectedLanguage(context, document, false, statusBar);
   }
 
   context.subscriptions.push(
@@ -96,8 +99,19 @@ export function deactivate(): void {
   return;
 }
 
-async function applyDetectedLanguage(document: vscode.TextDocument, allowManualModes: boolean): Promise<void> {
+async function applyDetectedLanguage(
+  context: vscode.ExtensionContext,
+  document: vscode.TextDocument,
+  allowManualModes: boolean,
+  statusBar: vscode.StatusBarItem
+): Promise<void> {
   if (!isTxtJetDocument(document)) {
+    return;
+  }
+
+  const storedLanguage = getStoredLanguage(context, document);
+  if (storedLanguage && !allowManualModes) {
+    await setLanguage(context, document, storedLanguage, statusBar, false);
     return;
   }
 
@@ -105,7 +119,16 @@ async function applyDetectedLanguage(document: vscode.TextDocument, allowManualM
     return;
   }
 
-  const target = detectTargetLanguage(document.getText());
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  if (!allowManualModes && !config.get<boolean>("autoDetect.enabled", true)) {
+    const preferred = config.get<TxtJetTargetLanguage>("defaultTargetLanguage", "txtjet");
+    if (preferred !== "txtjet") {
+      await setLanguage(context, document, preferred, statusBar, false);
+    }
+    return;
+  }
+
+  const target = detectLanguage(document);
   if (target === document.languageId) {
     return;
   }
@@ -114,7 +137,7 @@ async function applyDetectedLanguage(document: vscode.TextDocument, allowManualM
     return;
   }
 
-  await setLanguage(document, target);
+  await setLanguage(context, document, target, statusBar, allowManualModes);
 }
 
 function isTxtJetDocument(document: vscode.TextDocument): boolean {
@@ -126,12 +149,24 @@ function isTxtJetFile(document: vscode.TextDocument): boolean {
     && document.fileName.endsWith(".txtjet");
 }
 
-async function setLanguage(document: vscode.TextDocument, languageId: TxtJetTargetLanguage): Promise<void> {
+async function setLanguage(
+  context: vscode.ExtensionContext,
+  document: vscode.TextDocument,
+  languageId: TxtJetTargetLanguage,
+  statusBar: vscode.StatusBarItem,
+  persist: boolean
+): Promise<void> {
+  if (persist) {
+    await storeLanguage(context, document, languageId);
+  }
+
   if (document.languageId === languageId) {
+    updateStatusBar(statusBar, document);
     return;
   }
 
   await vscode.languages.setTextDocumentLanguage(document, languageId);
+  updateStatusBar(statusBar, document);
 }
 
 function updateStatusBar(statusBar: vscode.StatusBarItem, document?: vscode.TextDocument): void {
@@ -144,4 +179,30 @@ function updateStatusBar(statusBar: vscode.StatusBarItem, document?: vscode.Text
   statusBar.text = current ? `TxtJet: ${current.label.replace("TxtJet ", "")}` : "TxtJet: Select";
   statusBar.tooltip = "Select TxtJet target language";
   statusBar.show();
+}
+
+function detectLanguage(document: vscode.TextDocument): TxtJetTargetLanguage {
+  const byFileName = detectTargetLanguageFromFileName(document.fileName);
+  if (byFileName !== "txtjet") {
+    return byFileName;
+  }
+  return detectTargetLanguage(document.getText());
+}
+
+function getStoredLanguage(context: vscode.ExtensionContext, document: vscode.TextDocument): TxtJetTargetLanguage | undefined {
+  const stored = context.workspaceState.get<Record<string, TxtJetTargetLanguage>>(MODE_STORAGE_KEY, {});
+  const languageId = stored[document.uri.toString()];
+  return TXTJET_LANGUAGES.has(languageId) ? languageId : undefined;
+}
+
+async function storeLanguage(
+  context: vscode.ExtensionContext,
+  document: vscode.TextDocument,
+  languageId: TxtJetTargetLanguage
+): Promise<void> {
+  const stored = context.workspaceState.get<Record<string, TxtJetTargetLanguage>>(MODE_STORAGE_KEY, {});
+  await context.workspaceState.update(MODE_STORAGE_KEY, {
+    ...stored,
+    [document.uri.toString()]: languageId
+  });
 }

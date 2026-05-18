@@ -205,7 +205,66 @@
         "command": "txtjet.setLanguage.python",
         "title": "TxtJet: Use Python Mode"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "TxtJet",
+      "properties": {
+        "txtjet.autoDetect.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically infer and switch the target language for files opened in the default TxtJet mode."
+        },
+        "txtjet.defaultTargetLanguage": {
+          "type": "string",
+          "default": "txtjet",
+          "enum": [
+            "txtjet",
+            "txtjet-java",
+            "txtjet-html",
+            "txtjet-xml",
+            "txtjet-c",
+            "txtjet-python"
+          ],
+          "description": "Fallback TxtJet target language used when Auto Detect is disabled."
+        }
+      }
+    },
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "txtjet.selectTargetLanguage",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.detectTargetLanguage",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.setLanguage.default",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.setLanguage.java",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.setLanguage.html",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.setLanguage.xml",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.setLanguage.c",
+          "when": "resourceExtname == .txtjet"
+        },
+        {
+          "command": "txtjet.setLanguage.python",
+          "when": "resourceExtname == .txtjet"
+        }
+      ]
+    }
   },
   "activationEvents": [
     "onLanguage:txtjet",

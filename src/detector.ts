@@ -10,6 +10,26 @@ type TargetScore = Exclude<TxtJetTargetLanguage, "txtjet">;
 
 const TEMPLATE_BLOCK = /<%[@=!]?[\s\S]*?%>/g;
 
+export function detectTargetLanguageFromFileName(fileName: string): TxtJetTargetLanguage {
+  const normalized = fileName.toLowerCase();
+  if (matchesHint(normalized, ["c", "h", "hpp", "cc", "cpp", "cxx"])) {
+    return "txtjet-c";
+  }
+  if (matchesHint(normalized, ["py", "python"])) {
+    return "txtjet-python";
+  }
+  if (matchesHint(normalized, ["xml", "xmi", "xsd", "wsdl"])) {
+    return "txtjet-xml";
+  }
+  if (matchesHint(normalized, ["html", "htm"])) {
+    return "txtjet-html";
+  }
+  if (matchesHint(normalized, ["java"])) {
+    return "txtjet-java";
+  }
+  return "txtjet";
+}
+
 export function stripTemplateBlocks(text: string): string {
   return text.replace(TEMPLATE_BLOCK, " ");
 }
@@ -72,3 +92,10 @@ function includes(text: string, needle: string): number {
   return text.includes(needle) ? 1 : 0;
 }
 
+function matchesHint(fileName: string, hints: string[]): boolean {
+  return hints.some((hint) =>
+    fileName.endsWith(`.${hint}.txtjet`)
+    || fileName.endsWith(`-${hint}.txtjet`)
+    || fileName.endsWith(`_${hint}.txtjet`)
+  );
+}
