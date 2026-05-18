@@ -21,13 +21,13 @@ VSCode extension for `.txtjet` Java emitter template files.
 Package the extension:
 
 ```bash
-npx @vscode/vsce package
+npm run package
 ```
 
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.1.vsix
+code --install-extension txtjet-syntax-0.0.2.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -48,8 +48,7 @@ If the generated outer content should be highlighted as a specific language, use
 
 These modes describe the generated output language outside template blocks. Embedded Java inside `<% ... %>`, `<%= ... %>`, `<%! ... %>`, and `<%@ ... %>` is highlighted in every TxtJet mode.
 
-The extension does not auto-detect the generated target language.
-Auto Alpha can also infer the target language from content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
+Auto Alpha can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
 
 If the VSCode language selector is inconvenient, use the TxtJet commands:
 
@@ -66,12 +65,12 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
-Manual selections are remembered for the file in the current workspace. Auto Alpha also checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
+Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. Auto Alpha checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
 
 You can rerun detection manually with the command:
 
 ```txt
-TxtJet: Detect Target Language
+TxtJet: Auto Detect Generated Output Mode
 ```
 
 ## Snippets
@@ -95,7 +94,7 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - malformed or empty directives
 - unterminated quoted strings inside directives
 
-Completions are available for template markers, directive names, and common directive attributes.
+Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks.
 
 ## Formatting Helpers
 

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
+import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, shouldOfferMarkerCompletions } from "./extensionSupport";
 import { scanTxtJetIssues, TxtJetIssue } from "./scanner";
 
 const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
@@ -38,6 +39,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
+      await clearStoredLanguage(context, editor.document);
       await applyDetectedLanguage(context, editor.document, true, statusBar);
     })
   );
@@ -170,7 +172,7 @@ async function applyDetectedLanguage(
     return;
   }
 
-  await setLanguage(context, document, target, statusBar, allowManualModes);
+  await setLanguage(context, document, target, statusBar, false);
 }
 
 function isTxtJetDocument(document: vscode.TextDocument): boolean {
@@ -178,8 +180,7 @@ function isTxtJetDocument(document: vscode.TextDocument): boolean {
 }
 
 function isTxtJetFile(document: vscode.TextDocument): boolean {
-  return document.uri.scheme === "file"
-    && document.fileName.endsWith(".txtjet");
+  return isTxtJetPath(document.uri.path) || isTxtJetPath(document.fileName);
 }
 
 async function setLanguage(
@@ -198,8 +199,8 @@ async function setLanguage(
     return;
   }
 
-  await vscode.languages.setTextDocumentLanguage(document, languageId);
-  updateStatusBar(statusBar, document);
+  const updatedDocument = await vscode.languages.setTextDocumentLanguage(document, languageId);
+  updateStatusBar(statusBar, updatedDocument);
 }
 
 function updateStatusBar(statusBar: vscode.StatusBarItem, document?: vscode.TextDocument): void {
@@ -247,12 +248,11 @@ function registerCompletionProvider(): vscode.Disposable {
           return [];
         }
 
-        return markerCompletions(markerCompletionRange(document, position));
+        const range = markerCompletionRange(document, position);
+        return range ? markerCompletions(range) : [];
       }
     },
-    "<",
-    "@",
-    " "
+    ...COMPLETION_TRIGGER_CHARACTERS
   );
 }
 
@@ -298,7 +298,6 @@ function attribute(label: string): vscode.CompletionItem {
 }
 
 function isInsideDirective(document: vscode.TextDocument, position: vscode.Position): boolean {
-  const offset = document.offsetAt(position);
   const textBefore = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
   const directiveOpen = textBefore.lastIndexOf("<%@");
   const lastClose = textBefore.lastIndexOf("%>");
@@ -319,7 +318,7 @@ function isInsideTemplateBlock(document: vscode.TextDocument, position: vscode.P
 
 function markerCompletionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range | undefined {
   const linePrefix = document.lineAt(position.line).text.slice(0, position.character);
-  if (!linePrefix.endsWith("<")) {
+  if (!shouldOfferMarkerCompletions(linePrefix)) {
     return undefined;
   }
   return new vscode.Range(position.translate(0, -1), position);
@@ -331,7 +330,7 @@ function languageQuickPickItems(document: vscode.TextDocument): Array<vscode.Qui
     {
       label: "Auto Detect Generated Output",
       description: detected === "txtjet" ? "No strong target language detected" : labelForLanguage(detected),
-      detail: "Clears the remembered mode for this file and uses detection.",
+      detail: "Clears the remembered mode for this file and applies detection once.",
       languageId: "auto"
     },
     ...LANGUAGE_OPTIONS.map((option) => ({
