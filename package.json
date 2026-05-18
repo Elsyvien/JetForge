@@ -176,11 +176,45 @@
       {
         "command": "txtjet.detectTargetLanguage",
         "title": "TxtJet: Detect Target Language"
+      },
+      {
+        "command": "txtjet.selectTargetLanguage",
+        "title": "TxtJet: Select Target Language"
+      },
+      {
+        "command": "txtjet.setLanguage.default",
+        "title": "TxtJet: Use Generic Mode"
+      },
+      {
+        "command": "txtjet.setLanguage.java",
+        "title": "TxtJet: Use Java Mode"
+      },
+      {
+        "command": "txtjet.setLanguage.html",
+        "title": "TxtJet: Use HTML Mode"
+      },
+      {
+        "command": "txtjet.setLanguage.xml",
+        "title": "TxtJet: Use XML Mode"
+      },
+      {
+        "command": "txtjet.setLanguage.c",
+        "title": "TxtJet: Use C Mode"
+      },
+      {
+        "command": "txtjet.setLanguage.python",
+        "title": "TxtJet: Use Python Mode"
       }
     ]
   },
   "activationEvents": [
     "onLanguage:txtjet",
+    "onLanguage:txtjet-java",
+    "onLanguage:txtjet-html",
+    "onLanguage:txtjet-xml",
+    "onLanguage:txtjet-c",
+    "onLanguage:txtjet-python",
+    "onCommand:txtjet.selectTargetLanguage",
     "onCommand:txtjet.detectTargetLanguage"
   ],
   "scripts": {
