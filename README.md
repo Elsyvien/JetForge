@@ -13,6 +13,7 @@ Private/internal VSCode extension for `.txtjet` Java emitter template files.
   - `<%@ ... %>`
 - Java highlighting inside embedded template blocks.
 - Basic brackets, pairs, comments, and snippets.
+- Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
 
 ## Install Locally
 
@@ -43,6 +44,13 @@ If the generated outer content should be highlighted as a specific language, use
 - `TxtJet Python`
 
 The extension does not auto-detect the generated target language.
+Auto Alpha can also infer the target language from content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
+
+You can rerun detection manually with the command:
+
+```txt
+TxtJet: Detect Target Language
+```
 
 ## Snippets
 
@@ -58,6 +66,6 @@ Snippets are available in all TxtJet modes:
 
 ## Development Notes
 
-Version 1 is syntax-only. It does not provide Java semantic analysis, template-context IntelliSense, diagnostics, or target-language detection.
+Version 1 does not provide Java semantic analysis, template-context IntelliSense, or diagnostics. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
 
 Private development examples must stay untracked and out of the package.

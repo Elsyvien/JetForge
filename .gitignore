@@ -1,6 +1,7 @@
 # Dependencies and local tooling
 node_modules/
 .vscode-test/
+out/
 
 # Local packaging output is committed intentionally only when selected.
 # Keep private/reference files out of Git.

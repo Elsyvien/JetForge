@@ -3,6 +3,11 @@
 GOAL.md
 .vscode-test/**
 node_modules/**
+src/**
+tsconfig.json
+package-lock.json
+out/**/*.map
+out/**/*.test.js
 example.txt
 example.txtjet
 example.txtjet.txt

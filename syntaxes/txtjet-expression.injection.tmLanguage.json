@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "TxtJet Embedded Expression Injection",
+  "scopeName": "text.txtjet.embedded-expression.injection",
+  "injectionSelector": "L:(source.txtjet.java, text.txtjet.html, text.txtjet.xml, source.txtjet.c, source.txtjet.python) string.quoted",
+  "patterns": [
+    {
+      "name": "meta.embedded.expression.java.txtjet",
+      "begin": "(<%=)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.template.expression.begin.txtjet"
+        }
+      },
+      "end": "(%>)",
+      "endCaptures": {
+        "1": {
+          "name": "keyword.control.template.end.txtjet"
+        }
+      },
+      "contentName": "source.java",
+      "patterns": [
+        {
+          "include": "source.java"
+        }
+      ]
+    }
+  ]
+}

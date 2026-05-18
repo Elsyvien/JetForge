@@ -5,21 +5,6 @@
   "patterns": [
     {
       "include": "#txtjet-template"
-    },
-    {
-      "include": "source.python"
-    },
-    {
-      "include": "source.c"
-    },
-    {
-      "include": "source.java"
-    },
-    {
-      "include": "text.html.basic"
-    },
-    {
-      "include": "text.xml"
     }
   ],
   "repository": {
@@ -44,7 +29,7 @@
       "begin": "(<%@)\\s*([A-Za-z_][\\w.-]*)?",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.begin.txtjet"
+          "name": "keyword.control.template.begin.txtjet"
         },
         "2": {
           "name": "keyword.control.directive.txtjet"
@@ -53,7 +38,7 @@
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.end.txtjet"
+          "name": "keyword.control.template.end.txtjet"
         }
       },
       "patterns": [
@@ -70,13 +55,13 @@
       "begin": "(<%=)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.begin.txtjet keyword.operator.expression.txtjet"
+          "name": "keyword.control.template.expression.begin.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.end.txtjet"
+          "name": "keyword.control.template.end.txtjet"
         }
       },
       "contentName": "source.java",
@@ -91,13 +76,13 @@
       "begin": "(<%!)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.begin.txtjet keyword.operator.declaration.txtjet"
+          "name": "keyword.control.template.declaration.begin.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.end.txtjet"
+          "name": "keyword.control.template.end.txtjet"
         }
       },
       "contentName": "source.java",
@@ -112,13 +97,13 @@
       "begin": "(<%)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.begin.txtjet"
+          "name": "keyword.control.template.begin.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "punctuation.section.embedded.end.txtjet"
+          "name": "keyword.control.template.end.txtjet"
         }
       },
       "contentName": "source.java",

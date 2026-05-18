@@ -7,6 +7,7 @@
   "private": true,
   "license": "UNLICENSED",
   "icon": "assets/icon.png",
+  "main": "./out/extension.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/Elsyvien/JetForge.git"
@@ -131,8 +132,8 @@
         }
       },
       {
-        "scopeName": "text.txtjet.injection",
-        "path": "./syntaxes/txtjet-template.injection.tmLanguage.json",
+        "scopeName": "text.txtjet.embedded-expression.injection",
+        "path": "./syntaxes/txtjet-expression.injection.tmLanguage.json",
         "injectTo": [
           "source.txtjet.java",
           "text.txtjet.html",
@@ -170,9 +171,27 @@
         "language": "txtjet-python",
         "path": "./snippets/txtjet.code-snippets"
       }
+    ],
+    "commands": [
+      {
+        "command": "txtjet.detectTargetLanguage",
+        "title": "TxtJet: Detect Target Language"
+      }
     ]
   },
+  "activationEvents": [
+    "onLanguage:txtjet",
+    "onCommand:txtjet.detectTargetLanguage"
+  ],
   "scripts": {
+    "compile": "tsc -p ./",
+    "test": "npm run compile && node out/detector.test.js",
+    "vscode:prepublish": "npm run compile",
     "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.12",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.5"
   }
 }
