@@ -34,7 +34,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.5.vsix
+code --install-extension txtjet-syntax-0.0.6.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -121,6 +121,8 @@ TxtJet modes include conservative indentation rules for common control blocks su
 ## Development Notes
 
 Version 1 does not provide Java semantic analysis or template-context IntelliSense. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+
+Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 
 Settings:
 

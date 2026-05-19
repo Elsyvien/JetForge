@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.6
+
+- Added an IntelliSense roadmap based on Eclipse JET editor behavior and future preview/source-mapping ideas.
+- Added a manual QA checklist for workplace rollout validation.
+- Added manifest and package hygiene tests to catch broken contributions and private/dev-only packaging regressions.
+- Added detector regressions for Eclipse-style JET filename conventions such as `.javajet`, `.xmljet`, `.htmljet`, and `.jetinc`.
+- Added scanner regressions for adjacent template blocks, escaped directive quotes, and multiple directives.
+
 ## 0.0.5
 
 - Packaged the workplace-ready hardening as a Marketplace-updateable release.

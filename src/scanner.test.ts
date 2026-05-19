@@ -11,6 +11,10 @@ assert.equal(scanTxtJetIssues("<%@ jet package=\"example class=\"Demo\" %>").at(
 assert.deepEqual(scanTxtJetIssues("<%@ jet package=\"example\" class=\"Demo\" %>"), []);
 assert.deepEqual(scanTxtJetIssues("<%@ jet package='example' class='Demo' %>"), []);
 assert.equal(scanTxtJetIssues("<%@ jet package='example %>").at(0)?.code, "unterminated-directive-string");
+assert.deepEqual(scanTxtJetIssues("a<%= one %>b<% two(); %>c<%! int value; %>"), []);
+assert.deepEqual(scanTxtJetIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>"), []);
+assert.deepEqual(scanTxtJetIssues("prefix <% if (ready) { %> body <% } %> suffix"), []);
+assert.deepEqual(scanTxtJetIssues("<%@ include file=\"part.txtjet\" %>\n<%@ jet package=\"demo\" class=\"Demo\" %>"), []);
 assert.deepEqual(scanTxtJetIssues(fixture("valid")).map((issue) => issue.code), []);
 assert.deepEqual(scanTxtJetIssues(fixture("malformed")).map((issue) => issue.code), [
   "unexpected-close",

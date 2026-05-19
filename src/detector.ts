@@ -97,5 +97,7 @@ function matchesHint(fileName: string, hints: string[]): boolean {
     fileName.endsWith(`.${hint}.txtjet`)
     || fileName.endsWith(`-${hint}.txtjet`)
     || fileName.endsWith(`_${hint}.txtjet`)
+    || fileName.endsWith(`.${hint}.jet`)
+    || fileName.endsWith(`.${hint}jet`)
   );
 }
