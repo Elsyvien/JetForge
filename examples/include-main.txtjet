@@ -1,0 +1,18 @@
+<%@ jet package="example.txtjet.samples" class="IncludeMainSample" imports="java.util.List" %>
+<%@ include file="partials/header.txtjet" %>
+<%
+    List<String> pages = List.of("overview", "pricing", "contact");
+%>
+<!doctype html>
+<html lang="en">
+  <body>
+    <%@ include file="partials/nav.txtjet" %>
+    <main>
+<% for (String page : pages) { %>
+      <section id="<%= page %>">
+        <h2><%= page.toUpperCase() %></h2>
+      </section>
+<% } %>
+    </main>
+  </body>
+</html>

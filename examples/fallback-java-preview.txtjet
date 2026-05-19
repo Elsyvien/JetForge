@@ -1,0 +1,7 @@
+<%@ jet package="123.bad" class="123BadClass" imports="not valid import" %>
+Hello <%= name %>
+<%
+    if (name == null) {
+        name = "fallback";
+    }
+%>

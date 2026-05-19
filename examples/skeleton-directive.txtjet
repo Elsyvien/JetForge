@@ -1,0 +1,11 @@
+<%@ jet package="example.txtjet.samples" class="SkeletonSample" skeleton="templates/base.skeleton" imports="java.util.Map" %>
+<%
+    Map<String, String> labels = Map.of("id", "Identifier", "name", "Display Name");
+%>
+package generated.skeleton;
+
+public class GeneratedLabels {
+<% for (String key : labels.keySet()) { %>
+    public static final String <%= key.toUpperCase() %> = "<%= labels.get(key) %>";
+<% } %>
+}

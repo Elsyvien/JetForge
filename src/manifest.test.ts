@@ -28,6 +28,16 @@ for (const language of expectedLanguages) {
   assert.ok(activationEvents.has(`onLanguage:${language}`), `${language} activation missing`);
 }
 
+assert.deepEqual(contributes.languages[0].extensions, [
+  ".txtjet",
+  ".jet",
+  ".javajet",
+  ".htmljet",
+  ".xmljet",
+  ".cjet",
+  ".pythonjet"
+]);
+
 for (const command of contributedCommands) {
   if (command !== "txtjet.clearLanguage.all") {
     assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);
@@ -35,8 +45,25 @@ for (const command of contributedCommands) {
 }
 
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.diagnostics.generatedJava.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.codeActions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.statusBar.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.previews.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.previews.openBeside"]);
+assert.ok(contributes.configuration.properties["txtjet.previews.generatedJava.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.navigation.includeDefinitions.enabled"]);
+
+for (const command of [
+  "txtjet.openGeneratedOutputPreview",
+  "txtjet.openGeneratedJavaPreview",
+  "txtjet.openPreviewBesideSource",
+  "txtjet.revealPreviewFromSource",
+  "txtjet.revealSourceFromPreview"
+]) {
+  assert.ok(contributedCommands.has(command), `${command} command missing`);
+  assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);
+  assert.ok(activationEvents.has(`onCommand:${command}`), `${command} activation missing`);
+}
 
 console.log("manifest tests ok");

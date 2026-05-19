@@ -1,9 +1,16 @@
+import { parseTxtJetTemplate } from "./templateModel";
+
 export type TxtJetIssueCode =
   | "unclosed-block"
   | "unexpected-close"
   | "malformed-directive"
   | "empty-directive"
-  | "unterminated-directive-string";
+  | "unterminated-directive-string"
+  | "duplicate-jet-directive"
+  | "missing-include-file"
+  | "unresolved-include-file"
+  | "malformed-directive-attribute"
+  | "unknown-directive";
 
 export interface TxtJetIssue {
   code: TxtJetIssueCode;
@@ -60,6 +67,66 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
     }
 
     offset = close + 2;
+  }
+
+  return issues;
+}
+
+export function scanTxtJetDirectiveIssues(
+  text: string,
+  includeExists?: (includeFile: string) => boolean
+): TxtJetIssue[] {
+  const issues: TxtJetIssue[] = [];
+  const model = parseTxtJetTemplate(text);
+  const jetDirectives = model.directives.filter((directive) => directive.name === "jet");
+
+  for (const duplicate of jetDirectives.slice(1)) {
+    issues.push({
+      code: "duplicate-jet-directive",
+      message: "Duplicate @jet directive. Only the first @jet directive is used for generated Java previews.",
+      start: duplicate.nameRange.start,
+      end: duplicate.nameRange.end
+    });
+  }
+
+  for (const directive of model.directives) {
+    if (directive.name && directive.name !== "jet" && directive.name !== "include") {
+      issues.push({
+        code: "unknown-directive",
+        message: `Unknown core TxtJet directive "${directive.name}".`,
+        start: directive.nameRange.start,
+        end: directive.nameRange.end
+      });
+    }
+
+    for (const malformed of directive.malformedAttributes) {
+      issues.push({
+        code: "malformed-directive-attribute",
+        message: "Malformed TxtJet directive attribute. Use name=\"value\" syntax.",
+        start: malformed.start,
+        end: malformed.end
+      });
+    }
+
+    if (directive.name === "include") {
+      const includeFile = directive.attributes.file;
+      const fileRange = directive.attributeRanges.file ?? directive.nameRange;
+      if (!includeFile) {
+        issues.push({
+          code: "missing-include-file",
+          message: "TxtJet include directive is missing a file attribute.",
+          start: fileRange.start,
+          end: fileRange.end
+        });
+      } else if (includeExists && !includeExists(includeFile)) {
+        issues.push({
+          code: "unresolved-include-file",
+          message: `TxtJet include file "${includeFile}" could not be resolved relative to this template.`,
+          start: fileRange.start,
+          end: fileRange.end
+        });
+      }
+    }
   }
 
   return issues;

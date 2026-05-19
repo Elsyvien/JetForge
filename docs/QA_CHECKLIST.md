@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.6.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.6`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.8.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.8`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -39,6 +39,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 - Open `examples/malformed.txtjet`.
 - Confirm diagnostics appear for malformed TxtJet syntax.
+- Confirm directive diagnostics appear for duplicate `@jet`, missing include `file`, unresolved include paths, malformed attributes, and unknown core directives.
 - Confirm Quick Fixes are offered for:
   - unexpected `%>`
   - unclosed `<% ...`
@@ -53,8 +54,25 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Type `<` outside a template block and confirm TxtJet marker completions appear.
 - Confirm normal typing on spaces does not show noisy marker completions.
 - Inside `<%@ ... %>`, confirm directive completions for `jet`, `include`, `package`, `class`, `imports`, and `file`.
+- Confirm `skeleton` is offered as a directive attribute completion.
 - Confirm snippets appear in every TxtJet mode.
 - Confirm disabling `txtjet.completions.enabled` removes TxtJet completions.
+
+## Preview And Navigation
+
+- Run `TxtJet: Open Generated Output Preview` for each sanitized example and confirm the preview preserves outer generated text.
+- Confirm `examples/include-main.txtjet` expands `partials/header.txtjet` and `partials/nav.txtjet` in the generated output preview.
+- Run `TxtJet: Open Generated Java Template Preview` and confirm the preview uses `@jet package`, `class`, and `imports` metadata.
+- Run `TxtJet: Open Preview Beside Source` and confirm the preview opens beside the template.
+- Run `TxtJet: Reveal Generated Output Preview From Source` and confirm the matching preview region is selected.
+- Run `TxtJet: Reveal Source From Preview` from an open preview and confirm the matching template region is selected.
+- Confirm changing the source template refreshes open preview documents.
+- Confirm the generated output preview language follows the selected generated-output mode.
+- Create a sanitized relative include and confirm Go to Definition from `file="..."` opens it.
+- Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
+- Confirm disabling `txtjet.previews.enabled` disables preview commands.
+- Confirm disabling `txtjet.previews.generatedJava.enabled` disables the generated Java preview command.
+- Confirm disabling `txtjet.navigation.includeDefinitions.enabled` removes include Go to Definition.
 
 ## Settings And Privacy
 

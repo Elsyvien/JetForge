@@ -1,0 +1,537 @@
+import { basename, dirname, isAbsolute, normalize, resolve } from "node:path";
+import { TxtJetTargetLanguage } from "./detector";
+
+export type TxtJetBlockKind = "outer" | "scriptlet" | "expression" | "declaration" | "directive";
+
+export interface TxtJetRange {
+  start: number;
+  end: number;
+}
+
+export interface TxtJetDirective {
+  name: string;
+  nameRange: TxtJetRange;
+  attributes: Record<string, string>;
+  attributeRanges: Record<string, TxtJetRange>;
+  malformedAttributes: TxtJetRange[];
+}
+
+export interface TxtJetBlock {
+  kind: TxtJetBlockKind;
+  marker: string;
+  content: string;
+  range: TxtJetRange;
+  contentRange: TxtJetRange;
+  directive?: TxtJetDirective;
+}
+
+export interface TxtJetMapping {
+  source: TxtJetRange;
+  preview: TxtJetRange;
+  kind: TxtJetBlockKind | "placeholder" | "append";
+}
+
+export interface TxtJetTemplateModel {
+  blocks: TxtJetBlock[];
+  directives: TxtJetDirective[];
+  jetDirective?: TxtJetDirective;
+  includes: TxtJetDirective[];
+}
+
+export interface TxtJetGeneratedPreview {
+  text: string;
+  mappings: TxtJetMapping[];
+}
+
+export interface TxtJetOutputPreviewOptions {
+  sourceFileName?: string;
+  expandIncludes?: boolean;
+  readInclude?: (path: string) => string | undefined;
+  includeStack?: string[];
+}
+
+const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
+const DEFAULT_PACKAGE = "txtjet.generated";
+const DEFAULT_CLASS = "GeneratedTxtJetTemplate";
+const MAX_INCLUDE_DEPTH = 8;
+
+export function parseTxtJetTemplate(text: string): TxtJetTemplateModel {
+  const blocks: TxtJetBlock[] = [];
+  let offset = 0;
+
+  while (offset < text.length) {
+    const open = findNextOpen(text, offset);
+    if (open === -1) {
+      pushOuter(blocks, text, offset, text.length);
+      break;
+    }
+
+    pushOuter(blocks, text, offset, open);
+    const marker = markerAt(text, open);
+    if (!marker) {
+      pushOuter(blocks, text, open, open + 2);
+      offset = open + 2;
+      continue;
+    }
+
+    const contentStart = open + marker.length;
+    const close = text.indexOf("%>", contentStart);
+    const end = close === -1 ? text.length : close + 2;
+    const contentEnd = close === -1 ? text.length : close;
+    const content = text.slice(contentStart, contentEnd);
+    const kind = kindForMarker(marker);
+    const block: TxtJetBlock = {
+      kind,
+      marker,
+      content,
+      range: { start: open, end },
+      contentRange: { start: contentStart, end: contentEnd }
+    };
+    if (kind === "directive") {
+      block.directive = parseDirective(content, contentStart);
+    }
+    blocks.push(block);
+    offset = end;
+  }
+
+  const directives = blocks.flatMap((block) => block.directive ? [block.directive] : []);
+  return {
+    blocks,
+    directives,
+    jetDirective: directives.find((directive) => directive.name === "jet"),
+    includes: directives.filter((directive) => directive.name === "include")
+  };
+}
+
+export function buildGeneratedOutputPreview(
+  text: string,
+  targetLanguage: TxtJetTargetLanguage = "txtjet",
+  options: TxtJetOutputPreviewOptions = {}
+): TxtJetGeneratedPreview {
+  const model = parseTxtJetTemplate(text);
+  const chunks: string[] = [];
+  const mappings: TxtJetMapping[] = [];
+
+  for (const block of model.blocks) {
+    const start = lengthOf(chunks);
+    if (block.kind === "outer") {
+      chunks.push(block.content);
+      mappings.push({ source: block.range, preview: { start, end: start + block.content.length }, kind: "outer" });
+      continue;
+    }
+
+    const replacement = outputPlaceholder(block, targetLanguage, options);
+    chunks.push(replacement);
+    mappings.push({
+      source: block.range,
+      preview: { start, end: start + replacement.length },
+      kind: block.kind === "expression" ? "placeholder" : block.kind
+    });
+  }
+
+  return { text: chunks.join(""), mappings };
+}
+
+export function buildGeneratedJavaPreview(text: string, sourceName = "TxtJet template"): TxtJetGeneratedPreview {
+  const model = parseTxtJetTemplate(text);
+  const packageName = sanitizePackageName(model.jetDirective?.attributes.package) ?? DEFAULT_PACKAGE;
+  const className = sanitizeClassName(model.jetDirective?.attributes.class) ?? DEFAULT_CLASS;
+  const imports = splitImports(model.jetDirective?.attributes.imports);
+  const chunks: string[] = [];
+  const mappings: TxtJetMapping[] = [];
+
+  chunks.push(`// TxtJet generated Java template preview for ${sourceName}\n`);
+  chunks.push("// This is an editor approximation, not compiler output.\n\n");
+  chunks.push(`package ${packageName};\n\n`);
+  for (const importName of imports) {
+    chunks.push(`import ${importName};\n`);
+  }
+  if (imports.length > 0) {
+    chunks.push("\n");
+  }
+  chunks.push(`public class ${className} {\n`);
+
+  const declarations = model.blocks.filter((block) => block.kind === "declaration");
+  for (const block of declarations) {
+    appendMapped(chunks, mappings, `\n${trimBlockContent(block.content)}\n`, block, "declaration");
+  }
+
+  chunks.push("\n    public String generate() {\n");
+  chunks.push("        StringBuilder stringBuffer = new StringBuilder();\n");
+
+  for (const block of model.blocks) {
+    if (block.kind === "outer" && block.content.length > 0) {
+      appendMapped(chunks, mappings, `        stringBuffer.append("${escapeJavaString(block.content)}");\n`, block, "append");
+    } else if (block.kind === "scriptlet") {
+      appendMapped(chunks, mappings, indentJavaLines(trimBlockContent(block.content), 8), block, "scriptlet");
+    } else if (block.kind === "expression") {
+      appendMapped(chunks, mappings, `        stringBuffer.append(${trimExpression(block.content)});\n`, block, "expression");
+    }
+  }
+
+  chunks.push("        return stringBuffer.toString();\n");
+  chunks.push("    }\n");
+  chunks.push("}\n");
+
+  return { text: chunks.join(""), mappings };
+}
+
+export function targetPreviewLanguage(languageId: TxtJetTargetLanguage): string {
+  switch (languageId) {
+    case "txtjet-java":
+      return "java";
+    case "txtjet-html":
+      return "html";
+    case "txtjet-xml":
+      return "xml";
+    case "txtjet-c":
+      return "c";
+    case "txtjet-python":
+      return "python";
+    case "txtjet":
+    default:
+      return "plaintext";
+  }
+}
+
+export function mapSourceRangeToPreview(mappings: TxtJetMapping[], sourceRange: TxtJetRange): TxtJetRange | undefined {
+  return mapRange(mappings, sourceRange, "source", "preview");
+}
+
+export function mapPreviewRangeToSource(mappings: TxtJetMapping[], previewRange: TxtJetRange): TxtJetRange | undefined {
+  return mapRange(mappings, previewRange, "preview", "source");
+}
+
+export function resolveIncludePath(templateFileName: string, includeFile: string): string | undefined {
+  if (!includeFile || isAbsolute(includeFile)) {
+    return undefined;
+  }
+  return normalize(resolve(dirname(templateFileName), includeFile));
+}
+
+function pushOuter(blocks: TxtJetBlock[], text: string, start: number, end: number): void {
+  if (end <= start) {
+    return;
+  }
+  blocks.push({
+    kind: "outer",
+    marker: "",
+    content: text.slice(start, end),
+    range: { start, end },
+    contentRange: { start, end }
+  });
+}
+
+function parseDirective(content: string, contentStart: number): TxtJetDirective {
+  const leadingWhitespace = content.match(/^\s*/)?.[0].length ?? 0;
+  const nameMatch = content.slice(leadingWhitespace).match(/^([^\s=]+)/);
+  const name = nameMatch?.[1] ?? "";
+  const nameStart = contentStart + leadingWhitespace;
+  const nameEnd = nameStart + name.length;
+  const attributes: Record<string, string> = {};
+  const attributeRanges: Record<string, TxtJetRange> = {};
+  const malformedAttributes: TxtJetRange[] = [];
+  const attributeTextStart = leadingWhitespace + name.length;
+  const attributeText = content.slice(attributeTextStart);
+  const consumed = Array.from({ length: attributeText.length }, () => false);
+  const attributePattern = /([A-Za-z_][\w.-]*)\s*=\s*("((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)')/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = attributePattern.exec(attributeText))) {
+    const attrName = match[1];
+    attributes[attrName] = unescapeDirectiveValue(match[3] ?? match[4] ?? "");
+    const start = contentStart + attributeTextStart + match.index;
+    const end = start + match[0].length;
+    attributeRanges[attrName] = { start, end };
+    for (let index = match.index; index < match.index + match[0].length; index += 1) {
+      consumed[index] = true;
+    }
+  }
+
+  let malformedStart = -1;
+  for (let index = 0; index < attributeText.length; index += 1) {
+    const isIgnorable = consumed[index] || /\s/.test(attributeText[index]);
+    if (!isIgnorable && malformedStart === -1) {
+      malformedStart = index;
+    }
+    if ((isIgnorable || index === attributeText.length - 1) && malformedStart !== -1) {
+      const endIndex = isIgnorable ? index : index + 1;
+      malformedAttributes.push({
+        start: contentStart + attributeTextStart + malformedStart,
+        end: contentStart + attributeTextStart + endIndex
+      });
+      malformedStart = -1;
+    }
+  }
+
+  return {
+    name,
+    nameRange: { start: nameStart, end: nameEnd },
+    attributes,
+    attributeRanges,
+    malformedAttributes
+  };
+}
+
+function outputPlaceholder(
+  block: TxtJetBlock,
+  targetLanguage: TxtJetTargetLanguage,
+  options: TxtJetOutputPreviewOptions
+): string {
+  switch (block.kind) {
+    case "directive":
+      if (block.directive?.name === "include") {
+        return includePlaceholder(block.directive, targetLanguage, options);
+      }
+      return commentPlaceholder(`txtjet directive: ${trimBlockContent(block.content)}`, targetLanguage);
+    case "expression":
+      return expressionPlaceholder(block.content, targetLanguage);
+    case "declaration":
+      return commentPlaceholder(`txtjet declaration:\n${trimBlockContent(block.content)}`, targetLanguage);
+    case "scriptlet":
+      return commentPlaceholder(`txtjet scriptlet:\n${trimBlockContent(block.content)}`, targetLanguage);
+    case "outer":
+    default:
+      return block.content;
+  }
+}
+
+function includePlaceholder(
+  directive: TxtJetDirective,
+  targetLanguage: TxtJetTargetLanguage,
+  options: TxtJetOutputPreviewOptions
+): string {
+  const includeFile = directive.attributes.file;
+  if (!includeFile || !options.expandIncludes || !options.sourceFileName || !options.readInclude) {
+    return commentPlaceholder(`txtjet include: ${includeFile || "missing file"}`, targetLanguage);
+  }
+
+  const resolved = resolveIncludePath(options.sourceFileName, includeFile);
+  if (!resolved) {
+    return commentPlaceholder(`txtjet include skipped: ${includeFile}`, targetLanguage);
+  }
+
+  const includeStack = options.includeStack ?? [normalize(options.sourceFileName)];
+  if (includeStack.includes(resolved)) {
+    return commentPlaceholder(`txtjet include skipped circular reference: ${includeFile}`, targetLanguage);
+  }
+  if (includeStack.length > MAX_INCLUDE_DEPTH) {
+    return commentPlaceholder(`txtjet include skipped max depth: ${includeFile}`, targetLanguage);
+  }
+
+  const includeText = options.readInclude(resolved);
+  if (includeText === undefined) {
+    return commentPlaceholder(`txtjet include unresolved: ${includeFile}`, targetLanguage);
+  }
+
+  const nested = buildGeneratedOutputPreview(includeText, targetLanguage, {
+    ...options,
+    sourceFileName: resolved,
+    includeStack: [...includeStack, resolved]
+  }).text;
+  return [
+    commentPlaceholder(`txtjet include begin: ${includeFile}`, targetLanguage),
+    nested,
+    nested.endsWith("\n") ? "" : "\n",
+    commentPlaceholder(`txtjet include end: ${includeFile}`, targetLanguage)
+  ].join("");
+}
+
+export function previewHeader(kind: "output" | "java", sourceName: string, targetLanguage?: TxtJetTargetLanguage): string {
+  const target = targetLanguage ? `, target ${targetPreviewLanguage(targetLanguage)}` : "";
+  const label = kind === "java" ? "Generated Java template preview" : "Generated output preview";
+  return `${label} for ${basename(sourceName)}${target}. Local read-only editor approximation.`;
+}
+
+export function headerComment(kind: "output" | "java", sourceName: string, targetLanguage: TxtJetTargetLanguage): string {
+  const text = previewHeader(kind, sourceName, kind === "output" ? targetLanguage : undefined);
+  return kind === "java"
+    ? `// ${text}\n\n`
+    : commentPlaceholder(text, targetLanguage);
+}
+
+function expressionPlaceholder(expression: string, targetLanguage: TxtJetTargetLanguage): string {
+  const trimmed = trimExpression(expression);
+  switch (targetLanguage) {
+    case "txtjet-java":
+    case "txtjet-c":
+    case "txtjet-python":
+      return placeholderIdentifier(trimmed);
+    case "txtjet-html":
+    case "txtjet-xml":
+    case "txtjet":
+    default:
+      return `\${${trimmed}}`;
+  }
+}
+
+function placeholderIdentifier(expression: string): string {
+  const sanitized = expression
+    .replace(/[^A-Za-z0-9_$]+/g, "_")
+    .replace(/^([^A-Za-z_$])/, "_$1")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `txtjet_${sanitized || "expression"}`;
+}
+
+function commentPlaceholder(text: string, targetLanguage: TxtJetTargetLanguage): string {
+  const normalized = normalizeCommentText(text);
+  if (!normalized) {
+    return "\n";
+  }
+
+  switch (targetLanguage) {
+    case "txtjet-html":
+    case "txtjet-xml":
+      return `<!-- ${normalized.replace(/-->/g, "-- >")} -->\n`;
+    case "txtjet-python":
+      return normalized.split("\n").map((line) => `# ${line}`).join("\n") + "\n";
+    case "txtjet-java":
+    case "txtjet-c":
+      return blockComment(normalized);
+    case "txtjet":
+    default:
+      return normalized.split("\n").map((line) => `# ${line}`).join("\n") + "\n";
+  }
+}
+
+function blockComment(text: string): string {
+  const sanitized = text.replace(/\*\//g, "* /");
+  const lines = sanitized.split("\n");
+  if (lines.length === 1) {
+    return `/* ${lines[0]} */\n`;
+  }
+  return ["/*", ...lines.map((line) => ` * ${line}`), " */", ""].join("\n");
+}
+
+function normalizeCommentText(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .join("\n")
+    .trim();
+}
+
+function unescapeDirectiveValue(value: string): string {
+  return value.replace(/\\(["'\\])/g, "$1");
+}
+
+function appendMapped(
+  chunks: string[],
+  mappings: TxtJetMapping[],
+  text: string,
+  block: TxtJetBlock,
+  kind: TxtJetMapping["kind"]
+): void {
+  const start = lengthOf(chunks);
+  chunks.push(text);
+  mappings.push({ source: block.range, preview: { start, end: start + text.length }, kind });
+}
+
+function indentJavaLines(text: string, spaces: number): string {
+  if (!text.trim()) {
+    return "";
+  }
+  const prefix = " ".repeat(spaces);
+  return text.split(/\r?\n/).map((line) => `${prefix}${line.trimEnd()}`).join("\n") + "\n";
+}
+
+function escapeJavaString(text: string): string {
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, "\\\"")
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t");
+}
+
+function trimBlockContent(text: string): string {
+  return text.replace(/^\s*\r?\n?/, "").replace(/\r?\n?\s*$/, "");
+}
+
+function trimExpression(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.length > 0 ? trimmed : "\"\"";
+}
+
+function splitImports(value: string | undefined): string[] {
+  if (!value) {
+    return [];
+  }
+  return value
+    .split(/[;,]/)
+    .map((entry) => entry.trim())
+    .filter((entry) => /^[A-Za-z_][\w]*(?:\.[A-Za-z_*][\w*]*)*$/.test(entry));
+}
+
+function sanitizePackageName(value: string | undefined): string | undefined {
+  return value && /^[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*$/.test(value) ? value : undefined;
+}
+
+function sanitizeClassName(value: string | undefined): string | undefined {
+  return value && /^[A-Za-z_$][\w$]*$/.test(value) ? value : undefined;
+}
+
+function kindForMarker(marker: string): TxtJetBlockKind {
+  switch (marker) {
+    case "<%@":
+      return "directive";
+    case "<%=":
+      return "expression";
+    case "<%!":
+      return "declaration";
+    case "<%":
+    default:
+      return "scriptlet";
+  }
+}
+
+function findNextOpen(text: string, from: number): number {
+  let next = -1;
+  for (const marker of OPEN_MARKERS) {
+    const index = text.indexOf(marker, from);
+    if (index !== -1 && (next === -1 || index < next)) {
+      next = index;
+    }
+  }
+  return next;
+}
+
+function markerAt(text: string, offset: number): string | undefined {
+  return OPEN_MARKERS.find((marker) => text.startsWith(marker, offset));
+}
+
+function mapRange(
+  mappings: TxtJetMapping[],
+  range: TxtJetRange,
+  from: "source" | "preview",
+  to: "source" | "preview"
+): TxtJetRange | undefined {
+  const matches = mappings.filter((mapping) => rangesIntersectOrTouch(mapping[from], range));
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  return matches.reduce<TxtJetRange>(
+    (result, mapping) => ({
+      start: Math.min(result.start, mapping[to].start),
+      end: Math.max(result.end, mapping[to].end)
+    }),
+    { start: matches[0][to].start, end: matches[0][to].end }
+  );
+}
+
+function rangesIntersectOrTouch(left: TxtJetRange, right: TxtJetRange): boolean {
+  if (right.start === right.end) {
+    return left.start <= right.start && right.start <= left.end;
+  }
+  if (left.start === left.end) {
+    return right.start <= left.start && left.start <= right.end;
+  }
+  return left.start < right.end && right.start < left.end;
+}
+
+function lengthOf(chunks: string[]): number {
+  return chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+}

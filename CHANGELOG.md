@@ -1,7 +1,16 @@
 # Changelog
 
+## 0.0.8
+
+- Added labeled preview headers, recursive relative include expansion, and preview/source reveal commands.
+- Improved generated-output placeholders across Java, C, Python, HTML, and XML previews while keeping template code visible as comments.
+- Added example-wide preview regression tests and optional generated-Java diagnostic mapping behind `txtjet.diagnostics.generatedJava.enabled`.
+
 ## 0.0.6
 
+- Added read-only generated output and generated Java template preview commands with local virtual documents.
+- Added a reusable template transformation layer with parsed blocks, directive metadata, and preview range mappings.
+- Added outline symbols, relative include Go to Definition, richer directive completions, and directive-level diagnostics.
 - Added an IntelliSense roadmap based on Eclipse JET editor behavior and future preview/source-mapping ideas.
 - Added a manual QA checklist for workplace rollout validation.
 - Added manifest and package hygiene tests to catch broken contributions and private/dev-only packaging regressions.

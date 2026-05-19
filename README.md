@@ -5,6 +5,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 ## Features
 
 - Default `txtjet` language mode for `.txtjet` files.
+- Also recognizes `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, and `.pythonjet` files.
 - Manual target modes for `txtjet-java`, `txtjet-html`, `txtjet-xml`, `txtjet-c`, and `txtjet-python`.
 - TextMate highlighting for JET/JSP-style blocks:
   - `<% ... %>`
@@ -13,6 +14,9 @@ VSCode extension for `.txtjet` Java emitter template files.
   - `<%@ ... %>`
 - Java highlighting inside embedded template blocks.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
+- Read-only generated output and generated Java template previews.
+- Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
+- Go to Definition for relative `@include file="..."` references.
 - Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
 - No runtime network access, telemetry, or proprietary template content.
@@ -34,7 +38,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.6.vsix
+code --install-extension txtjet-syntax-0.0.8.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -106,7 +110,25 @@ Completions are available for template markers after typing `<`, plus directive 
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
 
+Additional directive diagnostics report duplicate `@jet` directives, missing or unresolved include files, malformed directive attributes, and unknown core directive names.
+
 Diagnostics, Quick Fixes, completions, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
+
+## Preview And Navigation
+
+TxtJet can open local, read-only preview documents for the active template:
+
+- `TxtJet: Open Generated Output Preview`
+- `TxtJet: Open Generated Java Template Preview`
+- `TxtJet: Open Preview Beside Source`
+- `TxtJet: Reveal Generated Output Preview From Source`
+- `TxtJet: Reveal Source From Preview`
+
+The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. The preview language follows the selected or detected generated-output mode.
+
+The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
+
+Relative include references can be opened through Go to Definition from `file="..."` attributes. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 
 ## Formatting Helpers
 
@@ -131,9 +153,14 @@ Settings:
 - `txtjet.diagnostics.enabled`
 - `txtjet.diagnostics.severity`
 - `txtjet.diagnostics.maxFileSizeKb`
+- `txtjet.diagnostics.generatedJava.enabled`
 - `txtjet.codeActions.enabled`
 - `txtjet.completions.enabled`
 - `txtjet.statusBar.enabled`
+- `txtjet.previews.enabled`
+- `txtjet.previews.openBeside`
+- `txtjet.previews.generatedJava.enabled`
+- `txtjet.navigation.includeDefinitions.enabled`
 
 Privacy and workplace use:
 
@@ -143,6 +170,17 @@ Privacy and workplace use:
 - Example files are artificial and sanitized; local/private examples are excluded from the package.
 
 Local-only development examples should stay untracked and out of the package.
+
+## Example Files
+
+The `examples/` folder contains sanitized templates for manual testing:
+
+- `sample-*.txtjet` cover the supported generated-output modes.
+- `include-main.txtjet` and `partials/*.txtjet` test relative include navigation.
+- `skeleton-directive.txtjet` tests directive attributes including `skeleton`.
+- `java-declaration-heavy.txtjet` stresses generated Java preview declarations and imports.
+- `diagnostics-directives.txtjet` intentionally triggers directive diagnostics.
+- `fallback-java-preview.txtjet` tests fallback generated Java metadata.
 
 ## License
 

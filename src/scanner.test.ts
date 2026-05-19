@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { scanTxtJetIssues } from "./scanner";
+import { scanTxtJetDirectiveIssues, scanTxtJetIssues } from "./scanner";
 
 assert.deepEqual(scanTxtJetIssues("<% code(); %>"), []);
 assert.equal(scanTxtJetIssues("<% code();").at(0)?.code, "unclosed-block");
@@ -22,6 +22,20 @@ assert.deepEqual(scanTxtJetIssues(fixture("malformed")).map((issue) => issue.cod
   "malformed-directive",
   "unterminated-directive-string",
   "unclosed-block"
+]);
+
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"demo\" %>\n<%@ jet class=\"Demo\" %>").map((issue) => issue.code), [
+  "duplicate-jet-directive"
+]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include %>").map((issue) => issue.code), ["missing-include-file"]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"missing.txtjet\" %>", () => false).map((issue) => issue.code), [
+  "unresolved-include-file"
+]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ unknown value=\"x\" %>").map((issue) => issue.code), ["unknown-directive"]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>").map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=missing.txtjet %>").map((issue) => issue.code), [
+  "malformed-directive-attribute",
+  "missing-include-file"
 ]);
 
 console.log("scanner tests ok");

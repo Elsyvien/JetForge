@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, and generated-output language modes. It does not provide full semantic IntelliSense for Java or generated target languages inside `.txtjet` files.
+TxtJet Syntax currently provides highlighting, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, and include navigation. It does not provide full semantic IntelliSense for Java or generated target languages inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -13,31 +13,34 @@ Useful references:
 - Eclipse Java editor capabilities: https://help.eclipse.org/latest/topic/org.eclipse.jdt.doc.user/concepts/concept-java-editor.htm
 - GMF template naming conventions: https://wiki.eclipse.org/Graphical_Modeling_Framework/Development_Guidelines
 
-## Why Full Inline IntelliSense Is Not In 0.0.6
+## Why Full Inline IntelliSense Is Not In 0.0.8
 
 VSCode language servers generally operate on one coherent language document. A `.txtjet` file mixes generated output text with Java template code. The current TextMate embedded-language mappings improve highlighting, but they do not automatically give full Java/Python/C/XML/HTML language-server behavior inside mixed template regions.
 
-## Proposed Future Direction
+## Implemented Preview-First Foundation
 
-1. Generated output preview
-   - Add a command that opens a virtual generated-output preview for the active `.txtjet` file.
-   - Strip or replace template control blocks in a stable way.
-   - Open the preview using the real VSCode language id for Java, Python, C, XML, or HTML.
+- Generated output preview
+  - Opens a local read-only virtual document for the active template.
+  - Preserves generated outer text, expands relative includes, and keeps template code visible as stable language-appropriate comments/placeholders.
+  - Uses the selected or detected generated-output language for preview highlighting.
 
-2. Generated Java template preview
-   - Add a command that opens a generated Java-class approximation of the template.
-   - Use the `@jet` directive metadata when present.
-   - Keep this preview local-only and read-only at first.
+- Generated Java template preview
+  - Opens a local read-only virtual Java approximation of the template class.
+  - Uses `@jet package`, `class`, and `imports` metadata when available.
+  - Falls back to deterministic generated names for invalid or missing metadata.
 
-3. Source mapping
-   - Track ranges from template regions to generated preview regions.
-   - Use the mapping for diagnostics and navigation.
+- Source mapping foundation
+  - The transformation layer returns source-to-preview ranges for generated output and generated Java previews.
+  - Current mappings support tests, preview refresh behavior, reveal commands between source and preview, and optional generated-Java diagnostic mapping.
 
-4. Mapped diagnostics
-   - If a generated Java preview is valid enough for Java tooling, map relevant problems back to `.txtjet`.
-   - Keep scanner diagnostics as a fallback.
+- IntelliSense-adjacent editor support
+  - Outline symbols summarize directives, declarations, scriptlets, expressions, and generated-output regions.
+  - Include `file="..."` references support Go to Definition for relative paths.
+  - Directive completions include `skeleton` alongside the existing directive names and attributes.
 
-5. Inline IntelliSense
+## Remaining Future Direction
+
+1. Inline IntelliSense
    - Only after the preview and mapping model is stable, evaluate inline completions/hovers for Java template blocks.
    - Avoid a broad language-server bridge until there is evidence that preview-based workflows are insufficient.
 

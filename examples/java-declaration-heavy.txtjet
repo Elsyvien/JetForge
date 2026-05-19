@@ -1,0 +1,21 @@
+<%@ jet package="example.txtjet.samples" class="DeclarationHeavySample" imports="java.time.Instant;java.util.List" %>
+<%!
+    private String constantName(String value) {
+        return value.toUpperCase().replace("-", "_");
+    }
+
+    private String nowComment() {
+        return "Generated at " + Instant.parse("2026-01-01T00:00:00Z");
+    }
+%>
+<%
+    List<String> events = List.of("created", "updated", "archived");
+%>
+package generated.events;
+
+public final class EventNames {
+    // <%= nowComment() %>
+<% for (String event : events) { %>
+    public static final String <%= constantName(event) %> = "<%= event %>";
+<% } %>
+}

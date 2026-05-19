@@ -1,0 +1,8 @@
+<%@ jet package="example.txtjet.samples" class="DiagnosticsOne" %>
+<%@ jet package="example.txtjet.samples" class="DiagnosticsTwo" %>
+<%@ include %>
+<%@ include file="partials/does-not-exist.txtjet" %>
+<%@ unknown value="demo" %>
+<%@ include file=partials/nav.txtjet %>
+
+This file is intentionally malformed for testing directive diagnostics.

@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.6",
+  "version": "0.0.8",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -45,7 +45,13 @@
           "txtjet"
         ],
         "extensions": [
-          ".txtjet"
+          ".txtjet",
+          ".jet",
+          ".javajet",
+          ".htmljet",
+          ".xmljet",
+          ".cjet",
+          ".pythonjet"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -229,6 +235,26 @@
       {
         "command": "txtjet.clearLanguage.all",
         "title": "TxtJet: Clear All Remembered Target Languages"
+      },
+      {
+        "command": "txtjet.openGeneratedOutputPreview",
+        "title": "TxtJet: Open Generated Output Preview"
+      },
+      {
+        "command": "txtjet.openGeneratedJavaPreview",
+        "title": "TxtJet: Open Generated Java Template Preview"
+      },
+      {
+        "command": "txtjet.openPreviewBesideSource",
+        "title": "TxtJet: Open Preview Beside Source"
+      },
+      {
+        "command": "txtjet.revealPreviewFromSource",
+        "title": "TxtJet: Reveal Generated Output Preview From Source"
+      },
+      {
+        "command": "txtjet.revealSourceFromPreview",
+        "title": "TxtJet: Reveal Source From Preview"
       }
     ],
     "configuration": {
@@ -274,6 +300,11 @@
           "minimum": 0,
           "description": "Maximum UTF-8 file size in KB for running TxtJet diagnostics. Set to 0 to disable the size limit."
         },
+        "txtjet.diagnostics.generatedJava.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Map diagnostics from open generated Java preview documents back to the source template. Experimental and disabled by default."
+        },
         "txtjet.codeActions.enabled": {
           "type": "boolean",
           "default": true,
@@ -288,6 +319,26 @@
           "type": "boolean",
           "default": true,
           "description": "Show the TxtJet generated output mode selector in the status bar."
+        },
+        "txtjet.previews.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable read-only TxtJet generated preview documents."
+        },
+        "txtjet.previews.openBeside": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open TxtJet previews beside the source document by default."
+        },
+        "txtjet.previews.generatedJava.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable generated Java template preview documents."
+        },
+        "txtjet.navigation.includeDefinitions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Go to Definition for TxtJet include file attributes."
         }
       }
     },
@@ -295,39 +346,59 @@
       "commandPalette": [
         {
           "command": "txtjet.selectTargetLanguage",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.detectTargetLanguage",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.setLanguage.default",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.setLanguage.java",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.setLanguage.html",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.setLanguage.xml",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.setLanguage.c",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.setLanguage.python",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
           "command": "txtjet.clearLanguage.active",
-          "when": "resourceExtname == .txtjet"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
+          "command": "txtjet.openGeneratedOutputPreview",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
+          "command": "txtjet.openGeneratedJavaPreview",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
+          "command": "txtjet.openPreviewBesideSource",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
+          "command": "txtjet.revealPreviewFromSource",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
+          "command": "txtjet.revealSourceFromPreview",
+          "when": "resourceScheme =~ /^txtjet-preview-(output|java)$/"
         },
         {
           "command": "txtjet.clearLanguage.all"
@@ -345,11 +416,16 @@
     "onCommand:txtjet.selectTargetLanguage",
     "onCommand:txtjet.detectTargetLanguage",
     "onCommand:txtjet.clearLanguage.active",
-    "onCommand:txtjet.clearLanguage.all"
+    "onCommand:txtjet.clearLanguage.all",
+    "onCommand:txtjet.openGeneratedOutputPreview",
+    "onCommand:txtjet.openGeneratedJavaPreview",
+    "onCommand:txtjet.openPreviewBesideSource",
+    "onCommand:txtjet.revealPreviewFromSource",
+    "onCommand:txtjet.revealSourceFromPreview"
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
     "vscode:prepublish": "npm run compile",
