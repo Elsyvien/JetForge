@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { detectTargetLanguage, detectTargetLanguageFromFileName } from "./detector";
+import { scanTxtJetIssues } from "./scanner";
 import {
   buildGeneratedJavaPreview,
   buildGeneratedOutputPreview,
@@ -37,7 +38,7 @@ for (const file of exampleFiles) {
   assert.match(java, /Generated Java template preview|TxtJet generated Java template preview/, `${file} java preview header missing`);
   assert.ok(output.trim().length > 0, `${file} output preview empty`);
   assert.ok(java.includes("StringBuilder stringBuffer"), `${file} java preview generate body missing`);
-  if (!file.includes("malformed") && !file.includes("diagnostics")) {
+  if (scanTxtJetIssues(text).length === 0 && !file.includes("diagnostics")) {
     assert.equal(output.includes("<%"), false, `${file} output preview leaked raw opening marker`);
     assert.equal(output.includes("%>"), false, `${file} output preview leaked raw closing marker`);
   }
@@ -55,12 +56,26 @@ assert.ok(javaOutput.includes("txtjet scriptlet:"));
 assert.ok(javaOutput.includes("txtjet declaration:"));
 
 const pythonOutput = preview("examples/sample-python.txtjet");
-assert.ok(pythonOutput.includes("txtjet_color_toUpperCase"));
-assert.ok(pythonOutput.includes("\"txtjet_color\""));
+assert.ok(pythonOutput.includes("TXTJET_COLOR_TOUPPERCASE"));
+assert.ok(pythonOutput.includes("\"txtjet:color\""));
+assert.ok(pythonOutput.includes("\"txtjet:colors.get(0)\""));
 
 const cOutput = preview("examples/sample-c.txtjet");
 assert.ok(cOutput.includes("GENERATED_STATUS_txtjet_name_toUpperCase"));
 assert.ok(cOutput.includes("#define GENERATED_STATUS_COUNT txtjet_names_size"));
+
+const htmlOutput = preview("examples/sample-html.txtjet");
+assert.ok(htmlOutput.includes("href=\"/${item.toLowerCase()}\""));
+assert.ok(htmlOutput.includes(">${item}</a>"));
+
+const xmlOutput = preview("examples/sample-xml.txtjet");
+assert.ok(xmlOutput.includes("name=\"${key}\""));
+assert.ok(xmlOutput.includes("generated=\"${settings.get(key)}\""));
+assert.ok(xmlOutput.includes(">${settings.get(key)}</setting>"));
+
+const includeMainOutput = preview("examples/include-main.txtjet");
+assert.ok(includeMainOutput.includes("id=\"${page}\""));
+assert.ok(includeMainOutput.includes(">${page.toUpperCase()}</h2>"));
 
 assert.equal(relative(".", resolveIncludePath("examples/include-main.txtjet", "partials/header.txtjet") ?? ""), "examples/partials/header.txtjet");
 assert.equal(targetPreviewLanguage("txtjet-java"), "java");

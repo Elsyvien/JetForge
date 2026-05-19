@@ -50,6 +50,21 @@ export interface TxtJetOutputPreviewOptions {
   includeStack?: string[];
 }
 
+type ExpressionContextKind =
+  | "identifier"
+  | "string"
+  | "comment"
+  | "macro"
+  | "html-attribute"
+  | "text"
+  | "unknown";
+
+interface ExpressionContext {
+  kind: ExpressionContextKind;
+  before: string;
+  after: string;
+}
+
 const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
 const DEFAULT_PACKAGE = "txtjet.generated";
 const DEFAULT_CLASS = "GeneratedTxtJetTemplate";
@@ -112,7 +127,8 @@ export function buildGeneratedOutputPreview(
   const chunks: string[] = [];
   const mappings: TxtJetMapping[] = [];
 
-  for (const block of model.blocks) {
+  for (let index = 0; index < model.blocks.length; index += 1) {
+    const block = model.blocks[index];
     const start = lengthOf(chunks);
     if (block.kind === "outer") {
       chunks.push(block.content);
@@ -120,7 +136,7 @@ export function buildGeneratedOutputPreview(
       continue;
     }
 
-    const replacement = outputPlaceholder(block, targetLanguage, options);
+    const replacement = outputPlaceholder(block, targetLanguage, options, expressionContextFor(model.blocks, index));
     chunks.push(replacement);
     mappings.push({
       source: block.range,
@@ -276,7 +292,8 @@ function parseDirective(content: string, contentStart: number): TxtJetDirective 
 function outputPlaceholder(
   block: TxtJetBlock,
   targetLanguage: TxtJetTargetLanguage,
-  options: TxtJetOutputPreviewOptions
+  options: TxtJetOutputPreviewOptions,
+  context: ExpressionContext
 ): string {
   switch (block.kind) {
     case "directive":
@@ -285,7 +302,7 @@ function outputPlaceholder(
       }
       return commentPlaceholder(`txtjet directive: ${trimBlockContent(block.content)}`, targetLanguage);
     case "expression":
-      return expressionPlaceholder(block.content, targetLanguage);
+      return expressionPlaceholder(block.content, targetLanguage, context);
     case "declaration":
       return commentPlaceholder(`txtjet declaration:\n${trimBlockContent(block.content)}`, targetLanguage);
     case "scriptlet":
@@ -350,19 +367,86 @@ export function headerComment(kind: "output" | "java", sourceName: string, targe
     : commentPlaceholder(text, targetLanguage);
 }
 
-function expressionPlaceholder(expression: string, targetLanguage: TxtJetTargetLanguage): string {
+function expressionPlaceholder(
+  expression: string,
+  targetLanguage: TxtJetTargetLanguage,
+  context: ExpressionContext
+): string {
   const trimmed = trimExpression(expression);
   switch (targetLanguage) {
     case "txtjet-java":
     case "txtjet-c":
+      return javaLikeExpressionPlaceholder(trimmed, context);
     case "txtjet-python":
-      return placeholderIdentifier(trimmed);
+      return pythonExpressionPlaceholder(trimmed, context);
     case "txtjet-html":
     case "txtjet-xml":
+      return markupExpressionPlaceholder(trimmed, context);
     case "txtjet":
     default:
-      return `\${${trimmed}}`;
+      return readableExpression(trimmed);
   }
+}
+
+function javaLikeExpressionPlaceholder(expression: string, context: ExpressionContext): string {
+  if (context.kind === "string" || context.kind === "comment") {
+    return readableExpressionValue(expression);
+  }
+  if (context.kind === "identifier" || context.kind === "macro") {
+    return placeholderIdentifier(expression);
+  }
+  const fallback = placeholderIdentifier(expression);
+  return requestsUppercaseValue(expression) ? fallback.toUpperCase() : fallback;
+}
+
+function pythonExpressionPlaceholder(expression: string, context: ExpressionContext): string {
+  if (context.kind === "string" || context.kind === "comment") {
+    return readableExpressionValue(expression);
+  }
+  if (context.kind === "identifier") {
+    const identifier = placeholderIdentifier(expression);
+    return looksUppercaseIdentifierContext(context) || requestsUppercaseValue(expression)
+      ? identifier.toUpperCase()
+      : identifier;
+  }
+  const fallback = placeholderIdentifier(expression);
+  return requestsUppercaseValue(expression) ? fallback.toUpperCase() : fallback;
+}
+
+function markupExpressionPlaceholder(expression: string, context: ExpressionContext): string {
+  if (context.kind === "html-attribute" || context.kind === "string") {
+    return readableExpression(expression);
+  }
+  if (context.kind === "comment") {
+    return readableExpressionValue(expression);
+  }
+  return readableExpression(expression);
+}
+
+function expressionContextFor(blocks: TxtJetBlock[], index: number): ExpressionContext {
+  const before = adjacentOuterText(blocks, index, -1);
+  const after = adjacentOuterText(blocks, index, 1);
+  if (isInLineComment(before) || isInBlockComment(before, after) || isInMarkupComment(before, after)) {
+    return { kind: "comment", before, after };
+  }
+  if (isInsideOpenQuote(before)) {
+    return markupAttributeBefore(before) ? { kind: "html-attribute", before, after } : { kind: "string", before, after };
+  }
+  if (identifierEdge(before, after) || looksLikeIdentifierSlot(before, after)) {
+    return { kind: "identifier", before, after };
+  }
+  if (isMacroLine(before)) {
+    return { kind: "macro", before, after };
+  }
+  if (looksLikeTextNode(before, after)) {
+    return { kind: "text", before, after };
+  }
+  return { kind: "unknown", before, after };
+}
+
+function adjacentOuterText(blocks: TxtJetBlock[], index: number, direction: -1 | 1): string {
+  const next = blocks[index + direction];
+  return next?.kind === "outer" ? next.content : "";
 }
 
 function placeholderIdentifier(expression: string): string {
@@ -372,6 +456,92 @@ function placeholderIdentifier(expression: string): string {
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
   return `txtjet_${sanitized || "expression"}`;
+}
+
+function readableExpression(expression: string): string {
+  return `\${${expression}}`;
+}
+
+function readableExpressionValue(expression: string): string {
+  return `txtjet:${expression}`;
+}
+
+function identifierEdge(before: string, after: string): boolean {
+  return /[A-Za-z0-9_$]$/.test(before) || /^[A-Za-z0-9_$]/.test(after);
+}
+
+function looksLikeIdentifierSlot(before: string, after: string): boolean {
+  const line = currentLine(before);
+  return /\b[A-Za-z_$][\w$]*(?:<[^>\n]+>)?(?:\[\])?\s+$/.test(line)
+    && /^\s*(?:[;=,):\]}]|$)/.test(after);
+}
+
+function isInsideOpenQuote(before: string): boolean {
+  let quote: string | undefined;
+  let escaped = false;
+  for (const char of before) {
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (!quote && (char === "\"" || char === "'")) {
+      quote = char;
+      continue;
+    }
+    if (quote === char) {
+      quote = undefined;
+    }
+  }
+  return Boolean(quote);
+}
+
+function markupAttributeBefore(before: string): boolean {
+  const line = currentLine(before);
+  return /<[^>]*\s[A-Za-z_:][\w:.-]*\s*=\s*["'][^"']*$/.test(line);
+}
+
+function isInLineComment(before: string): boolean {
+  const line = currentLine(before);
+  const slash = line.lastIndexOf("//");
+  const hash = line.lastIndexOf("#");
+  return slash !== -1 || (hash !== -1 && !/^\s*#\s*(define|include|if|ifdef|ifndef|endif)\b/.test(line));
+}
+
+function isInBlockComment(before: string, after: string): boolean {
+  const open = before.lastIndexOf("/*");
+  const close = before.lastIndexOf("*/");
+  return open > close || (open !== -1 && after.includes("*/"));
+}
+
+function isInMarkupComment(before: string, after: string): boolean {
+  return before.lastIndexOf("<!--") > before.lastIndexOf("-->") || after.includes("-->");
+}
+
+function isMacroLine(before: string): boolean {
+  return /^\s*#\s*define\b/.test(currentLine(before));
+}
+
+function looksLikeTextNode(before: string, after: string): boolean {
+  return /(^|>)[^<]*$/.test(before) && /^[^<]*(<|$)/.test(after);
+}
+
+function looksUppercaseIdentifierContext(context: ExpressionContext): boolean {
+  const beforeToken = (context.before.match(/[A-Za-z0-9_]+$/)?.[0] ?? "");
+  const afterToken = (context.after.match(/^[A-Za-z0-9_]+/)?.[0] ?? "");
+  const token = `${beforeToken}${afterToken}`;
+  return token.length > 0 && token === token.toUpperCase();
+}
+
+function requestsUppercaseValue(expression: string): boolean {
+  return /\b(toUpperCase|upper)\s*\(/.test(expression);
+}
+
+function currentLine(text: string): string {
+  return text.slice(text.lastIndexOf("\n") + 1);
 }
 
 function commentPlaceholder(text: string, targetLanguage: TxtJetTargetLanguage): string {

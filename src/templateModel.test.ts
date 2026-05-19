@@ -61,6 +61,14 @@ assert.ok(buildGeneratedOutputPreview("value = <%= colors.get(0) %>", "txtjet-py
 assert.ok(buildGeneratedOutputPreview("#define COUNT <%= names.size() %>", "txtjet-c").text.includes("txtjet_names_size"));
 assert.ok(buildGeneratedOutputPreview("<% if (show) { %><h1><%= title %></h1>", "txtjet-html").text.includes("<!-- txtjet scriptlet:"));
 assert.ok(buildGeneratedOutputPreview("<h1><%= title %></h1>", "txtjet-html").text.includes("${title}"));
+assert.ok(buildGeneratedOutputPreview("String value = \"<%= name %>\";", "txtjet-java").text.includes("\"txtjet:name\""));
+assert.ok(buildGeneratedOutputPreview("// generated <%= name %>\nclass Demo {}", "txtjet-java").text.includes("// generated txtjet:name"));
+assert.ok(buildGeneratedOutputPreview("GENERATED_<%= name.toUpperCase() %>", "txtjet-c").text.includes("GENERATED_txtjet_name_toUpperCase"));
+assert.ok(buildGeneratedOutputPreview("class E:\n    <%= color.toUpperCase() %> = \"<%= color %>\"", "txtjet-python").text.includes("TXTJET_COLOR_TOUPPERCASE"));
+assert.ok(buildGeneratedOutputPreview("class E:\n    <%= color.toUpperCase() %> = \"<%= color %>\"", "txtjet-python").text.includes("\"txtjet:color\""));
+assert.ok(buildGeneratedOutputPreview("<a href=\"/<%= item.toLowerCase() %>\"><%= item %></a>", "txtjet-html").text.includes("href=\"/${item.toLowerCase()}\""));
+assert.ok(buildGeneratedOutputPreview("<setting name=\"<%= key %>\"><%= value %></setting>", "txtjet-xml").text.includes("name=\"${key}\""));
+assert.ok(buildGeneratedOutputPreview("<setting name=\"<%= key %>\"><%= value %></setting>", "txtjet-xml").text.includes(">${value}<"));
 
 const javaPreview = buildGeneratedJavaPreview(template);
 assert.ok(javaPreview.text.includes("package example.txtjet.samples;"));
