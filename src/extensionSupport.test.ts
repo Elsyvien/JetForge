@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, shouldOfferMarkerCompletions } from "./extensionSupport";
+import {
+  COMPLETION_TRIGGER_CHARACTERS,
+  isTxtJetPath,
+  selectedTargetLanguageId,
+  shouldOfferMarkerCompletions
+} from "./extensionSupport";
 
 assert.deepEqual(COMPLETION_TRIGGER_CHARACTERS, ["<"]);
 
@@ -19,5 +24,9 @@ assert.equal(isTxtJetPath("/workspace/example.pythonjet"), true);
 assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
 assert.equal(isTxtJetPath("/workspace/example.txt"), false);
 assert.equal(isTxtJetPath("vscode-remote://ssh-remote+host/workspace/example.txtjet"), true);
+
+assert.equal(selectedTargetLanguageId("txtjet-html", "txtjet-java"), "txtjet-html");
+assert.equal(selectedTargetLanguageId("txtjet", "txtjet-python"), "txtjet");
+assert.equal(selectedTargetLanguageId("plaintext", "txtjet-python"), "txtjet-python");
 
 console.log("extension support tests ok");

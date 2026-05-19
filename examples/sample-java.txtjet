@@ -12,6 +12,16 @@ public class GeneratedRecord {
 <%!
     private String capitalize(String value) {
         return value.substring(0, 1).toUpperCase() + value.substring(1);
+        <%
+            System.out.println("Capitalizing field: " + value);
+        %>
+        int a = 5;
+        System.out.println("Value of a: " + a);
+        System.out.println("<%!
+            System.out.println(\"This is a nested code block.\");
+        %>" + <%
+            System.out.println("This is another nested code block.");
+        %>);
     }
 %>
 }

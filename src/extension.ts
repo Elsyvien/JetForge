@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import * as vscode from "vscode";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
-import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, shouldOfferMarkerCompletions } from "./extensionSupport";
+import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, selectedTargetLanguageId, shouldOfferMarkerCompletions } from "./extensionSupport";
 import { scanTxtJetDirectiveIssues, scanTxtJetIssues, TxtJetIssue } from "./scanner";
 import {
   buildGeneratedJavaPreview,
@@ -291,7 +291,7 @@ async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<voi
     return;
   }
 
-  const detectedLanguage = detectLanguage(sourceEditor.document);
+  const selectedLanguage = selectedTargetLanguage(sourceEditor.document);
   const preview = buildPreviewForDocument(sourceEditor.document, kind);
   const mappedPreviewRange = mapSourceRangeToPreview(
     preview.mappings,
@@ -299,7 +299,7 @@ async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<voi
   );
   const previewUri = buildPreviewUri(sourceEditor.document, kind);
   const previewDocument = await vscode.workspace.openTextDocument(previewUri);
-  const targetLanguage = kind === "java" ? "java" : targetPreviewLanguage(detectedLanguage);
+  const targetLanguage = kind === "java" ? "java" : targetPreviewLanguage(selectedLanguage);
   const updatedDocument = await vscode.languages.setTextDocumentLanguage(previewDocument, targetLanguage);
   const viewColumn = forceBeside || config.get<boolean>("previews.openBeside", true)
     ? vscode.ViewColumn.Beside
@@ -310,14 +310,14 @@ async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<voi
 
 function buildPreviewUri(document: vscode.TextDocument, kind: PreviewKind): vscode.Uri {
   const scheme = kind === "java" ? JAVA_PREVIEW_SCHEME : OUTPUT_PREVIEW_SCHEME;
-  const detectedLanguage = detectLanguage(document);
-  const suffix = kind === "java" ? ".java" : `.preview.${targetPreviewLanguage(detectedLanguage)}`;
+  const targetLanguage = selectedTargetLanguage(document);
+  const suffix = kind === "java" ? ".java" : `.preview.${targetPreviewLanguage(targetLanguage)}`;
   return vscode.Uri.from({
     scheme,
     path: `${document.uri.path}${suffix}`,
     query: kind === "java"
       ? `source=${encodeURIComponent(document.uri.toString())}`
-      : `source=${encodeURIComponent(document.uri.toString())}&target=${encodeURIComponent(detectedLanguage)}`
+      : `source=${encodeURIComponent(document.uri.toString())}&target=${encodeURIComponent(targetLanguage)}`
   });
 }
 
@@ -350,7 +350,7 @@ function buildPreview(text: string, kind: PreviewKind, targetLanguage: TxtJetTar
 }
 
 function buildPreviewForDocument(document: vscode.TextDocument, kind: PreviewKind): TxtJetGeneratedPreview {
-  const targetLanguage = detectLanguage(document);
+  const targetLanguage = selectedTargetLanguage(document);
   return kind === "java"
     ? buildGeneratedJavaPreview(document.getText(), document.fileName)
     : buildOutputPreviewForDocument(document, targetLanguage);
@@ -417,7 +417,7 @@ async function revealPreviewFromSource(): Promise<void> {
   const mappedRange = mapSourceRangeToPreview(preview.mappings, selectionToRange(editor.document, editor.selection));
   const previewUri = buildPreviewUri(editor.document, "output");
   const previewDocument = await vscode.workspace.openTextDocument(previewUri);
-  const updatedDocument = await vscode.languages.setTextDocumentLanguage(previewDocument, targetPreviewLanguage(detectLanguage(editor.document)));
+  const updatedDocument = await vscode.languages.setTextDocumentLanguage(previewDocument, targetPreviewLanguage(selectedTargetLanguage(editor.document)));
   const previewEditor = await vscode.window.showTextDocument(updatedDocument, { preview: true, viewColumn: vscode.ViewColumn.Beside });
   revealMappedPreviewRange(previewEditor, mappedRange);
 }
@@ -942,6 +942,10 @@ function detectLanguage(document: vscode.TextDocument): TxtJetTargetLanguage {
     return byFileName;
   }
   return detectTargetLanguage(document.getText());
+}
+
+function selectedTargetLanguage(document: vscode.TextDocument): TxtJetTargetLanguage {
+  return selectedTargetLanguageId(document.languageId, detectLanguage(document));
 }
 
 function getStoredLanguage(context: vscode.ExtensionContext, document: vscode.TextDocument): TxtJetTargetLanguage | undefined {
