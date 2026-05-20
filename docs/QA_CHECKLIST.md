@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.9.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.9`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.10.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.10`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -56,6 +56,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Inside `<%@ ... %>`, confirm directive completions for `jet`, `include`, `package`, `class`, `imports`, and `file`.
 - Confirm `skeleton` is offered as a directive attribute completion.
 - In `examples/sample-java.txtjet`, place the cursor inside generated Java output, type `ret` or press Cmd+Space/Ctrl+Space, and confirm Java fallback suggestions appear.
+- In `examples/sample-python.txtjet`, place the cursor in generated Python output and confirm Python keyword/builtin suggestions appear; after `items.ap`, confirm `append` is offered when a local list assignment is present.
+- In `examples/sample-c.txtjet` or a C++-style `.cjet` scratch, confirm C/C++ suggestions appear; after `std::co`, confirm `cout` is offered.
 - Inside a `<% ... %>` scriptlet, `<%= ... %>` expression, and `<%! ... %>` declaration, confirm Java suggestions appear for identifiers and after `.`.
 - Switch the same generated-output region to a non-Java TxtJet mode and confirm Java fallback suggestions are not offered there.
 - Confirm snippets appear in every TxtJet mode.

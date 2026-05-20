@@ -19,7 +19,7 @@ export interface TxtJetJavaBridgeProjection {
 }
 
 export interface TxtJetJavaCompletionContext {
-  kind: "template-java" | "generated-java";
+  kind: "template-java" | "generated-java" | "generated-python" | "generated-c";
   block: TxtJetBlock;
 }
 
@@ -70,6 +70,100 @@ const JAVA_LIST_MEMBER_COMPLETIONS = ["add", "clear", "contains", "forEach", "ge
 const JAVA_STRING_MEMBER_COMPLETIONS = ["charAt", "contains", "endsWith", "equals", "isEmpty", "length", "replace", "split", "startsWith", "substring", "toLowerCase", "toUpperCase", "trim"];
 const JAVA_MATH_MEMBER_COMPLETIONS = ["abs", "ceil", "cos", "floor", "max", "min", "pow", "random", "round", "sin", "sqrt", "tan"];
 const JAVA_OBJECT_MEMBER_COMPLETIONS = ["equals", "getClass", "hashCode", "toString"];
+const PYTHON_KEYWORD_COMPLETIONS = [
+  "and",
+  "as",
+  "assert",
+  "async",
+  "await",
+  "break",
+  "class",
+  "continue",
+  "def",
+  "elif",
+  "else",
+  "except",
+  "False",
+  "finally",
+  "for",
+  "from",
+  "if",
+  "import",
+  "in",
+  "is",
+  "lambda",
+  "None",
+  "not",
+  "or",
+  "pass",
+  "print",
+  "raise",
+  "return",
+  "True",
+  "try",
+  "while",
+  "with",
+  "yield"
+];
+const PYTHON_BUILTIN_COMPLETIONS = ["dict", "enumerate", "float", "int", "isinstance", "len", "list", "range", "set", "str", "tuple", "zip"];
+const PYTHON_LIST_MEMBER_COMPLETIONS = ["append", "clear", "copy", "count", "extend", "index", "insert", "pop", "remove", "reverse", "sort"];
+const PYTHON_DICT_MEMBER_COMPLETIONS = ["clear", "copy", "get", "items", "keys", "pop", "setdefault", "update", "values"];
+const PYTHON_STRING_MEMBER_COMPLETIONS = ["endswith", "format", "join", "lower", "replace", "split", "startswith", "strip", "upper"];
+const PYTHON_MATH_MEMBER_COMPLETIONS = ["ceil", "cos", "floor", "pi", "pow", "sin", "sqrt", "tan"];
+const PYTHON_OBJECT_MEMBER_COMPLETIONS = ["__class__", "__dict__", "__str__"];
+const CPP_KEYWORD_COMPLETIONS = [
+  "auto",
+  "bool",
+  "break",
+  "case",
+  "char",
+  "class",
+  "const",
+  "constexpr",
+  "continue",
+  "double",
+  "else",
+  "enum",
+  "false",
+  "float",
+  "for",
+  "if",
+  "include",
+  "int",
+  "long",
+  "namespace",
+  "new",
+  "nullptr",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "size_t",
+  "static",
+  "std",
+  "string",
+  "struct",
+  "switch",
+  "template",
+  "true",
+  "typedef",
+  "using",
+  "void",
+  "while"
+];
+const CPP_STD_MEMBER_COMPLETIONS = ["cerr", "cin", "cout", "endl", "make_unique", "map", "move", "string", "unique_ptr", "unordered_map", "vector"];
+const CPP_VECTOR_MEMBER_COMPLETIONS = ["at", "back", "begin", "clear", "empty", "end", "front", "pop_back", "push_back", "size"];
+const CPP_STRING_MEMBER_COMPLETIONS = ["append", "c_str", "empty", "find", "length", "replace", "size", "substr"];
+const CPP_OBJECT_MEMBER_COMPLETIONS = ["empty", "size"];
+
+export function effectiveCompletionTarget(
+  selectedTargetLanguage: TxtJetTargetLanguage,
+  detectedTargetLanguage: TxtJetTargetLanguage
+): TxtJetTargetLanguage {
+  return selectedTargetLanguage === "txtjet" && detectedTargetLanguage !== "txtjet"
+    ? detectedTargetLanguage
+    : selectedTargetLanguage;
+}
 
 export function effectiveJavaCompletionTarget(
   selectedTargetLanguage: TxtJetTargetLanguage,
@@ -104,11 +198,17 @@ export function javaCompletionContextAt(
   if (block.kind === "outer" && targetLanguage === "txtjet-java") {
     return { kind: "generated-java", block };
   }
+  if (block.kind === "outer" && targetLanguage === "txtjet-python") {
+    return { kind: "generated-python", block };
+  }
+  if (block.kind === "outer" && targetLanguage === "txtjet-c") {
+    return { kind: "generated-c", block };
+  }
 
   return undefined;
 }
 
-export function javaFallbackCompletionLabels(
+export function targetFallbackCompletionLabels(
   text: string,
   sourceOffset: number,
   targetLanguage: TxtJetTargetLanguage
@@ -119,7 +219,28 @@ export function javaFallbackCompletionLabels(
   }
 
   const receiver = javaCompletionReceiverAt(text, sourceOffset);
-  return receiver ? javaMemberFallbackLabels(text, receiver) : javaBlockFallbackLabels(text);
+  switch (context.kind) {
+    case "generated-python":
+      return receiver ? pythonMemberFallbackLabels(text, receiver) : pythonBlockFallbackLabels(text);
+    case "generated-c":
+      return receiver ? cppMemberFallbackLabels(text, receiver) : cppBlockFallbackLabels(text);
+    case "template-java":
+    case "generated-java":
+    default:
+      return receiver ? javaMemberFallbackLabels(text, receiver) : javaBlockFallbackLabels(text);
+  }
+}
+
+export function javaFallbackCompletionLabels(
+  text: string,
+  sourceOffset: number,
+  targetLanguage: TxtJetTargetLanguage
+): string[] {
+  const context = javaCompletionContextAt(text, sourceOffset, targetLanguage);
+  if (!context || (context.kind !== "template-java" && context.kind !== "generated-java")) {
+    return [];
+  }
+  return targetFallbackCompletionLabels(text, sourceOffset, targetLanguage);
 }
 
 export function projectSourceOffsetToJavaPreview(
@@ -435,7 +556,7 @@ function javaMemberFallbackLabels(text: string, receiver: string): string[] {
 
 function javaCompletionReceiverAt(text: string, sourceOffset: number): string | undefined {
   const line = linePrefixAt(text, sourceOffset);
-  const match = line.match(/([A-Za-z_$][\w$]*)\.\w*$/);
+  const match = line.match(/([A-Za-z_$][\w$]*)\s*(?:\.|->|::)\s*\w*$/);
   return match?.[1];
 }
 
@@ -451,6 +572,113 @@ function javaReceiverType(text: string, receiver: string): "list" | "string" | "
     return "string";
   }
   return "object";
+}
+
+function pythonBlockFallbackLabels(text: string): string[] {
+  const model = parseTxtJetTemplate(text);
+  const names = new Set<string>([...PYTHON_KEYWORD_COMPLETIONS, ...PYTHON_BUILTIN_COMPLETIONS]);
+  for (const block of model.blocks) {
+    if (block.kind === "outer") {
+      for (const name of pythonIdentifiersFromBlock(block.content)) {
+        names.add(name);
+      }
+    }
+  }
+  return Array.from(names).sort();
+}
+
+function pythonMemberFallbackLabels(text: string, receiver: string): string[] {
+  const type = pythonReceiverType(text, receiver);
+  return type === "list"
+    ? PYTHON_LIST_MEMBER_COMPLETIONS
+    : type === "dict"
+      ? PYTHON_DICT_MEMBER_COMPLETIONS
+      : type === "string"
+        ? PYTHON_STRING_MEMBER_COMPLETIONS
+        : type === "math"
+          ? PYTHON_MATH_MEMBER_COMPLETIONS
+          : PYTHON_OBJECT_MEMBER_COMPLETIONS;
+}
+
+function pythonReceiverType(text: string, receiver: string): "list" | "dict" | "string" | "math" | "object" {
+  if (receiver === "math") {
+    return "math";
+  }
+  const escaped = escapeRegExp(receiver);
+  if (new RegExp(`\\b${escaped}\\s*=\\s*(?:\\[|list\\()`).test(text)) {
+    return "list";
+  }
+  if (new RegExp(`\\b${escaped}\\s*=\\s*(?:\\{|dict\\()`).test(text)) {
+    return "dict";
+  }
+  if (new RegExp(`\\b${escaped}\\s*=\\s*(?:"|'|str\\()`).test(text)) {
+    return "string";
+  }
+  return "object";
+}
+
+function pythonIdentifiersFromBlock(content: string): string[] {
+  const identifiers = new Set<string>();
+  const patterns = [
+    /\b(?:class|def)\s+([A-Za-z_]\w*)/g,
+    /\b([A-Za-z_]\w*)\s*=/g,
+    /\b(?:for|with)\s+([A-Za-z_]\w*)\b/g
+  ];
+  for (const pattern of patterns) {
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(content))) {
+      identifiers.add(match[1]);
+    }
+  }
+  return Array.from(identifiers);
+}
+
+function cppBlockFallbackLabels(text: string): string[] {
+  const model = parseTxtJetTemplate(text);
+  const names = new Set<string>(CPP_KEYWORD_COMPLETIONS);
+  for (const block of model.blocks) {
+    if (block.kind === "outer") {
+      for (const name of cppIdentifiersFromBlock(block.content)) {
+        names.add(name);
+      }
+    }
+  }
+  return Array.from(names).sort();
+}
+
+function cppMemberFallbackLabels(text: string, receiver: string): string[] {
+  const type = cppReceiverType(text, receiver);
+  return type === "std"
+    ? CPP_STD_MEMBER_COMPLETIONS
+    : type === "vector"
+      ? CPP_VECTOR_MEMBER_COMPLETIONS
+      : type === "string"
+        ? CPP_STRING_MEMBER_COMPLETIONS
+        : CPP_OBJECT_MEMBER_COMPLETIONS;
+}
+
+function cppReceiverType(text: string, receiver: string): "std" | "vector" | "string" | "object" {
+  if (receiver === "std") {
+    return "std";
+  }
+  const escaped = escapeRegExp(receiver);
+  if (new RegExp(`\\b(?:std::)?vector\\s*<[^>]+>\\s+${escaped}\\b`).test(text)) {
+    return "vector";
+  }
+  if (new RegExp(`\\b(?:std::)?string\\s+${escaped}\\b`).test(text)) {
+    return "string";
+  }
+  return "object";
+}
+
+function cppIdentifiersFromBlock(content: string): string[] {
+  const identifiers = new Set<string>();
+  const declarationPattern = /\b(?:class|struct|enum)\s+([A-Za-z_]\w*)|\b(?:std::)?[A-Za-z_]\w*(?:\s*<[^;=(){}]+>)?\s+([A-Za-z_]\w*)\b/g;
+  let match: RegExpExecArray | null;
+  while ((match = declarationPattern.exec(content))) {
+    identifiers.add(match[1] ?? match[2]);
+  }
+  return Array.from(identifiers).filter(Boolean);
 }
 
 function javaIdentifiersFromBlock(content: string): string[] {

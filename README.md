@@ -107,7 +107,7 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - malformed or empty directives
 - unterminated quoted strings inside directives
 
-Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents.
+Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Generated-output regions also get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches.
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
 
@@ -151,7 +151,7 @@ VSCode document formatting and format selection also normalize directive attribu
 
 ## Development Notes
 
-Version 1 does not implement Java semantic analysis directly. Java IntelliSense forwarding depends on installed Java tooling and only runs where a TxtJet source position can be mapped into the generated Java preview. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+Version 1 does not implement full semantic analysis directly. Java IntelliSense forwarding depends on installed Java tooling and only runs where a TxtJet source position can be mapped into the generated Java preview. Generated-output suggestions for Java, Python, and C/C++ are local fallbacks, not full language-server results. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
 
 Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 

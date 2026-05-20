@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.10
+
+- Added generated-output fallback completions for Python and C/C++ TxtJet modes.
+- Improved generated-output completion target selection so generic `.txtjet` files use detected Java, Python, or C/C++ output mode when no manual mode is selected.
+- Added C/C++ `std::...` and vector member fallbacks plus Python list, dict, string, and math member fallbacks.
+
 ## 0.0.9
 
 - Added Java IntelliSense forwarding for TxtJet scriptlet, expression, and declaration blocks through the generated Java preview when Java tooling is available.

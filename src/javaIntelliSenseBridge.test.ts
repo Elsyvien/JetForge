@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
+  effectiveCompletionTarget,
   effectiveJavaCompletionTarget,
   javaCompletionContextAt,
   javaFallbackCompletionLabels,
   mapJavaPreviewRangeToSource,
-  projectSourceOffsetToJavaPreview
+  projectSourceOffsetToJavaPreview,
+  targetFallbackCompletionLabels
 } from "./javaIntelliSenseBridge";
 
 const template = `<%@ jet package="demo" class="BridgeDemo" imports="java.util.List" %>
@@ -73,6 +75,9 @@ assert.ok(javaFallbackCompletionLabels(template, expressionSource + "names.".len
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-java"), "txtjet-java");
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-html"), "txtjet");
 assert.equal(effectiveJavaCompletionTarget("txtjet-html", "txtjet-java"), "txtjet-html");
+assert.equal(effectiveCompletionTarget("txtjet", "txtjet-python"), "txtjet-python");
+assert.equal(effectiveCompletionTarget("txtjet", "txtjet-c"), "txtjet-c");
+assert.equal(effectiveCompletionTarget("txtjet-html", "txtjet-python"), "txtjet-html");
 
 const sampleJava = readFileSync("examples/sample-java.txtjet", "utf8");
 const sampleOuterOffset = sampleJava.indexOf("package generated.sample");
@@ -85,5 +90,31 @@ const sampleJavaWithMath = sampleJava.replace("class Main {", "class Main {\n   
 const sampleMathOffset = sampleJavaWithMath.indexOf("Math.p") + "Math.p".length;
 assert.equal(javaCompletionContextAt(sampleJavaWithMath, sampleMathOffset, "txtjet-java")?.kind, "generated-java");
 assert.ok(javaFallbackCompletionLabels(sampleJavaWithMath, sampleMathOffset, "txtjet-java").includes("pow"));
+
+const pythonTemplate = `<%@ jet package="demo" class="PySample" %>
+items = []
+items.ap
+name = "Ada"
+name.up`;
+const pythonItemsOffset = pythonTemplate.indexOf("items.ap") + "items.ap".length;
+const pythonNameOffset = pythonTemplate.indexOf("name.up") + "name.up".length;
+assert.equal(javaCompletionContextAt(pythonTemplate, pythonItemsOffset, "txtjet-python")?.kind, "generated-python");
+assert.ok(targetFallbackCompletionLabels(pythonTemplate, pythonItemsOffset, "txtjet-python").includes("append"));
+assert.ok(targetFallbackCompletionLabels(pythonTemplate, pythonNameOffset, "txtjet-python").includes("upper"));
+assert.ok(targetFallbackCompletionLabels(pythonTemplate, pythonTemplate.indexOf("items ="), "txtjet-python").includes("def"));
+assert.deepEqual(targetFallbackCompletionLabels(pythonTemplate, pythonItemsOffset, "txtjet-html"), []);
+
+const cppTemplate = `<%@ jet package="demo" class="CppSample" %>
+#include <vector>
+std::co
+std::vector<int> values;
+values.pu`;
+const cppStdOffset = cppTemplate.indexOf("std::co") + "std::co".length;
+const cppVectorOffset = cppTemplate.indexOf("values.pu") + "values.pu".length;
+assert.equal(javaCompletionContextAt(cppTemplate, cppStdOffset, "txtjet-c")?.kind, "generated-c");
+assert.ok(targetFallbackCompletionLabels(cppTemplate, cppStdOffset, "txtjet-c").includes("cout"));
+assert.ok(targetFallbackCompletionLabels(cppTemplate, cppVectorOffset, "txtjet-c").includes("push_back"));
+assert.ok(targetFallbackCompletionLabels(cppTemplate, cppTemplate.indexOf("#include"), "txtjet-c").includes("return"));
+assert.deepEqual(targetFallbackCompletionLabels(cppTemplate, cppStdOffset, "txtjet-html"), []);
 
 console.log("java IntelliSense bridge tests ok");

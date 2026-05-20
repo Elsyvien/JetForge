@@ -5,11 +5,11 @@ import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, selectedTargetLanguageId, shouldOfferMarkerCompletions } from "./extensionSupport";
 import {
-  effectiveJavaCompletionTarget,
+  effectiveCompletionTarget,
   javaCompletionContextAt,
-  javaFallbackCompletionLabels,
   mapJavaPreviewRangeToSource,
-  projectSourceOffsetToJavaPreview
+  projectSourceOffsetToJavaPreview,
+  targetFallbackCompletionLabels
 } from "./javaIntelliSenseBridge";
 import { scanTxtJetDirectiveIssues, scanTxtJetIssues, TxtJetIssue } from "./scanner";
 import {
@@ -249,6 +249,8 @@ type PreviewKind = "output" | "java";
 type CompletionInsertReplaceRange = { inserting: vscode.Range; replacing: vscode.Range };
 const JAVA_COMPLETION_TRIGGER_CHARACTERS = [
   ".",
+  ":",
+  ">",
   ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_".split("")
 ] as const;
 const JAVA_KEYWORD_COMPLETIONS = [
@@ -1113,13 +1115,13 @@ function registerCompletionProvider(): vscode.Disposable {
         const javaContext = javaCompletionContextAt(
           document.getText(),
           document.offsetAt(position),
-          javaCompletionTarget(document)
+          completionTarget(document)
         );
         if (javaContext?.kind === "template-java") {
           return javaBridgeCompletions(document, position, context.triggerCharacter);
         }
-        if (javaContext?.kind === "generated-java") {
-          return fallbackJavaCompletions(document, position);
+        if (javaContext?.kind === "generated-java" || javaContext?.kind === "generated-python" || javaContext?.kind === "generated-c") {
+          return fallbackTargetCompletions(document, position);
         }
 
         const range = markerCompletionRange(document, position);
@@ -1142,7 +1144,7 @@ async function javaBridgeCompletions(
 
   const projection = await openJavaBridgeProjection(document, position);
   if (!projection) {
-    return fallbackJavaCompletions(document, position);
+    return fallbackTargetCompletions(document, position);
   }
 
   const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
@@ -1152,14 +1154,14 @@ async function javaBridgeCompletions(
     triggerCharacter
   );
   if (!completions) {
-    return fallbackJavaCompletions(document, position);
+    return fallbackTargetCompletions(document, position);
   }
 
   const items = completions.items
     .map((item) => remapJavaCompletionItem(document, projection.previewDocument, position, item))
     .filter((item): item is vscode.CompletionItem => Boolean(item));
   if (items.length === 0) {
-    return fallbackJavaCompletions(document, position);
+    return fallbackTargetCompletions(document, position);
   }
   return new vscode.CompletionList(items, completions.isIncomplete);
 }
@@ -1254,21 +1256,22 @@ function javaBridgeEnabled(document: vscode.TextDocument): boolean {
   return config.get<boolean>("javaIntelliSense.enabled", true);
 }
 
-function fallbackJavaCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionList {
+function fallbackTargetCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionList {
   const text = document.getText();
   const range = javaWordRange(document, position);
   const receiver = javaCompletionReceiver(document, position);
-  const items = javaFallbackCompletionLabels(text, document.offsetAt(position), javaCompletionTarget(document))
+  const target = completionTarget(document);
+  const items = targetFallbackCompletionLabels(text, document.offsetAt(position), target)
     .map((label) => javaFallbackItem(
       label,
-      receiver ? vscode.CompletionItemKind.Method : fallbackKindForJavaName(label),
+      receiver ? vscode.CompletionItemKind.Method : fallbackKindForTargetName(label, target),
       range
     ));
   return new vscode.CompletionList(items, false);
 }
 
-function javaCompletionTarget(document: vscode.TextDocument): TxtJetTargetLanguage {
-  return effectiveJavaCompletionTarget(selectedTargetLanguage(document), detectLanguage(document));
+function completionTarget(document: vscode.TextDocument): TxtJetTargetLanguage {
+  return effectiveCompletionTarget(selectedTargetLanguage(document), detectLanguage(document));
 }
 
 function javaFallbackItem(label: string, kind: vscode.CompletionItemKind, range: vscode.Range): vscode.CompletionItem {
@@ -1293,7 +1296,23 @@ function javaCompletionReceiver(document: vscode.TextDocument, position: vscode.
   return match?.[1];
 }
 
-function fallbackKindForJavaName(name: string): vscode.CompletionItemKind {
+function fallbackKindForTargetName(name: string, target: TxtJetTargetLanguage): vscode.CompletionItemKind {
+  if (target === "txtjet-python") {
+    if (/^[A-Z]/.test(name)) {
+      return vscode.CompletionItemKind.Class;
+    }
+    return ["print", "len", "range", "str", "int", "list", "dict", "set"].includes(name)
+      ? vscode.CompletionItemKind.Function
+      : vscode.CompletionItemKind.Keyword;
+  }
+  if (target === "txtjet-c") {
+    if (/^[A-Z]/.test(name)) {
+      return vscode.CompletionItemKind.Struct;
+    }
+    return ["std", "string", "vector", "size_t"].includes(name)
+      ? vscode.CompletionItemKind.Class
+      : vscode.CompletionItemKind.Keyword;
+  }
   if (JAVA_KEYWORD_COMPLETIONS.includes(name)) {
     return /^[A-Z]/.test(name) ? vscode.CompletionItemKind.Class : vscode.CompletionItemKind.Keyword;
   }

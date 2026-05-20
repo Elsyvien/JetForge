@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, and conservative Java IntelliSense forwarding for template Java blocks. It does not implement Java semantic analysis directly or provide full generated target-language IntelliSense inside `.txtjet` files.
+TxtJet Syntax currently provides highlighting, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, and local generated-output fallback suggestions for Java, Python, and C/C++. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -38,6 +38,7 @@ VSCode language servers generally operate on one coherent language document. A `
   - Include `file="..."` references support Go to Definition for relative paths.
   - Directive completions include `skeleton` alongside the existing directive names and attributes.
   - Scriptlet, expression, and declaration blocks can forward completion, hover, and Go to Definition requests through the generated Java preview when installed Java tooling can answer them.
+  - Generated-output Java, Python, and C/C++ regions provide deterministic local fallback suggestions for common keywords, builtins, and standard-library members.
 
 - Workspace resolution, formatting, and generation helpers
   - Include and skeleton references can resolve through configured workspace search paths and extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidates.
