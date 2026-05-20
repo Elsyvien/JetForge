@@ -69,10 +69,16 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm changing the source template refreshes open preview documents.
 - Confirm the generated output preview language follows the selected generated-output mode.
 - Create a sanitized relative include and confirm Go to Definition from `file="..."` opens it.
+- Open `examples/skeleton-directive.txtjet` and confirm Go to Definition from `skeleton="..."` opens `templates/base.skeleton`.
+- Hover over include and skeleton references and confirm the resolved path/status is shown.
+- Open the generated Java preview for `examples/skeleton-directive.txtjet` and confirm the `.skeleton` token layout is used.
+- Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.
+- Add a temporary missing `skeleton="..."` reference and confirm a missing-skeleton diagnostic appears.
+- Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
 - Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
 - Confirm disabling `txtjet.previews.enabled` disables preview commands.
 - Confirm disabling `txtjet.previews.generatedJava.enabled` disables the generated Java preview command.
-- Confirm disabling `txtjet.navigation.includeDefinitions.enabled` removes include Go to Definition.
+- Confirm disabling `txtjet.navigation.includeDefinitions.enabled` removes include and skeleton Go to Definition.
 
 ## Settings And Privacy
 

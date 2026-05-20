@@ -13,6 +13,7 @@ export interface TxtJetDirective {
   nameRange: TxtJetRange;
   attributes: Record<string, string>;
   attributeRanges: Record<string, TxtJetRange>;
+  duplicateAttributes: Array<{ name: string; range: TxtJetRange }>;
   malformedAttributes: TxtJetRange[];
 }
 
@@ -48,6 +49,16 @@ export interface TxtJetOutputPreviewOptions {
   expandIncludes?: boolean;
   readInclude?: (path: string) => string | undefined;
   includeStack?: string[];
+}
+
+export interface TxtJetJavaPreviewOptions {
+  sourceFileName?: string;
+  readSkeleton?: (path: string) => string | undefined;
+}
+
+interface JavaPreviewSection {
+  text: string;
+  mappings: TxtJetMapping[];
 }
 
 type ExpressionContextKind =
@@ -148,16 +159,37 @@ export function buildGeneratedOutputPreview(
   return { text: chunks.join(""), mappings };
 }
 
-export function buildGeneratedJavaPreview(text: string, sourceName = "TxtJet template"): TxtJetGeneratedPreview {
+export function buildGeneratedJavaPreview(
+  text: string,
+  sourceName = "TxtJet template",
+  options: TxtJetJavaPreviewOptions = {}
+): TxtJetGeneratedPreview {
   const model = parseTxtJetTemplate(text);
   const packageName = sanitizePackageName(model.jetDirective?.attributes.package) ?? DEFAULT_PACKAGE;
   const className = sanitizeClassName(model.jetDirective?.attributes.class) ?? DEFAULT_CLASS;
   const imports = splitImports(model.jetDirective?.attributes.imports);
+  const sections = buildJavaPreviewSections(model);
+  const skeleton = readSkeletonTemplate(model, sourceName, options);
+  if (skeleton?.usesTokens) {
+    return buildSkeletonJavaPreview(skeleton.text, {
+      sourceName,
+      model,
+      packageName,
+      className,
+      imports,
+      members: sections.members,
+      generateMethod: sections.generateMethod
+    });
+  }
+
   const chunks: string[] = [];
   const mappings: TxtJetMapping[] = [];
 
   chunks.push(`// TxtJet generated Java template preview for ${sourceName}\n`);
   chunks.push("// This is an editor approximation, not compiler output.\n\n");
+  if (model.jetDirective?.attributes.skeleton) {
+    appendSkeletonReference(chunks, mappings, model.jetDirective, skeleton?.status ?? "unavailable");
+  }
   chunks.push(`package ${packageName};\n\n`);
   for (const importName of imports) {
     chunks.push(`import ${importName};\n`);
@@ -166,27 +198,8 @@ export function buildGeneratedJavaPreview(text: string, sourceName = "TxtJet tem
     chunks.push("\n");
   }
   chunks.push(`public class ${className} {\n`);
-
-  const declarations = model.blocks.filter((block) => block.kind === "declaration");
-  for (const block of declarations) {
-    appendMapped(chunks, mappings, `\n${trimBlockContent(block.content)}\n`, block, "declaration");
-  }
-
-  chunks.push("\n    public String generate() {\n");
-  chunks.push("        StringBuilder stringBuffer = new StringBuilder();\n");
-
-  for (const block of model.blocks) {
-    if (block.kind === "outer" && block.content.length > 0) {
-      appendMapped(chunks, mappings, `        stringBuffer.append("${escapeJavaString(block.content)}");\n`, block, "append");
-    } else if (block.kind === "scriptlet") {
-      appendMapped(chunks, mappings, indentJavaLines(trimBlockContent(block.content), 8), block, "scriptlet");
-    } else if (block.kind === "expression") {
-      appendMapped(chunks, mappings, `        stringBuffer.append(${trimExpression(block.content)});\n`, block, "expression");
-    }
-  }
-
-  chunks.push("        return stringBuffer.toString();\n");
-  chunks.push("    }\n");
+  appendSection(chunks, mappings, sections.members);
+  appendSection(chunks, mappings, sections.generateMethod);
   chunks.push("}\n");
 
   return { text: chunks.join(""), mappings };
@@ -225,6 +238,8 @@ export function resolveIncludePath(templateFileName: string, includeFile: string
   return normalize(resolve(dirname(templateFileName), includeFile));
 }
 
+export const resolveSkeletonPath = resolveIncludePath;
+
 function pushOuter(blocks: TxtJetBlock[], text: string, start: number, end: number): void {
   if (end <= start) {
     return;
@@ -246,6 +261,7 @@ function parseDirective(content: string, contentStart: number): TxtJetDirective 
   const nameEnd = nameStart + name.length;
   const attributes: Record<string, string> = {};
   const attributeRanges: Record<string, TxtJetRange> = {};
+  const duplicateAttributes: Array<{ name: string; range: TxtJetRange }> = [];
   const malformedAttributes: TxtJetRange[] = [];
   const attributeTextStart = leadingWhitespace + name.length;
   const attributeText = content.slice(attributeTextStart);
@@ -255,9 +271,12 @@ function parseDirective(content: string, contentStart: number): TxtJetDirective 
 
   while ((match = attributePattern.exec(attributeText))) {
     const attrName = match[1];
-    attributes[attrName] = unescapeDirectiveValue(match[3] ?? match[4] ?? "");
     const start = contentStart + attributeTextStart + match.index;
     const end = start + match[0].length;
+    if (attrName in attributes) {
+      duplicateAttributes.push({ name: attrName, range: { start, end } });
+    }
+    attributes[attrName] = unescapeDirectiveValue(match[3] ?? match[4] ?? "");
     attributeRanges[attrName] = { start, end };
     for (let index = match.index; index < match.index + match[0].length; index += 1) {
       consumed[index] = true;
@@ -285,8 +304,158 @@ function parseDirective(content: string, contentStart: number): TxtJetDirective 
     nameRange: { start: nameStart, end: nameEnd },
     attributes,
     attributeRanges,
+    duplicateAttributes,
     malformedAttributes
   };
+}
+
+function buildJavaPreviewSections(model: TxtJetTemplateModel): { members: JavaPreviewSection; generateMethod: JavaPreviewSection } {
+  const members = emptySection();
+  const declarations = model.blocks.filter((block) => block.kind === "declaration");
+  for (const block of declarations) {
+    appendToSection(members, `\n${trimBlockContent(block.content)}\n`, block, "declaration");
+  }
+
+  const generateMethod = emptySection();
+  appendPlainToSection(generateMethod, "\n    public String generate() {\n");
+  appendPlainToSection(generateMethod, "        StringBuilder stringBuffer = new StringBuilder();\n");
+
+  for (const block of model.blocks) {
+    if (block.kind === "outer" && block.content.length > 0) {
+      appendToSection(generateMethod, `        stringBuffer.append("${escapeJavaString(block.content)}");\n`, block, "append");
+    } else if (block.kind === "scriptlet") {
+      appendToSection(generateMethod, indentJavaLines(trimBlockContent(block.content), 8), block, "scriptlet");
+    } else if (block.kind === "expression") {
+      appendToSection(generateMethod, `        stringBuffer.append(${trimExpression(block.content)});\n`, block, "expression");
+    }
+  }
+
+  appendPlainToSection(generateMethod, "        return stringBuffer.toString();\n");
+  appendPlainToSection(generateMethod, "    }\n");
+  return { members, generateMethod };
+}
+
+function emptySection(): JavaPreviewSection {
+  return { text: "", mappings: [] };
+}
+
+function appendPlainToSection(section: JavaPreviewSection, text: string): void {
+  section.text += text;
+}
+
+function appendToSection(
+  section: JavaPreviewSection,
+  text: string,
+  block: TxtJetBlock,
+  kind: TxtJetMapping["kind"]
+): void {
+  const start = section.text.length;
+  section.text += text;
+  section.mappings.push({ source: block.range, preview: { start, end: start + text.length }, kind });
+}
+
+function appendSection(chunks: string[], mappings: TxtJetMapping[], section: JavaPreviewSection): void {
+  const start = lengthOf(chunks);
+  chunks.push(section.text);
+  for (const mapping of section.mappings) {
+    mappings.push({
+      ...mapping,
+      preview: {
+        start: start + mapping.preview.start,
+        end: start + mapping.preview.end
+      }
+    });
+  }
+}
+
+function readSkeletonTemplate(
+  model: TxtJetTemplateModel,
+  sourceName: string,
+  options: TxtJetJavaPreviewOptions
+): { text: string; status: string; usesTokens: boolean } | undefined {
+  const skeletonFile = model.jetDirective?.attributes.skeleton;
+  if (!skeletonFile || !options.readSkeleton) {
+    return skeletonFile ? { text: "", status: "not loaded", usesTokens: false } : undefined;
+  }
+
+  const resolved = resolveSkeletonPath(options.sourceFileName ?? sourceName, skeletonFile);
+  if (!resolved) {
+    return { text: "", status: "invalid path", usesTokens: false };
+  }
+
+  const text = options.readSkeleton(resolved);
+  if (text === undefined) {
+    return { text: "", status: "unresolved", usesTokens: false };
+  }
+
+  return { text, status: "loaded", usesTokens: hasSkeletonTokens(text) };
+}
+
+function hasSkeletonTokens(text: string): boolean {
+  return /\$\{(?:package|packageDeclaration|imports|class|members|generateMethod)\}/.test(text);
+}
+
+function buildSkeletonJavaPreview(
+  skeletonText: string,
+  data: {
+    sourceName: string;
+    model: TxtJetTemplateModel;
+    packageName: string;
+    className: string;
+    imports: string[];
+    members: JavaPreviewSection;
+    generateMethod: JavaPreviewSection;
+  }
+): TxtJetGeneratedPreview {
+  const chunks: string[] = [];
+  const mappings: TxtJetMapping[] = [];
+  chunks.push(`// TxtJet generated Java template preview for ${data.sourceName}\n`);
+  chunks.push("// This is an editor approximation rendered through the referenced skeleton.\n\n");
+  if (data.model.jetDirective?.attributes.skeleton) {
+    appendSkeletonReference(chunks, mappings, data.model.jetDirective, "loaded");
+  }
+
+  const replacements: Record<string, string | JavaPreviewSection> = {
+    package: data.packageName,
+    packageDeclaration: `package ${data.packageName};`,
+    imports: data.imports.map((importName) => `import ${importName};`).join("\n"),
+    class: data.className,
+    members: data.members,
+    generateMethod: data.generateMethod
+  };
+
+  const tokenPattern = /\$\{(package|packageDeclaration|imports|class|members|generateMethod)\}/g;
+  let offset = 0;
+  let match: RegExpExecArray | null;
+  while ((match = tokenPattern.exec(skeletonText))) {
+    chunks.push(skeletonText.slice(offset, match.index));
+    const replacement = replacements[match[1]];
+    if (typeof replacement === "string") {
+      chunks.push(replacement);
+    } else {
+      appendSection(chunks, mappings, replacement);
+    }
+    offset = match.index + match[0].length;
+  }
+  chunks.push(skeletonText.slice(offset));
+  if (!skeletonText.endsWith("\n")) {
+    chunks.push("\n");
+  }
+
+  return { text: chunks.join(""), mappings };
+}
+
+function appendSkeletonReference(
+  chunks: string[],
+  mappings: TxtJetMapping[],
+  directive: TxtJetDirective,
+  status: string
+): void {
+  const skeletonRange = directive.attributeRanges.skeleton ?? directive.nameRange;
+  const text = `// TxtJet skeleton reference (${status}): ${directive.attributes.skeleton}\n\n`;
+  const start = lengthOf(chunks);
+  chunks.push(text);
+  mappings.push({ source: skeletonRange, preview: { start, end: start + text.length }, kind: "directive" });
 }
 
 function outputPlaceholder(
@@ -585,18 +754,6 @@ function normalizeCommentText(text: string): string {
 
 function unescapeDirectiveValue(value: string): string {
   return value.replace(/\\(["'\\])/g, "$1");
-}
-
-function appendMapped(
-  chunks: string[],
-  mappings: TxtJetMapping[],
-  text: string,
-  block: TxtJetBlock,
-  kind: TxtJetMapping["kind"]
-): void {
-  const start = lengthOf(chunks);
-  chunks.push(text);
-  mappings.push({ source: block.range, preview: { start, end: start + text.length }, kind });
 }
 
 function indentJavaLines(text: string, spaces: number): string {

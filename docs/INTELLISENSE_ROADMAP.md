@@ -64,7 +64,7 @@ VSCode language servers generally operate on one coherent language document. A `
 
 - Skeleton support
   - Eclipse supports a `skeleton` attribute in the `@jet` directive to customize the compiled Java class shape.
-  - VSCode equivalent: parse and navigate `skeleton` references, validate missing skeleton files, and eventually include skeleton signatures in generated Java previews.
+  - VSCode equivalent: parse, navigate, validate, hover, and render local token-based `.skeleton` files in generated Java previews.
 
 - Include navigation
   - Eclipse supports navigation for `file` and `skeleton` links.

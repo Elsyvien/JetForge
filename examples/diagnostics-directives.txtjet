@@ -1,4 +1,4 @@
-<%@ jet package="example.txtjet.samples" class="DiagnosticsOne" %>
+<%@ jet package="example.txtjet.samples" class="DiagnosticsOne" skeleton="templates/does-not-exist.skeleton" %>
 <%@ jet package="example.txtjet.samples" class="DiagnosticsTwo" %>
 <%@ include %>
 <%@ include file="partials/does-not-exist.txtjet" %>

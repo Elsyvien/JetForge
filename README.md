@@ -126,9 +126,9 @@ TxtJet can open local, read-only preview documents for the active template:
 
 The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. The preview language follows the selected or detected generated-output mode.
 
-The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
+The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
 
-Relative include references can be opened through Go to Definition from `file="..."` attributes. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
+Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Hover shows resolved/unresolved reference status, and missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 
 ## Formatting Helpers
 
@@ -177,7 +177,7 @@ The `examples/` folder contains sanitized templates for manual testing:
 
 - `sample-*.txtjet` cover the supported generated-output modes.
 - `include-main.txtjet` and `partials/*.txtjet` test relative include navigation.
-- `skeleton-directive.txtjet` tests directive attributes including `skeleton`.
+- `skeleton-directive.txtjet`, `skeleton-nested.txtjet`, `skeleton-invalid-path.txtjet`, and `templates/*.skeleton` test skeleton rendering, navigation, and validation.
 - `java-declaration-heavy.txtjet` stresses generated Java preview declarations and imports.
 - `diagnostics-directives.txtjet` intentionally triggers directive diagnostics.
 - `fallback-java-preview.txtjet` tests fallback generated Java metadata.

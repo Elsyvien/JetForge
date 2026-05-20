@@ -1,0 +1,5 @@
+<%@ jet package="example.txtjet.samples" class="InvalidSkeletonSample" skeleton="/tmp/private.skeleton" %>
+package generated.skeleton;
+
+public class InvalidSkeletonPath {
+}

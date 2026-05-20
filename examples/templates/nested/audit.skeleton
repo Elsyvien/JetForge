@@ -1,0 +1,9 @@
+${packageDeclaration}
+
+${imports}
+
+public class ${class} {
+    private final String skeletonName = "audit";
+${members}
+${generateMethod}
+}

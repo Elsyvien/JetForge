@@ -28,11 +28,26 @@ assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"demo\" %>\n<%@ jet
   "duplicate-jet-directive"
 ]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include %>").map((issue) => issue.code), ["missing-include-file"]);
-assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"missing.txtjet\" %>", () => false).map((issue) => issue.code), [
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"missing.txtjet\" %>", { includeExists: () => false }).map((issue) => issue.code), [
   "unresolved-include-file"
 ]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"\" %>").map((issue) => issue.code), ["missing-skeleton-file"]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"base.skeleton\" %>", { skeletonExists: () => true }).map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"missing.skeleton\" %>", { skeletonExists: () => false }).map((issue) => issue.code), [
+  "unresolved-skeleton-file"
+]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"123\" class=\"123\" imports=\"java.util.List, 1bad.Import\" skeleton=\"base.txt\" extra=\"x\" %>").map((issue) => issue.code), [
+  "unknown-directive-attribute",
+  "invalid-skeleton-path",
+  "invalid-jet-package",
+  "invalid-jet-class",
+  "invalid-jet-imports"
+]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"a.txtjet\" file=\"b.txtjet\" %>").map((issue) => issue.code), [
+  "duplicate-directive-attribute"
+]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ unknown value=\"x\" %>").map((issue) => issue.code), ["unknown-directive"]);
-assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>").map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>").map((issue) => issue.code), ["invalid-jet-package"]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=missing.txtjet %>").map((issue) => issue.code), [
   "malformed-directive-attribute",
   "missing-include-file"

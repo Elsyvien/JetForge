@@ -1,0 +1,6 @@
+<%@ jet package="example.txtjet.samples" class="NestedSkeletonSample" skeleton="templates/nested/audit.skeleton" imports="java.time.Instant" %>
+package generated.skeleton;
+
+public class GeneratedAudit {
+    private Instant generatedAt = <%= Instant.now() %>;
+}

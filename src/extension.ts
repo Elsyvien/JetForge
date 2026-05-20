@@ -201,6 +201,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerCodeActionProvider());
   context.subscriptions.push(registerDocumentSymbolProvider());
   context.subscriptions.push(registerDefinitionProvider());
+  context.subscriptions.push(registerHoverProvider());
 
   for (const document of vscode.workspace.textDocuments) {
     void applyDetectedLanguage(context, document, false, statusBar);
@@ -242,7 +243,7 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider {
     }
 
     if (uri.scheme === JAVA_PREVIEW_SCHEME) {
-      return buildGeneratedJavaPreview(document.getText(), document.fileName).text;
+      return buildGeneratedJavaPreview(document.getText(), document.fileName, javaPreviewOptions(document)).text;
     }
     const targetLanguage = target ?? detectLanguage(document);
     return buildOutputPreviewForDocument(document, targetLanguage).text;
@@ -345,14 +346,10 @@ function queryValue(uri: vscode.Uri, key: string): string | undefined {
   return undefined;
 }
 
-function buildPreview(text: string, kind: PreviewKind, targetLanguage: TxtJetTargetLanguage): TxtJetGeneratedPreview {
-  return kind === "java" ? buildGeneratedJavaPreview(text) : buildGeneratedOutputPreview(text, targetLanguage);
-}
-
 function buildPreviewForDocument(document: vscode.TextDocument, kind: PreviewKind): TxtJetGeneratedPreview {
   const targetLanguage = selectedTargetLanguage(document);
   return kind === "java"
-    ? buildGeneratedJavaPreview(document.getText(), document.fileName)
+    ? buildGeneratedJavaPreview(document.getText(), document.fileName, javaPreviewOptions(document))
     : buildOutputPreviewForDocument(document, targetLanguage);
 }
 
@@ -379,6 +376,19 @@ function outputPreviewOptions(document: vscode.TextDocument) {
     sourceFileName: document.fileName,
     expandIncludes: true,
     readInclude(path: string): string | undefined {
+      try {
+        return readFileSync(path, "utf8");
+      } catch {
+        return undefined;
+      }
+    }
+  };
+}
+
+function javaPreviewOptions(document: vscode.TextDocument) {
+  return {
+    sourceFileName: document.fileName,
+    readSkeleton(path: string): string | undefined {
       try {
         return readFileSync(path, "utf8");
       } catch {
@@ -565,9 +575,9 @@ function updateDiagnostics(collection: vscode.DiagnosticCollection, document: vs
   const text = document.getText();
   const diagnostics = [
     ...scanTxtJetIssues(text),
-    ...scanTxtJetDirectiveIssues(text, (includeFile) => {
-      const resolved = resolveIncludePath(document.fileName, includeFile);
-      return Boolean(resolved && existsSync(resolved));
+    ...scanTxtJetDirectiveIssues(text, {
+      includeExists: (includeFile) => fileReferenceExists(document.fileName, includeFile),
+      skeletonExists: (skeletonFile) => fileReferenceExists(document.fileName, skeletonFile)
     })
   ].map((issue) => issueToDiagnostic(document, issue, severity));
   collection.set(document.uri, diagnostics.concat(mappedGeneratedJavaDiagnostics(document)));
@@ -614,7 +624,7 @@ function mappedGeneratedJavaDiagnostics(document: vscode.TextDocument): vscode.D
     return [];
   }
 
-  const preview = buildGeneratedJavaPreview(document.getText(), document.fileName);
+  const preview = buildGeneratedJavaPreview(document.getText(), document.fileName, javaPreviewOptions(document));
   return previewDiagnostics.flatMap((diagnostic) => {
     const mappedRange = mapPreviewRangeToSource(preview.mappings, {
       start: offsetAt(preview.text, diagnostic.range.start),
@@ -697,17 +707,44 @@ function registerDefinitionProvider(): vscode.Disposable {
 
         const offset = document.offsetAt(position);
         const model = parseTxtJetTemplate(document.getText());
-        const include = includeDirectiveAtOffset(model.includes, offset);
-        const includeFile = include?.attributes.file;
-        if (!include || !includeFile) {
+        const reference = referenceDirectiveAtOffset(model, offset);
+        if (!reference) {
           return undefined;
         }
 
-        const resolved = resolveIncludePath(document.fileName, includeFile);
+        const resolved = resolveIncludePath(document.fileName, reference.file);
         if (!resolved || !existsSync(resolved)) {
           return undefined;
         }
         return new vscode.Location(vscode.Uri.file(resolved), new vscode.Position(0, 0));
+      }
+    }
+  );
+}
+
+function registerHoverProvider(): vscode.Disposable {
+  return vscode.languages.registerHoverProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      provideHover(document, position) {
+        const offset = document.offsetAt(position);
+        const model = parseTxtJetTemplate(document.getText());
+        const reference = referenceDirectiveAtOffset(model, offset);
+        if (!reference) {
+          return undefined;
+        }
+
+        const resolved = resolveIncludePath(document.fileName, reference.file);
+        const status = resolved && existsSync(resolved) ? "resolved" : "unresolved";
+        const markdown = new vscode.MarkdownString();
+        markdown.appendMarkdown(`**TxtJet ${reference.kind} reference**\n\n`);
+        markdown.appendCodeblock(reference.file, "text");
+        markdown.appendMarkdown(`\nStatus: ${status}`);
+        if (resolved) {
+          markdown.appendMarkdown(`\n\nResolved path:\n`);
+          markdown.appendCodeblock(resolved, "text");
+        }
+        return new vscode.Hover(markdown, reference.range ? new vscode.Range(document.positionAt(reference.range.start), document.positionAt(reference.range.end)) : undefined);
       }
     }
   );
@@ -727,6 +764,13 @@ function diagnosticToCodeAction(
     start: document.offsetAt(diagnostic.range.start),
     end: document.offsetAt(diagnostic.range.end)
   };
+  const createFileAction = missingReferenceCodeAction(document, text, issue);
+  if (createFileAction) {
+    createFileAction.diagnostics = [diagnostic];
+    createFileAction.isPreferred = true;
+    return createFileAction;
+  }
+
   const fix = buildTxtJetCodeActionEdit(text, issue);
   if (!fix) {
     return undefined;
@@ -743,6 +787,46 @@ function diagnosticToCodeAction(
   );
   action.edit = edit;
   return action;
+}
+
+function missingReferenceCodeAction(
+  document: vscode.TextDocument,
+  text: string,
+  issue: { code: TxtJetIssue["code"]; start: number; end: number }
+): vscode.CodeAction | undefined {
+  if (issue.code !== "unresolved-include-file" && issue.code !== "unresolved-skeleton-file") {
+    return undefined;
+  }
+
+  const referenceFile = quotedAttributeValue(text.slice(issue.start, issue.end));
+  if (!referenceFile) {
+    return undefined;
+  }
+
+  const resolved = resolveIncludePath(document.fileName, referenceFile);
+  if (!resolved) {
+    return undefined;
+  }
+
+  const kind = issue.code === "unresolved-skeleton-file" ? "skeleton" : "include";
+  const action = new vscode.CodeAction(`Create missing TxtJet ${kind} file`, vscode.CodeActionKind.QuickFix);
+  const edit = new vscode.WorkspaceEdit();
+  const uri = vscode.Uri.file(resolved);
+  edit.createFile(uri, { ignoreIfExists: true });
+  edit.insert(uri, new vscode.Position(0, 0), defaultReferenceFileText(kind));
+  action.edit = edit;
+  return action;
+}
+
+function quotedAttributeValue(text: string): string | undefined {
+  const match = text.match(/=\s*(?:"([^"]*)"|'([^']*)')/);
+  return match?.[1] ?? match?.[2];
+}
+
+function defaultReferenceFileText(kind: "include" | "skeleton"): string {
+  return kind === "skeleton"
+    ? "${packageDeclaration}\n\n${imports}\n\npublic class ${class} {\n${members}\n${generateMethod}\n}\n"
+    : "";
 }
 
 function blockToSymbol(document: vscode.TextDocument, block: TxtJetBlock): vscode.DocumentSymbol {
@@ -804,6 +888,30 @@ function includeDirectiveAtOffset(includes: TxtJetDirective[], offset: number): 
     }
     return include.nameRange.start <= offset && offset <= include.nameRange.end;
   });
+}
+
+function referenceDirectiveAtOffset(
+  model: ReturnType<typeof parseTxtJetTemplate>,
+  offset: number
+): { kind: "include" | "skeleton"; file: string; range?: TxtJetRange } | undefined {
+  const include = includeDirectiveAtOffset(model.includes, offset);
+  if (include?.attributes.file) {
+    return { kind: "include", file: include.attributes.file, range: include.attributeRanges.file };
+  }
+
+  const jet = model.jetDirective;
+  const skeletonRange = jet?.attributeRanges.skeleton;
+  const skeletonFile = jet?.attributes.skeleton;
+  if (jet && skeletonRange && skeletonFile && skeletonRange.start <= offset && offset <= skeletonRange.end) {
+    return { kind: "skeleton", file: skeletonFile, range: skeletonRange };
+  }
+
+  return undefined;
+}
+
+function fileReferenceExists(templateFileName: string, referenceFile: string): boolean {
+  const resolved = resolveIncludePath(templateFileName, referenceFile);
+  return Boolean(resolved && existsSync(resolved));
 }
 
 function registerCompletionProvider(): vscode.Disposable {

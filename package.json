@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -338,7 +338,7 @@
         "txtjet.navigation.includeDefinitions.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Go to Definition for TxtJet include file attributes."
+          "description": "Enable Go to Definition for TxtJet include and skeleton file attributes."
         }
       }
     },

@@ -77,6 +77,10 @@ const includeMainOutput = preview("examples/include-main.txtjet");
 assert.ok(includeMainOutput.includes("id=\"${page}\""));
 assert.ok(includeMainOutput.includes(">${page.toUpperCase()}</h2>"));
 
+const skeletonJavaOutput = javaPreview("examples/skeleton-directive.txtjet");
+assert.ok(skeletonJavaOutput.includes("// TxtJet skeleton reference (loaded): templates/base.skeleton"));
+assert.ok(skeletonJavaOutput.includes("public final class SkeletonSample"));
+
 assert.equal(relative(".", resolveIncludePath("examples/include-main.txtjet", "partials/header.txtjet") ?? ""), "examples/partials/header.txtjet");
 assert.equal(targetPreviewLanguage("txtjet-java"), "java");
 
@@ -91,6 +95,19 @@ function preview(file: string): string {
     sourceFileName: file,
     expandIncludes: true,
     readInclude(path) {
+      try {
+        return readFileSync(path, "utf8");
+      } catch {
+        return undefined;
+      }
+    }
+  }).text;
+}
+
+function javaPreview(file: string): string {
+  return buildGeneratedJavaPreview(readFileSync(file, "utf8"), file, {
+    sourceFileName: file,
+    readSkeleton(path) {
       try {
         return readFileSync(path, "utf8");
       } catch {

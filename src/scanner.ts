@@ -9,6 +9,14 @@ export type TxtJetIssueCode =
   | "duplicate-jet-directive"
   | "missing-include-file"
   | "unresolved-include-file"
+  | "missing-skeleton-file"
+  | "unresolved-skeleton-file"
+  | "invalid-jet-package"
+  | "invalid-jet-class"
+  | "invalid-jet-imports"
+  | "invalid-skeleton-path"
+  | "duplicate-directive-attribute"
+  | "unknown-directive-attribute"
   | "malformed-directive-attribute"
   | "unknown-directive";
 
@@ -19,7 +27,16 @@ export interface TxtJetIssue {
   end: number;
 }
 
+export interface TxtJetReferenceChecks {
+  includeExists?: (includeFile: string) => boolean;
+  skeletonExists?: (skeletonFile: string) => boolean;
+}
+
 const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
+const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
+  jet: new Set(["package", "class", "imports", "skeleton"]),
+  include: new Set(["file"])
+};
 
 export function scanTxtJetIssues(text: string): TxtJetIssue[] {
   const issues: TxtJetIssue[] = [];
@@ -74,7 +91,7 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
 
 export function scanTxtJetDirectiveIssues(
   text: string,
-  includeExists?: (includeFile: string) => boolean
+  referenceChecks?: TxtJetReferenceChecks
 ): TxtJetIssue[] {
   const issues: TxtJetIssue[] = [];
   const model = parseTxtJetTemplate(text);
@@ -108,6 +125,29 @@ export function scanTxtJetDirectiveIssues(
       });
     }
 
+    for (const duplicate of directive.duplicateAttributes) {
+      issues.push({
+        code: "duplicate-directive-attribute",
+        message: `Duplicate TxtJet directive attribute "${duplicate.name}". Only one value is used.`,
+        start: duplicate.range.start,
+        end: duplicate.range.end
+      });
+    }
+
+    const knownAttributes = KNOWN_DIRECTIVE_ATTRIBUTES[directive.name];
+    if (knownAttributes) {
+      for (const [name, range] of Object.entries(directive.attributeRanges)) {
+        if (!knownAttributes.has(name)) {
+          issues.push({
+            code: "unknown-directive-attribute",
+            message: `Unknown @${directive.name} attribute "${name}".`,
+            start: range.start,
+            end: range.end
+          });
+        }
+      }
+    }
+
     if (directive.name === "include") {
       const includeFile = directive.attributes.file;
       const fileRange = directive.attributeRanges.file ?? directive.nameRange;
@@ -118,7 +158,7 @@ export function scanTxtJetDirectiveIssues(
           start: fileRange.start,
           end: fileRange.end
         });
-      } else if (includeExists && !includeExists(includeFile)) {
+      } else if (referenceChecks?.includeExists && !referenceChecks.includeExists(includeFile)) {
         issues.push({
           code: "unresolved-include-file",
           message: `TxtJet include file "${includeFile}" could not be resolved relative to this template.`,
@@ -127,9 +167,97 @@ export function scanTxtJetDirectiveIssues(
         });
       }
     }
+
+    if (directive.name === "jet" && "skeleton" in directive.attributes) {
+      const skeletonFile = directive.attributes.skeleton;
+      const skeletonRange = directive.attributeRanges.skeleton ?? directive.nameRange;
+      if (!skeletonFile) {
+        issues.push({
+          code: "missing-skeleton-file",
+          message: "TxtJet jet directive has an empty skeleton attribute.",
+          start: skeletonRange.start,
+          end: skeletonRange.end
+        });
+      } else if (!isValidSkeletonPath(skeletonFile)) {
+        issues.push({
+          code: "invalid-skeleton-path",
+          message: "TxtJet skeleton should be a relative .skeleton file path.",
+          start: skeletonRange.start,
+          end: skeletonRange.end
+        });
+      } else if (referenceChecks?.skeletonExists && !referenceChecks.skeletonExists(skeletonFile)) {
+        issues.push({
+          code: "unresolved-skeleton-file",
+          message: `TxtJet skeleton file "${skeletonFile}" could not be resolved relative to this template.`,
+          start: skeletonRange.start,
+          end: skeletonRange.end
+        });
+      }
+    }
+
+    if (directive.name === "jet") {
+      issues.push(...scanJetAttributeValues(directive));
+    }
   }
 
   return issues;
+}
+
+function scanJetAttributeValues(directive: NonNullable<ReturnType<typeof parseTxtJetTemplate>["jetDirective"]>): TxtJetIssue[] {
+  const issues: TxtJetIssue[] = [];
+  const packageName = directive.attributes.package;
+  if (packageName && !isValidPackageName(packageName)) {
+    const range = directive.attributeRanges.package ?? directive.nameRange;
+    issues.push({
+      code: "invalid-jet-package",
+      message: "TxtJet @jet package must be a valid Java package name.",
+      start: range.start,
+      end: range.end
+    });
+  }
+
+  const className = directive.attributes.class;
+  if (className && !isValidClassName(className)) {
+    const range = directive.attributeRanges.class ?? directive.nameRange;
+    issues.push({
+      code: "invalid-jet-class",
+      message: "TxtJet @jet class must be a valid Java class name.",
+      start: range.start,
+      end: range.end
+    });
+  }
+
+  const imports = directive.attributes.imports;
+  if (imports && !areValidImports(imports)) {
+    const range = directive.attributeRanges.imports ?? directive.nameRange;
+    issues.push({
+      code: "invalid-jet-imports",
+      message: "TxtJet @jet imports must be comma- or semicolon-separated Java imports.",
+      start: range.start,
+      end: range.end
+    });
+  }
+  return issues;
+}
+
+function isValidPackageName(value: string): boolean {
+  return /^[A-Za-z_][\w]*(?:\.[A-Za-z_][\w]*)*$/.test(value);
+}
+
+function isValidClassName(value: string): boolean {
+  return /^[A-Za-z_$][\w$]*$/.test(value);
+}
+
+function areValidImports(value: string): boolean {
+  return value
+    .split(/[;,]/)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .every((entry) => /^[A-Za-z_][\w]*(?:\.[A-Za-z_*][\w*]*)*$/.test(entry));
+}
+
+function isValidSkeletonPath(value: string): boolean {
+  return !value.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(value) && value.endsWith(".skeleton");
 }
 
 function findNextOpen(text: string, from: number): number {

@@ -1,9 +1,17 @@
 # Changelog
 
+## 0.0.9
+
+- Added deterministic token-based skeleton rendering for generated Java previews with `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`.
+- Added stricter directive validation for duplicate attributes, unknown directive attributes, invalid `@jet` package/class/import values, and invalid skeleton paths.
+- Added hover status and Quick Fix file creation for unresolved include and skeleton references.
+- Added nested, valid, missing, and invalid skeleton examples plus mapping regressions for expanded includes and skeleton-rendered Java previews.
+
 ## 0.0.8
 
 - Added labeled preview headers, recursive relative include expansion, and preview/source reveal commands.
 - Improved generated-output placeholders across Java, C, Python, HTML, and XML previews while keeping template code visible as comments.
+- Added relative `@jet skeleton="..."` validation, navigation, preview annotation, and a sanitized skeleton example.
 - Added example-wide preview regression tests and optional generated-Java diagnostic mapping behind `txtjet.diagnostics.generatedJava.enabled`.
 
 ## 0.0.6

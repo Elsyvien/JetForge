@@ -124,6 +124,22 @@ const fallbackJavaPreview = buildGeneratedJavaPreview("<%@ jet package=\"123\" c
 assert.ok(fallbackJavaPreview.text.includes("package txtjet.generated;"));
 assert.ok(fallbackJavaPreview.text.includes("public class GeneratedTxtJetTemplate"));
 
+const skeletonTemplate = "<%@ jet package=\"demo\" class=\"WithSkeleton\" skeleton=\"templates/base.skeleton\" %>hello <%= name %>";
+const skeletonJavaPreview = buildGeneratedJavaPreview(skeletonTemplate, "/workspace/main.txtjet", {
+  sourceFileName: "/workspace/main.txtjet",
+  readSkeleton(path) {
+    assert.equal(path, "/workspace/templates/base.skeleton");
+    return "${packageDeclaration}\n\npublic final class ${class} {\n${members}\n${generateMethod}\n}\n";
+  }
+});
+assert.ok(skeletonJavaPreview.text.includes("// TxtJet skeleton reference (loaded): templates/base.skeleton"));
+assert.ok(skeletonJavaPreview.text.includes("public final class WithSkeleton"));
+assert.ok(skeletonJavaPreview.text.includes("stringBuffer.append(name);"));
+const skeletonExpressionStart = skeletonTemplate.indexOf("name %>");
+const skeletonExpressionRange = mapSourceRangeToPreview(skeletonJavaPreview.mappings, { start: skeletonExpressionStart, end: skeletonExpressionStart });
+assert.ok(skeletonExpressionRange, "skeleton preview should preserve expression mappings");
+assert.match(skeletonJavaPreview.text.slice(skeletonExpressionRange.start, skeletonExpressionRange.end), /stringBuffer\.append\(name\)/);
+
 assert.equal(targetPreviewLanguage("txtjet-java"), "java");
 assert.equal(targetPreviewLanguage("txtjet-html"), "html");
 assert.equal(targetPreviewLanguage("txtjet"), "plaintext");
@@ -131,5 +147,20 @@ assert.equal(targetPreviewLanguage("txtjet"), "plaintext");
 assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", "parts/header.txtjet"), "/workspace/templates/parts/header.txtjet");
 assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", "/tmp/header.txtjet"), undefined);
 assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", ""), undefined);
+
+const includeMappedTemplate = "<%@ include file=\"parts/item.txtjet\" %>";
+const includeMappedPreview = buildGeneratedOutputPreview(includeMappedTemplate, "txtjet-html", {
+  sourceFileName: "/workspace/main.txtjet",
+  expandIncludes: true,
+  readInclude(path) {
+    assert.equal(path, "/workspace/parts/item.txtjet");
+    return "<li><%= item %></li>";
+  }
+});
+assert.ok(includeMappedPreview.text.includes("txtjet include begin: parts/item.txtjet"));
+assert.ok(includeMappedPreview.text.includes("<li>${item}</li>"));
+const includeMappedRange = mapSourceRangeToPreview(includeMappedPreview.mappings, { start: 4, end: 11 });
+assert.ok(includeMappedRange, "expanded include directive should map to preview region");
+assert.ok(includeMappedPreview.text.slice(includeMappedRange.start, includeMappedRange.end).includes("txtjet include begin"));
 
 console.log("template model tests ok");
