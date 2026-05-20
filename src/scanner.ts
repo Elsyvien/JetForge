@@ -45,6 +45,7 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
   while (offset < text.length) {
     const nextOpen = findNextOpen(text, offset);
     const nextClose = text.indexOf("%>", offset);
+    const nextQuestionClose = text.indexOf("?>", offset);
 
     if (nextClose !== -1 && (nextOpen === -1 || nextClose < nextOpen)) {
       issues.push({
@@ -54,6 +55,21 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
         end: nextClose + 2
       });
       offset = nextClose + 2;
+      continue;
+    }
+
+    if (
+      nextQuestionClose !== -1
+      && (nextOpen === -1 || nextQuestionClose < nextOpen)
+      && (nextClose === -1 || nextQuestionClose < nextClose)
+    ) {
+      issues.push({
+        code: "unexpected-close",
+        message: "Unexpected TxtJet closing delimiter. Use %> to close TxtJet blocks.",
+        start: nextQuestionClose,
+        end: nextQuestionClose + 2
+      });
+      offset = nextQuestionClose + 2;
       continue;
     }
 

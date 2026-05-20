@@ -48,18 +48,25 @@ assert.ok(contributes.configuration.properties["txtjet.diagnostics.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.generatedJava.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.codeActions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.javaIntelliSense.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.statusBar.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.openBeside"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.generatedJava.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.navigation.includeDefinitions.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.resolution.includePaths"]);
+assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"]);
+assert.ok(contributes.configuration.properties["txtjet.formatting.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.generation.outputDirectory"]);
 
 for (const command of [
   "txtjet.openGeneratedOutputPreview",
   "txtjet.openGeneratedJavaPreview",
   "txtjet.openPreviewBesideSource",
   "txtjet.revealPreviewFromSource",
-  "txtjet.revealSourceFromPreview"
+  "txtjet.revealSourceFromPreview",
+  "txtjet.generateOutput",
+  "txtjet.diffLastGeneratedOutput"
 ]) {
   assert.ok(contributedCommands.has(command), `${command} command missing`);
   assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);

@@ -2,6 +2,11 @@
 
 ## 0.0.9
 
+- Added Java IntelliSense forwarding for TxtJet scriptlet, expression, and declaration blocks through the generated Java preview when Java tooling is available.
+- Added local Java-block completion fallbacks so TxtJet still shows suggestions when external Java tooling ignores virtual preview documents.
+- Added on-demand generated-output writing plus a command to diff the current generated output against the last saved generation snapshot.
+- Added template-aware document and selection formatting for directives, expressions, scriptlets, and declarations.
+- Added configurable include and skeleton search paths with extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidate resolution.
 - Added deterministic token-based skeleton rendering for generated Java previews with `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`.
 - Added stricter directive validation for duplicate attributes, unknown directive attributes, invalid `@jet` package/class/import values, and invalid skeleton paths.
 - Added hover status and Quick Fix file creation for unresolved include and skeleton references.

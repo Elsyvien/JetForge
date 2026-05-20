@@ -48,12 +48,18 @@ export interface TxtJetOutputPreviewOptions {
   sourceFileName?: string;
   expandIncludes?: boolean;
   readInclude?: (path: string) => string | undefined;
+  includePaths?: string[];
   includeStack?: string[];
 }
 
 export interface TxtJetJavaPreviewOptions {
   sourceFileName?: string;
   readSkeleton?: (path: string) => string | undefined;
+  skeletonPaths?: string[];
+}
+
+export interface TxtJetReferenceResolutionOptions {
+  searchPaths?: string[];
 }
 
 interface JavaPreviewSection {
@@ -232,13 +238,49 @@ export function mapPreviewRangeToSource(mappings: TxtJetMapping[], previewRange:
 }
 
 export function resolveIncludePath(templateFileName: string, includeFile: string): string | undefined {
-  if (!includeFile || isAbsolute(includeFile)) {
+  return resolveTemplateReferencePath(templateFileName, includeFile);
+}
+
+export function resolveTemplateReferencePath(
+  templateFileName: string,
+  referenceFile: string,
+  options: TxtJetReferenceResolutionOptions = {}
+): string | undefined {
+  if (!referenceFile || isAbsolute(referenceFile)) {
     return undefined;
   }
-  return normalize(resolve(dirname(templateFileName), includeFile));
+  const candidates = [dirname(templateFileName), ...(options.searchPaths ?? [])];
+  return normalize(resolve(candidates[0], referenceFile));
 }
 
 export const resolveSkeletonPath = resolveIncludePath;
+
+export function resolveReferenceCandidates(
+  templateFileName: string,
+  referenceFile: string,
+  options: TxtJetReferenceResolutionOptions = {}
+): string[] {
+  if (!referenceFile || isAbsolute(referenceFile)) {
+    return [];
+  }
+  const roots = [dirname(templateFileName), ...(options.searchPaths ?? [])];
+  const seen = new Set<string>();
+  return roots.flatMap((root) => referenceNameCandidates(referenceFile).map((name) => normalize(resolve(root, name))))
+    .filter((candidate) => {
+      if (seen.has(candidate)) {
+        return false;
+      }
+      seen.add(candidate);
+      return true;
+    });
+}
+
+function referenceNameCandidates(referenceFile: string): string[] {
+  if (/\.[^/\\.]+$/.test(referenceFile)) {
+    return [referenceFile];
+  }
+  return [referenceFile, `${referenceFile}.txtjet`, `${referenceFile}.jetinc`, `${referenceFile}.skeleton`];
+}
 
 function pushOuter(blocks: TxtJetBlock[], text: string, start: number, end: number): void {
   if (end <= start) {
@@ -378,17 +420,21 @@ function readSkeletonTemplate(
     return skeletonFile ? { text: "", status: "not loaded", usesTokens: false } : undefined;
   }
 
-  const resolved = resolveSkeletonPath(options.sourceFileName ?? sourceName, skeletonFile);
-  if (!resolved) {
+  const skeleton = readFirstReference(
+    options.sourceFileName ?? sourceName,
+    skeletonFile,
+    options.skeletonPaths,
+    options.readSkeleton
+  );
+  if (!skeleton.resolved) {
     return { text: "", status: "invalid path", usesTokens: false };
   }
 
-  const text = options.readSkeleton(resolved);
-  if (text === undefined) {
+  if (skeleton.text === undefined) {
     return { text: "", status: "unresolved", usesTokens: false };
   }
 
-  return { text, status: "loaded", usesTokens: hasSkeletonTokens(text) };
+  return { text: skeleton.text, status: "loaded", usesTokens: hasSkeletonTokens(skeleton.text) };
 }
 
 function hasSkeletonTokens(text: string): boolean {
@@ -492,28 +538,27 @@ function includePlaceholder(
     return commentPlaceholder(`txtjet include: ${includeFile || "missing file"}`, targetLanguage);
   }
 
-  const resolved = resolveIncludePath(options.sourceFileName, includeFile);
-  if (!resolved) {
+  const include = readFirstReference(options.sourceFileName, includeFile, options.includePaths, options.readInclude);
+  if (!include.resolved) {
     return commentPlaceholder(`txtjet include skipped: ${includeFile}`, targetLanguage);
   }
 
   const includeStack = options.includeStack ?? [normalize(options.sourceFileName)];
-  if (includeStack.includes(resolved)) {
+  if (includeStack.includes(include.resolved)) {
     return commentPlaceholder(`txtjet include skipped circular reference: ${includeFile}`, targetLanguage);
   }
   if (includeStack.length > MAX_INCLUDE_DEPTH) {
     return commentPlaceholder(`txtjet include skipped max depth: ${includeFile}`, targetLanguage);
   }
 
-  const includeText = options.readInclude(resolved);
-  if (includeText === undefined) {
+  if (include.text === undefined) {
     return commentPlaceholder(`txtjet include unresolved: ${includeFile}`, targetLanguage);
   }
 
-  const nested = buildGeneratedOutputPreview(includeText, targetLanguage, {
+  const nested = buildGeneratedOutputPreview(include.text, targetLanguage, {
     ...options,
-    sourceFileName: resolved,
-    includeStack: [...includeStack, resolved]
+    sourceFileName: include.resolved,
+    includeStack: [...includeStack, include.resolved]
   }).text;
   return [
     commentPlaceholder(`txtjet include begin: ${includeFile}`, targetLanguage),
@@ -861,4 +906,23 @@ function rangesIntersectOrTouch(left: TxtJetRange, right: TxtJetRange): boolean 
 
 function lengthOf(chunks: string[]): number {
   return chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+}
+
+function readFirstReference(
+  templateFileName: string,
+  referenceFile: string,
+  searchPaths: string[] | undefined,
+  read: ((path: string) => string | undefined) | undefined
+): { resolved?: string; text?: string } {
+  const candidates = resolveReferenceCandidates(templateFileName, referenceFile, { searchPaths });
+  if (candidates.length === 0) {
+    return {};
+  }
+  for (const candidate of candidates) {
+    const text = read?.(candidate);
+    if (text !== undefined) {
+      return { resolved: candidate, text };
+    }
+  }
+  return { resolved: candidates[0] };
 }

@@ -23,6 +23,15 @@ public class GeneratedRecord {
             System.out.println("This is another nested code block.");
         %>);
     }
+    private String test(String value) {
+        return value;
+    }
 %>
+class Main {
+    public static void main(String[] args) {
+        JavaSample sample = new JavaSample();
+        String capitalized = sample.capitalize("example");
+        System.out.println("Capitalized: " + capitalized);
+    }
 }
-
+%>

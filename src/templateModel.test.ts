@@ -5,6 +5,7 @@ import {
   mapPreviewRangeToSource,
   mapSourceRangeToPreview,
   parseTxtJetTemplate,
+  resolveReferenceCandidates,
   resolveIncludePath,
   targetPreviewLanguage
 } from "./templateModel";
@@ -147,6 +148,18 @@ assert.equal(targetPreviewLanguage("txtjet"), "plaintext");
 assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", "parts/header.txtjet"), "/workspace/templates/parts/header.txtjet");
 assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", "/tmp/header.txtjet"), undefined);
 assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", ""), undefined);
+assert.deepEqual(resolveReferenceCandidates("/workspace/templates/main.txtjet", "shared/header", {
+  searchPaths: ["/workspace/includes"]
+}), [
+  "/workspace/templates/shared/header",
+  "/workspace/templates/shared/header.txtjet",
+  "/workspace/templates/shared/header.jetinc",
+  "/workspace/templates/shared/header.skeleton",
+  "/workspace/includes/shared/header",
+  "/workspace/includes/shared/header.txtjet",
+  "/workspace/includes/shared/header.jetinc",
+  "/workspace/includes/shared/header.skeleton"
+]);
 
 const includeMappedTemplate = "<%@ include file=\"parts/item.txtjet\" %>";
 const includeMappedPreview = buildGeneratedOutputPreview(includeMappedTemplate, "txtjet-html", {

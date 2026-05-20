@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, and include navigation. It does not provide full semantic IntelliSense for Java or generated target languages inside `.txtjet` files.
+TxtJet Syntax currently provides highlighting, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, and conservative Java IntelliSense forwarding for template Java blocks. It does not implement Java semantic analysis directly or provide full generated target-language IntelliSense inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -37,12 +37,22 @@ VSCode language servers generally operate on one coherent language document. A `
   - Outline symbols summarize directives, declarations, scriptlets, expressions, and generated-output regions.
   - Include `file="..."` references support Go to Definition for relative paths.
   - Directive completions include `skeleton` alongside the existing directive names and attributes.
+  - Scriptlet, expression, and declaration blocks can forward completion, hover, and Go to Definition requests through the generated Java preview when installed Java tooling can answer them.
+
+- Workspace resolution, formatting, and generation helpers
+  - Include and skeleton references can resolve through configured workspace search paths and extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidates.
+  - Document formatting and format selection normalize directive attributes, expressions, and template Java block indentation.
+  - On-demand generation writes the generated-output approximation to disk and can diff the current output against the last generation snapshot.
 
 ## Remaining Future Direction
 
 1. Inline IntelliSense
-   - Only after the preview and mapping model is stable, evaluate inline completions/hovers for Java template blocks.
-   - Avoid a broad language-server bridge until there is evidence that preview-based workflows are insufficient.
+   - Harden the generated-Java provider bridge with more real-workspace validation and expand it only where source/edit mappings are deterministic.
+   - Keep mapping one-way and conservative until rename/edit application can be proven safe across scriptlet, expression, declaration, and skeleton-rendered regions.
+
+2. Compiler-backed diagnostics
+   - Prefer diagnostics from a generated Java document or configured compiler pipeline, then map them back through the existing preview source map.
+   - Promote this out of the current optional bridge only after diagnostics are deterministic for unopened previews and do not depend on a user manually opening the generated Java preview first.
 
 ## Additional Eclipse-Inspired Feature Ideas
 

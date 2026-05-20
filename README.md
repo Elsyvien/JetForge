@@ -15,8 +15,9 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Java highlighting inside embedded template blocks.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Read-only generated output and generated Java template previews.
+- On-demand generated-output writing and previous-generation diffing.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
-- Go to Definition for relative `@include file="..."` references.
+- Go to Definition for `@include file="..."` and `@jet skeleton="..."` references, including configured workspace search paths.
 - Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
 - No runtime network access, telemetry, or proprietary template content.
@@ -106,13 +107,13 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - malformed or empty directives
 - unterminated quoted strings inside directives
 
-Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks.
+Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents.
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
 
 Additional directive diagnostics report duplicate `@jet` directives, missing or unresolved include files, malformed directive attributes, and unknown core directive names.
 
-Diagnostics, Quick Fixes, completions, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
+Diagnostics, Quick Fixes, completions, Java IntelliSense forwarding, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
 
 ## Preview And Navigation
 
@@ -123,12 +124,18 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Open Preview Beside Source`
 - `TxtJet: Reveal Generated Output Preview From Source`
 - `TxtJet: Reveal Source From Preview`
+- `TxtJet: Generate Output File`
+- `TxtJet: Diff Current Output Against Last Generation`
 
 The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. The preview language follows the selected or detected generated-output mode.
 
 The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
 
 Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Hover shows resolved/unresolved reference status, and missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
+
+Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates.
+
+`TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. `TxtJet: Diff Current Output Against Last Generation` compares the current generated output with the last generated snapshot for that template.
 
 ## Formatting Helpers
 
@@ -140,9 +147,11 @@ TxtJet modes include conservative indentation rules for common control blocks su
 <% } %>
 ```
 
+VSCode document formatting and format selection also normalize directive attributes, expression spacing, and Java block indentation without changing generated-output text.
+
 ## Development Notes
 
-Version 1 does not provide Java semantic analysis or template-context IntelliSense. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+Version 1 does not implement Java semantic analysis directly. Java IntelliSense forwarding depends on installed Java tooling and only runs where a TxtJet source position can be mapped into the generated Java preview. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
 
 Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 
@@ -156,11 +165,16 @@ Settings:
 - `txtjet.diagnostics.generatedJava.enabled`
 - `txtjet.codeActions.enabled`
 - `txtjet.completions.enabled`
+- `txtjet.javaIntelliSense.enabled`
 - `txtjet.statusBar.enabled`
 - `txtjet.previews.enabled`
 - `txtjet.previews.openBeside`
 - `txtjet.previews.generatedJava.enabled`
 - `txtjet.navigation.includeDefinitions.enabled`
+- `txtjet.resolution.includePaths`
+- `txtjet.resolution.skeletonPaths`
+- `txtjet.formatting.enabled`
+- `txtjet.generation.outputDirectory`
 
 Privacy and workplace use:
 

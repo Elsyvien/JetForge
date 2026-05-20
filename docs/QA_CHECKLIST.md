@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.8.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.8`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.9.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.9`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -55,6 +55,9 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm normal typing on spaces does not show noisy marker completions.
 - Inside `<%@ ... %>`, confirm directive completions for `jet`, `include`, `package`, `class`, `imports`, and `file`.
 - Confirm `skeleton` is offered as a directive attribute completion.
+- In `examples/sample-java.txtjet`, place the cursor inside generated Java output, type `ret` or press Cmd+Space/Ctrl+Space, and confirm Java fallback suggestions appear.
+- Inside a `<% ... %>` scriptlet, `<%= ... %>` expression, and `<%! ... %>` declaration, confirm Java suggestions appear for identifiers and after `.`.
+- Switch the same generated-output region to a non-Java TxtJet mode and confirm Java fallback suggestions are not offered there.
 - Confirm snippets appear in every TxtJet mode.
 - Confirm disabling `txtjet.completions.enabled` removes TxtJet completions.
 

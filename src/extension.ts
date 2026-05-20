@@ -1,8 +1,16 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute as isAbsolutePath, join, relative } from "node:path";
 import * as vscode from "vscode";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, selectedTargetLanguageId, shouldOfferMarkerCompletions } from "./extensionSupport";
+import {
+  effectiveJavaCompletionTarget,
+  javaCompletionContextAt,
+  javaFallbackCompletionLabels,
+  mapJavaPreviewRangeToSource,
+  projectSourceOffsetToJavaPreview
+} from "./javaIntelliSenseBridge";
 import { scanTxtJetDirectiveIssues, scanTxtJetIssues, TxtJetIssue } from "./scanner";
 import {
   buildGeneratedJavaPreview,
@@ -11,6 +19,7 @@ import {
   mapPreviewRangeToSource,
   mapSourceRangeToPreview,
   parseTxtJetTemplate,
+  resolveReferenceCandidates,
   resolveIncludePath,
   targetPreviewLanguage,
   TxtJetBlock,
@@ -43,6 +52,8 @@ const DIAGNOSTIC_SOURCE = "txtjet";
 const DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB = 1024;
 const OUTPUT_PREVIEW_SCHEME = "txtjet-preview-output";
 const JAVA_PREVIEW_SCHEME = "txtjet-preview-java";
+const GENERATED_DIFF_SCHEME = "txtjet-generated-diff";
+const GENERATION_STORAGE_KEY = "txtjet.lastGeneratedOutput.v1";
 
 export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -51,9 +62,11 @@ export function activate(context: vscode.ExtensionContext): void {
   const diagnostics = vscode.languages.createDiagnosticCollection("txtjet");
   context.subscriptions.push(diagnostics);
   const previewProvider = new TxtJetPreviewProvider();
+  const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
   context.subscriptions.push(
     vscode.workspace.registerTextDocumentContentProvider(OUTPUT_PREVIEW_SCHEME, previewProvider),
-    vscode.workspace.registerTextDocumentContentProvider(JAVA_PREVIEW_SCHEME, previewProvider)
+    vscode.workspace.registerTextDocumentContentProvider(JAVA_PREVIEW_SCHEME, previewProvider),
+    vscode.workspace.registerTextDocumentContentProvider(GENERATED_DIFF_SCHEME, generatedDiffProvider)
   );
 
   context.subscriptions.push(
@@ -149,6 +162,16 @@ export function activate(context: vscode.ExtensionContext): void {
       await revealSourceFromPreview();
     })
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.generateOutput", async () => {
+      await generateOutput(context, generatedDiffProvider, false);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.diffLastGeneratedOutput", async () => {
+      await generateOutput(context, generatedDiffProvider, true);
+    })
+  );
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
@@ -202,6 +225,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerDocumentSymbolProvider());
   context.subscriptions.push(registerDefinitionProvider());
   context.subscriptions.push(registerHoverProvider());
+  context.subscriptions.push(registerFormattingProvider());
 
   for (const document of vscode.workspace.textDocuments) {
     void applyDetectedLanguage(context, document, false, statusBar);
@@ -222,6 +246,53 @@ export function deactivate(): void {
 }
 
 type PreviewKind = "output" | "java";
+type CompletionInsertReplaceRange = { inserting: vscode.Range; replacing: vscode.Range };
+const JAVA_COMPLETION_TRIGGER_CHARACTERS = [
+  ".",
+  ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_".split("")
+] as const;
+const JAVA_KEYWORD_COMPLETIONS = [
+  "abstract",
+  "boolean",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "continue",
+  "default",
+  "do",
+  "double",
+  "else",
+  "enum",
+  "extends",
+  "false",
+  "final",
+  "finally",
+  "float",
+  "for",
+  "if",
+  "implements",
+  "import",
+  "instanceof",
+  "int",
+  "interface",
+  "long",
+  "new",
+  "null",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "static",
+  "String",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "void",
+  "while"
+];
 
 class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider {
   private readonly changed = new vscode.EventEmitter<vscode.Uri>();
@@ -275,6 +346,23 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider {
     const previews = this.previewsBySource.get(key) ?? new Set<string>();
     previews.add(preview.toString());
     this.previewsBySource.set(key, previews);
+  }
+}
+
+class TxtJetGeneratedDiffProvider implements vscode.TextDocumentContentProvider {
+  private readonly changed = new vscode.EventEmitter<vscode.Uri>();
+
+  readonly onDidChange = this.changed.event;
+
+  constructor(private readonly context: vscode.ExtensionContext) {}
+
+  provideTextDocumentContent(uri: vscode.Uri): string {
+    const source = queryValue(uri, "source");
+    return source ? this.context.workspaceState.get<Record<string, string>>(GENERATION_STORAGE_KEY, {})[source] ?? "" : "";
+  }
+
+  refresh(uri: vscode.Uri): void {
+    this.changed.fire(uri);
   }
 }
 
@@ -375,6 +463,7 @@ function outputPreviewOptions(document: vscode.TextDocument) {
   return {
     sourceFileName: document.fileName,
     expandIncludes: true,
+    includePaths: configuredReferencePaths(document, "resolution.includePaths"),
     readInclude(path: string): string | undefined {
       try {
         return readFileSync(path, "utf8");
@@ -388,6 +477,7 @@ function outputPreviewOptions(document: vscode.TextDocument) {
 function javaPreviewOptions(document: vscode.TextDocument) {
   return {
     sourceFileName: document.fileName,
+    skeletonPaths: configuredReferencePaths(document, "resolution.skeletonPaths"),
     readSkeleton(path: string): string | undefined {
       try {
         return readFileSync(path, "utf8");
@@ -396,6 +486,16 @@ function javaPreviewOptions(document: vscode.TextDocument) {
       }
     }
   };
+}
+
+function configuredReferencePaths(document: vscode.TextDocument, setting: string): string[] {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  const paths = config.get<string[]>(setting, []);
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  return paths
+    .filter((entry) => entry.trim().length > 0)
+    .map((entry) => entry.replace("${workspaceFolder}", workspaceFolder?.uri.fsPath ?? dirname(document.fileName)))
+    .map((entry) => isAbsolutePath(entry) ? entry : join(workspaceFolder?.uri.fsPath ?? dirname(document.fileName), entry));
 }
 
 function selectionToRange(document: vscode.TextDocument, selection: vscode.Selection): TxtJetRange {
@@ -415,6 +515,80 @@ function revealMappedPreviewRange(editor: vscode.TextEditor, range: TxtJetRange 
   const vscodeRange = new vscode.Range(start, end);
   editor.selection = new vscode.Selection(start, end);
   editor.revealRange(vscodeRange, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+}
+
+async function generateOutput(
+  context: vscode.ExtensionContext,
+  diffProvider: TxtJetGeneratedDiffProvider,
+  showDiffOnly: boolean
+): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || !isTxtJetFile(editor.document)) {
+    return;
+  }
+
+  const generated = buildGeneratedOutputPreview(
+    editor.document.getText(),
+    selectedTargetLanguage(editor.document),
+    outputPreviewOptions(editor.document)
+  ).text;
+  const outputUri = generationOutputUri(editor.document);
+  const previousUri = generationPreviousUri(editor.document);
+  const previous = context.workspaceState.get<Record<string, string>>(GENERATION_STORAGE_KEY, {})[editor.document.uri.toString()];
+  if (!showDiffOnly) {
+    mkdirSync(dirname(outputUri.fsPath), { recursive: true });
+    writeFileSync(outputUri.fsPath, generated, "utf8");
+    await rememberGeneratedOutput(context, editor.document, generated);
+    diffProvider.refresh(previousUri);
+    await vscode.window.showTextDocument(outputUri, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    vscode.window.setStatusBarMessage(`TxtJet generated ${relative(vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath ?? dirname(outputUri.fsPath), outputUri.fsPath)}`, 5000);
+    return;
+  }
+
+  if (previous === undefined) {
+    vscode.window.showInformationMessage("TxtJet has no previous generated output snapshot for this template yet.");
+    return;
+  }
+  const currentDocument = await vscode.workspace.openTextDocument({ content: generated, language: targetPreviewLanguage(selectedTargetLanguage(editor.document)) });
+  await vscode.commands.executeCommand(
+    "vscode.diff",
+    previousUri,
+    currentDocument.uri,
+    `TxtJet generated diff: ${basename(editor.document.fileName)}`
+  );
+}
+
+function generationOutputUri(document: vscode.TextDocument): vscode.Uri {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  const configuredRoot = config.get<string>("generation.outputDirectory", "${workspaceFolder}/generated")
+    .replace("${workspaceFolder}", workspaceFolder?.uri.fsPath ?? dirname(document.fileName));
+  const root = isAbsolutePath(configuredRoot)
+    ? configuredRoot
+    : join(workspaceFolder?.uri.fsPath ?? dirname(document.fileName), configuredRoot);
+  const target = targetPreviewLanguage(selectedTargetLanguage(document));
+  const extension = target === "plaintext" ? "txt" : target;
+  return vscode.Uri.file(join(root, `${basename(document.fileName)}.${extension}`));
+}
+
+function generationPreviousUri(document: vscode.TextDocument): vscode.Uri {
+  return vscode.Uri.from({
+    scheme: GENERATED_DIFF_SCHEME,
+    path: `${document.uri.path}.previous`,
+    query: `source=${encodeURIComponent(document.uri.toString())}`
+  });
+}
+
+async function rememberGeneratedOutput(
+  context: vscode.ExtensionContext,
+  document: vscode.TextDocument,
+  generated: string
+): Promise<void> {
+  const snapshots = context.workspaceState.get<Record<string, string>>(GENERATION_STORAGE_KEY, {});
+  await context.workspaceState.update(GENERATION_STORAGE_KEY, {
+    ...snapshots,
+    [document.uri.toString()]: generated
+  });
 }
 
 async function revealPreviewFromSource(): Promise<void> {
@@ -576,8 +750,8 @@ function updateDiagnostics(collection: vscode.DiagnosticCollection, document: vs
   const diagnostics = [
     ...scanTxtJetIssues(text),
     ...scanTxtJetDirectiveIssues(text, {
-      includeExists: (includeFile) => fileReferenceExists(document.fileName, includeFile),
-      skeletonExists: (skeletonFile) => fileReferenceExists(document.fileName, skeletonFile)
+      includeExists: (includeFile) => fileReferenceExists(document, includeFile, "resolution.includePaths"),
+      skeletonExists: (skeletonFile) => fileReferenceExists(document, skeletonFile, "resolution.skeletonPaths")
     })
   ].map((issue) => issueToDiagnostic(document, issue, severity));
   collection.set(document.uri, diagnostics.concat(mappedGeneratedJavaDiagnostics(document)));
@@ -699,20 +873,20 @@ function registerDefinitionProvider(): vscode.Disposable {
   return vscode.languages.registerDefinitionProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
-      provideDefinition(document, position) {
+      async provideDefinition(document, position) {
         const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
         if (!config.get<boolean>("navigation.includeDefinitions.enabled", true)) {
-          return undefined;
+          return javaBridgeDefinitions(document, position);
         }
 
         const offset = document.offsetAt(position);
         const model = parseTxtJetTemplate(document.getText());
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          return undefined;
+          return javaBridgeDefinitions(document, position);
         }
 
-        const resolved = resolveIncludePath(document.fileName, reference.file);
+        const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths");
         if (!resolved || !existsSync(resolved)) {
           return undefined;
         }
@@ -726,15 +900,16 @@ function registerHoverProvider(): vscode.Disposable {
   return vscode.languages.registerHoverProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
-      provideHover(document, position) {
+      async provideHover(document, position) {
         const offset = document.offsetAt(position);
         const model = parseTxtJetTemplate(document.getText());
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          return undefined;
+          return javaBridgeHover(document, position);
         }
 
-        const resolved = resolveIncludePath(document.fileName, reference.file);
+        const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
+          ?? resolveIncludePath(document.fileName, reference.file);
         const status = resolved && existsSync(resolved) ? "resolved" : "unresolved";
         const markdown = new vscode.MarkdownString();
         markdown.appendMarkdown(`**TxtJet ${reference.kind} reference**\n\n`);
@@ -803,12 +978,14 @@ function missingReferenceCodeAction(
     return undefined;
   }
 
-  const resolved = resolveIncludePath(document.fileName, referenceFile);
+  const kind = issue.code === "unresolved-skeleton-file" ? "skeleton" : "include";
+  const resolved = resolveReferenceCandidates(document.fileName, referenceFile, {
+    searchPaths: configuredReferencePaths(document, kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
+  })[0];
   if (!resolved) {
     return undefined;
   }
 
-  const kind = issue.code === "unresolved-skeleton-file" ? "skeleton" : "include";
   const action = new vscode.CodeAction(`Create missing TxtJet ${kind} file`, vscode.CodeActionKind.QuickFix);
   const edit = new vscode.WorkspaceEdit();
   const uri = vscode.Uri.file(resolved);
@@ -909,16 +1086,21 @@ function referenceDirectiveAtOffset(
   return undefined;
 }
 
-function fileReferenceExists(templateFileName: string, referenceFile: string): boolean {
-  const resolved = resolveIncludePath(templateFileName, referenceFile);
-  return Boolean(resolved && existsSync(resolved));
+function fileReferenceExists(document: vscode.TextDocument, referenceFile: string, setting: string): boolean {
+  return Boolean(resolveExistingReferencePath(document, referenceFile, setting));
+}
+
+function resolveExistingReferencePath(document: vscode.TextDocument, referenceFile: string, setting: string): string | undefined {
+  return resolveReferenceCandidates(document.fileName, referenceFile, {
+    searchPaths: configuredReferencePaths(document, setting)
+  }).find((candidate) => existsSync(candidate));
 }
 
 function registerCompletionProvider(): vscode.Disposable {
   return vscode.languages.registerCompletionItemProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
-      provideCompletionItems(document, position) {
+      async provideCompletionItems(document, position, token, context) {
         const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
         if (!config.get<boolean>("completions.enabled", true)) {
           return [];
@@ -928,16 +1110,398 @@ function registerCompletionProvider(): vscode.Disposable {
           return directiveCompletions();
         }
 
-        if (isInsideTemplateBlock(document, position)) {
-          return [];
+        const javaContext = javaCompletionContextAt(
+          document.getText(),
+          document.offsetAt(position),
+          javaCompletionTarget(document)
+        );
+        if (javaContext?.kind === "template-java") {
+          return javaBridgeCompletions(document, position, context.triggerCharacter);
+        }
+        if (javaContext?.kind === "generated-java") {
+          return fallbackJavaCompletions(document, position);
         }
 
         const range = markerCompletionRange(document, position);
         return range ? markerCompletions(range) : [];
       }
     },
-    ...COMPLETION_TRIGGER_CHARACTERS
+    ...COMPLETION_TRIGGER_CHARACTERS,
+    ...JAVA_COMPLETION_TRIGGER_CHARACTERS
   );
+}
+
+async function javaBridgeCompletions(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  triggerCharacter: string | undefined
+): Promise<vscode.CompletionList | vscode.CompletionItem[]> {
+  if (!javaBridgeEnabled(document)) {
+    return [];
+  }
+
+  const projection = await openJavaBridgeProjection(document, position);
+  if (!projection) {
+    return fallbackJavaCompletions(document, position);
+  }
+
+  const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+    "vscode.executeCompletionItemProvider",
+    projection.previewDocument.uri,
+    projection.previewPosition,
+    triggerCharacter
+  );
+  if (!completions) {
+    return fallbackJavaCompletions(document, position);
+  }
+
+  const items = completions.items
+    .map((item) => remapJavaCompletionItem(document, projection.previewDocument, position, item))
+    .filter((item): item is vscode.CompletionItem => Boolean(item));
+  if (items.length === 0) {
+    return fallbackJavaCompletions(document, position);
+  }
+  return new vscode.CompletionList(items, completions.isIncomplete);
+}
+
+async function javaBridgeHover(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<vscode.Hover | undefined> {
+  if (!javaBridgeEnabled(document)) {
+    return undefined;
+  }
+
+  const projection = await openJavaBridgeProjection(document, position);
+  if (!projection) {
+    return undefined;
+  }
+
+  const hovers = await vscode.commands.executeCommand<vscode.Hover[]>(
+    "vscode.executeHoverProvider",
+    projection.previewDocument.uri,
+    projection.previewPosition
+  );
+  if (!hovers || hovers.length === 0) {
+    return undefined;
+  }
+
+  const contents = hovers.flatMap((hover) => hover.contents);
+  const hoverRange = hovers.map((hover) => hover.range).find((range): range is vscode.Range => Boolean(range));
+  const mappedRange = hoverRange
+    ? mapPreviewRangeToSourceVscodeRange(document, projection.previewDocument, hoverRange)
+    : undefined;
+  return new vscode.Hover(contents, mappedRange);
+}
+
+async function javaBridgeDefinitions(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<vscode.Definition | undefined> {
+  if (!javaBridgeEnabled(document)) {
+    return undefined;
+  }
+
+  const projection = await openJavaBridgeProjection(document, position);
+  if (!projection) {
+    return undefined;
+  }
+
+  const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
+    "vscode.executeDefinitionProvider",
+    projection.previewDocument.uri,
+    projection.previewPosition
+  );
+  if (!definitions || definitions.length === 0) {
+    return undefined;
+  }
+
+  const mapped = definitions
+    .map((definition) => remapJavaDefinitionLocation(document, projection.previewDocument, definition))
+    .filter((definition): definition is vscode.Location => Boolean(definition));
+  return mapped.length > 0 ? mapped : undefined;
+}
+
+async function openJavaBridgeProjection(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<{ previewDocument: vscode.TextDocument; previewPosition: vscode.Position } | undefined> {
+  const projection = projectSourceOffsetToJavaPreview(
+    document.getText(),
+    document.fileName,
+    document.offsetAt(position),
+    javaPreviewOptions(document)
+  );
+  if (!projection) {
+    return undefined;
+  }
+
+  const previewDocument = await openJavaBridgePreviewDocument(document);
+  return {
+    previewDocument,
+    previewPosition: previewDocument.positionAt(projection.previewOffset)
+  };
+}
+
+async function openJavaBridgePreviewDocument(document: vscode.TextDocument): Promise<vscode.TextDocument> {
+  const previewUri = buildPreviewUri(document, "java");
+  const previewDocument = await vscode.workspace.openTextDocument(previewUri);
+  return vscode.languages.setTextDocumentLanguage(previewDocument, "java");
+}
+
+function javaBridgeEnabled(document: vscode.TextDocument): boolean {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  return config.get<boolean>("javaIntelliSense.enabled", true);
+}
+
+function fallbackJavaCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionList {
+  const text = document.getText();
+  const range = javaWordRange(document, position);
+  const receiver = javaCompletionReceiver(document, position);
+  const items = javaFallbackCompletionLabels(text, document.offsetAt(position), javaCompletionTarget(document))
+    .map((label) => javaFallbackItem(
+      label,
+      receiver ? vscode.CompletionItemKind.Method : fallbackKindForJavaName(label),
+      range
+    ));
+  return new vscode.CompletionList(items, false);
+}
+
+function javaCompletionTarget(document: vscode.TextDocument): TxtJetTargetLanguage {
+  return effectiveJavaCompletionTarget(selectedTargetLanguage(document), detectLanguage(document));
+}
+
+function javaFallbackItem(label: string, kind: vscode.CompletionItemKind, range: vscode.Range): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(label, kind);
+  item.detail = "TxtJet Java fallback";
+  item.range = range;
+  return item;
+}
+
+function javaWordRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range {
+  const line = document.lineAt(position.line).text;
+  let start = position.character;
+  while (start > 0 && /[A-Za-z0-9_$]/.test(line[start - 1])) {
+    start -= 1;
+  }
+  return new vscode.Range(new vscode.Position(position.line, start), position);
+}
+
+function javaCompletionReceiver(document: vscode.TextDocument, position: vscode.Position): string | undefined {
+  const line = document.lineAt(position.line).text.slice(0, position.character);
+  const match = line.match(/([A-Za-z_$][\w$]*)\.\w*$/);
+  return match?.[1];
+}
+
+function fallbackKindForJavaName(name: string): vscode.CompletionItemKind {
+  if (JAVA_KEYWORD_COMPLETIONS.includes(name)) {
+    return /^[A-Z]/.test(name) ? vscode.CompletionItemKind.Class : vscode.CompletionItemKind.Keyword;
+  }
+  return /^[A-Z]/.test(name) ? vscode.CompletionItemKind.Class : vscode.CompletionItemKind.Variable;
+}
+
+function remapJavaCompletionItem(
+  document: vscode.TextDocument,
+  previewDocument: vscode.TextDocument,
+  position: vscode.Position,
+  item: vscode.CompletionItem
+): vscode.CompletionItem | undefined {
+  const mapped = new vscode.CompletionItem(item.label, item.kind);
+  mapped.detail = item.detail;
+  mapped.documentation = item.documentation;
+  mapped.sortText = item.sortText;
+  mapped.filterText = item.filterText;
+  mapped.commitCharacters = item.commitCharacters;
+  mapped.preselect = item.preselect;
+  mapped.tags = item.tags;
+  mapped.keepWhitespace = item.keepWhitespace;
+
+  const textEdit = item.textEdit;
+  if (textEdit) {
+    const range = completionTextEditRange(textEdit);
+    const mappedRange = mapPreviewCompletionRange(document, previewDocument, range);
+    if (!mappedRange) {
+      return undefined;
+    }
+    mapped.insertText = textEdit.newText;
+    mapped.range = mappedRange;
+    return mapped;
+  }
+
+  if (item.range) {
+    const mappedRange = mapPreviewCompletionRange(document, previewDocument, item.range);
+    if (!mappedRange) {
+      return undefined;
+    }
+    mapped.range = mappedRange;
+  } else {
+    mapped.range = new vscode.Range(position, position);
+  }
+  mapped.insertText = item.insertText;
+  return mapped;
+}
+
+function remapJavaDefinitionLocation(
+  document: vscode.TextDocument,
+  previewDocument: vscode.TextDocument,
+  definition: vscode.Location
+): vscode.Location | undefined {
+  if (definition.uri.toString() !== previewDocument.uri.toString()) {
+    return definition;
+  }
+
+  const range = mapPreviewRangeToSourceVscodeRange(document, previewDocument, definition.range);
+  return range ? new vscode.Location(document.uri, range) : undefined;
+}
+
+function mapPreviewCompletionRange(
+  document: vscode.TextDocument,
+  previewDocument: vscode.TextDocument,
+  range: vscode.Range | CompletionInsertReplaceRange
+): vscode.Range | CompletionInsertReplaceRange | undefined {
+  if (isVscodeRange(range)) {
+    return mapPreviewRangeToSourceVscodeRange(document, previewDocument, range);
+  }
+
+  const inserting = mapPreviewRangeToSourceVscodeRange(document, previewDocument, range.inserting);
+  const replacing = mapPreviewRangeToSourceVscodeRange(document, previewDocument, range.replacing);
+  return inserting && replacing ? { inserting, replacing } : undefined;
+}
+
+function mapPreviewRangeToSourceVscodeRange(
+  document: vscode.TextDocument,
+  previewDocument: vscode.TextDocument,
+  range: vscode.Range
+): vscode.Range | undefined {
+  const previewText = previewDocument.getText();
+  const mapped = mapJavaPreviewRangeToSource(
+    document.getText(),
+    document.fileName,
+    {
+      start: offsetAt(previewText, range.start),
+      end: offsetAt(previewText, range.end)
+    },
+    javaPreviewOptions(document)
+  );
+  return mapped
+    ? new vscode.Range(document.positionAt(mapped.start), document.positionAt(mapped.end))
+    : undefined;
+}
+
+function completionTextEditRange(
+  textEdit: vscode.TextEdit
+): vscode.Range {
+  return textEdit.range;
+}
+
+function isVscodeRange(value: vscode.Range | CompletionInsertReplaceRange): value is vscode.Range {
+  return "start" in value && "end" in value;
+}
+
+function registerFormattingProvider(): vscode.Disposable {
+  const selector = Array.from(TXTJET_LANGUAGES).map((language) => ({ language }));
+  return vscode.Disposable.from(
+    vscode.languages.registerDocumentFormattingEditProvider(
+      selector,
+      {
+        provideDocumentFormattingEdits(document) {
+          const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+          if (!config.get<boolean>("formatting.enabled", true)) {
+            return [];
+          }
+          return formatTemplateRange(document, fullDocumentRange(document));
+        }
+      }
+    ),
+    vscode.languages.registerDocumentRangeFormattingEditProvider(
+      selector,
+      {
+        provideDocumentRangeFormattingEdits(document, range) {
+          const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+          if (!config.get<boolean>("formatting.enabled", true)) {
+            return [];
+          }
+          return formatTemplateRange(document, range);
+        }
+      }
+    )
+  );
+}
+
+function formatTemplateRange(document: vscode.TextDocument, range: vscode.Range): vscode.TextEdit[] {
+  const text = document.getText();
+  const startOffset = document.offsetAt(range.start);
+  const endOffset = document.offsetAt(range.end);
+  const model = parseTxtJetTemplate(text);
+  const edits: vscode.TextEdit[] = [];
+
+  for (const block of model.blocks) {
+    if (block.range.end < startOffset || block.range.start > endOffset || block.kind === "outer") {
+      continue;
+    }
+    const formatted = formatBlock(block);
+    if (formatted !== undefined && formatted !== block.content) {
+      edits.push(vscode.TextEdit.replace(
+        new vscode.Range(document.positionAt(block.contentRange.start), document.positionAt(block.contentRange.end)),
+        formatted
+      ));
+    }
+  }
+
+  return edits;
+}
+
+function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
+  const lastLine = document.lineAt(document.lineCount - 1);
+  return new vscode.Range(new vscode.Position(0, 0), lastLine.range.end);
+}
+
+function formatBlock(block: TxtJetBlock): string | undefined {
+  if (block.kind === "directive") {
+    return formatDirectiveBlock(block);
+  }
+  if (block.kind === "expression") {
+    return ` ${block.content.trim()} `;
+  }
+  if (block.kind === "scriptlet" || block.kind === "declaration") {
+    return formatJavaBlock(block.content);
+  }
+  return undefined;
+}
+
+function formatDirectiveBlock(block: TxtJetBlock): string | undefined {
+  const directive = block.directive;
+  if (!directive?.name) {
+    return undefined;
+  }
+  const attributes = Object.entries(directive.attributes)
+    .map(([name, value]) => `${name}="${value.replace(/"/g, "\\\"")}"`)
+    .join(" ");
+  return attributes ? ` ${directive.name} ${attributes} ` : ` ${directive.name} `;
+}
+
+function formatJavaBlock(content: string): string {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    return " ";
+  }
+  const lines = trimmed.split(/\r?\n/);
+  if (lines.length === 1) {
+    return ` ${lines[0].trim()} `;
+  }
+  let indent = 1;
+  const formatted = lines.map((raw) => {
+    const line = raw.trim();
+    if (/^[})\]]/.test(line)) {
+      indent = Math.max(1, indent - 1);
+    }
+    const result = `${"  ".repeat(indent)}${line}`;
+    if (/[{([]\s*$/.test(line) && !/^[})\]]/.test(line)) {
+      indent += 1;
+    }
+    return result;
+  });
+  return `\n${formatted.join("\n")}\n`;
 }
 
 function markerCompletions(range: vscode.Range | undefined): vscode.CompletionItem[] {
