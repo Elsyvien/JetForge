@@ -6,6 +6,7 @@ import {
 } from "./templateModel";
 
 export type TxtJetRegionKind = "directive" | "template-java" | "generated-output" | "marker";
+export type TxtJetRegionPreviewKind = "output" | "java";
 
 export interface TxtJetRegion {
   kind: TxtJetRegionKind;
@@ -67,6 +68,19 @@ export function classifyTxtJetRegionAt(
   ) ?? regions.find((region) =>
     region.range.start < region.range.end && boundedOffset === region.range.end
   );
+}
+
+export function previewKindForTxtJetRegion(region: TxtJetRegion): TxtJetRegionPreviewKind | undefined {
+  if (region.kind === "generated-output") {
+    return "output";
+  }
+  if (region.kind === "template-java") {
+    return "java";
+  }
+  if (region.kind === "marker" && TEMPLATE_JAVA_BLOCKS.has(region.blockKind)) {
+    return "java";
+  }
+  return undefined;
 }
 
 function pushRegion(

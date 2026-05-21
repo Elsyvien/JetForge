@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   effectiveCompletionTarget,
   effectiveJavaCompletionTarget,
+  isJavaKeywordCompletionName,
   javaCompletionContextAt,
   javaFallbackCompletionLabels,
   mapJavaPreviewRangeToSource,
@@ -75,6 +76,8 @@ assert.ok(javaFallbackCompletionLabels(template, expressionSource + "names.".len
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-java"), "txtjet-java");
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-html"), "txtjet");
 assert.equal(effectiveJavaCompletionTarget("txtjet-html", "txtjet-java"), "txtjet-html");
+assert.equal(isJavaKeywordCompletionName("return"), true);
+assert.equal(isJavaKeywordCompletionName("BridgeDemo"), false);
 assert.equal(effectiveCompletionTarget("txtjet", "txtjet-python"), "txtjet-python");
 assert.equal(effectiveCompletionTarget("txtjet", "txtjet-c"), "txtjet-c");
 assert.equal(effectiveCompletionTarget("txtjet-html", "txtjet-python"), "txtjet-html");

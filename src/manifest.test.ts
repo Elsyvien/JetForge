@@ -64,6 +64,8 @@ for (const command of [
   "txtjet.openGeneratedOutputPreview",
   "txtjet.openGeneratedJavaPreview",
   "txtjet.openPreviewBesideSource",
+  "txtjet.openRegionInGeneratedPreview",
+  "txtjet.openRegionInJavaPreview",
   "txtjet.revealPreviewFromSource",
   "txtjet.revealSourceFromPreview",
   "txtjet.generateOutput",

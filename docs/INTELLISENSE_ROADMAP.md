@@ -13,7 +13,7 @@ Useful references:
 - Eclipse Java editor capabilities: https://help.eclipse.org/latest/topic/org.eclipse.jdt.doc.user/concepts/concept-java-editor.htm
 - GMF template naming conventions: https://wiki.eclipse.org/Graphical_Modeling_Framework/Development_Guidelines
 
-## Why Full Inline IntelliSense Is Not In 0.0.8
+## Why Full Inline IntelliSense Is Not In The Current Release
 
 VSCode language servers generally operate on one coherent language document. A `.txtjet` file mixes generated output text with Java template code. The current TextMate embedded-language mappings improve highlighting, but they do not automatically give full Java/Python/C/XML/HTML language-server behavior inside mixed template regions.
 
@@ -31,7 +31,7 @@ VSCode language servers generally operate on one coherent language document. A `
 
 - Source mapping foundation
   - The transformation layer returns source-to-preview ranges for generated output and generated Java previews.
-  - Current mappings support tests, preview refresh behavior, reveal commands between source and preview, and optional generated-Java diagnostic mapping.
+  - Current mappings support tests, preview refresh behavior, region-aware preview commands, reveal commands between source and preview, and optional generated-Java diagnostic mapping.
 
 - IntelliSense-adjacent editor support
   - Outline symbols summarize directives, declarations, scriptlets, expressions, and generated-output regions.

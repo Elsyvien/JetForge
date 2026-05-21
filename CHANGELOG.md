@@ -4,6 +4,7 @@
 
 - Added parser-backed visual differentiation for TxtJet markers, directives, embedded Java, and generated-output regions.
 - Added region-aware hover fallback text and the `txtjet.visualDifferentiation.enabled` setting.
+- Added region-aware preview commands for jumping from generated-output regions to output previews and template-Java regions to generated Java previews.
 - Tightened TextMate scopes for template delimiters, directive names, directive attributes, and directive strings.
 - Added generated-output fallback completions for Python and C/C++ TxtJet modes.
 - Improved generated-output completion target selection so generic `.txtjet` files use detected Java, Python, or C/C++ output mode when no manual mode is selected.

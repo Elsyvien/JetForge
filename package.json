@@ -249,6 +249,14 @@
         "title": "TxtJet: Open Preview Beside Source"
       },
       {
+        "command": "txtjet.openRegionInGeneratedPreview",
+        "title": "TxtJet: Open Region In Generated Preview"
+      },
+      {
+        "command": "txtjet.openRegionInJavaPreview",
+        "title": "TxtJet: Open Region In Java Preview"
+      },
+      {
         "command": "txtjet.revealPreviewFromSource",
         "title": "TxtJet: Reveal Generated Output Preview From Source"
       },
@@ -437,6 +445,14 @@
           "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
         {
+          "command": "txtjet.openRegionInGeneratedPreview",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
+          "command": "txtjet.openRegionInJavaPreview",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+        },
+        {
           "command": "txtjet.revealPreviewFromSource",
           "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
         },
@@ -472,6 +488,8 @@
     "onCommand:txtjet.openGeneratedOutputPreview",
     "onCommand:txtjet.openGeneratedJavaPreview",
     "onCommand:txtjet.openPreviewBesideSource",
+    "onCommand:txtjet.openRegionInGeneratedPreview",
+    "onCommand:txtjet.openRegionInJavaPreview",
     "onCommand:txtjet.revealPreviewFromSource",
     "onCommand:txtjet.revealSourceFromPreview",
     "onCommand:txtjet.generateOutput",
@@ -479,7 +497,7 @@
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
     "vscode:prepublish": "npm run compile",

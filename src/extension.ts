@@ -4,8 +4,10 @@ import * as vscode from "vscode";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, selectedTargetLanguageId, shouldOfferMarkerCompletions } from "./extensionSupport";
+import { formatTxtJetBlock } from "./formatter";
 import {
   effectiveCompletionTarget,
+  isJavaKeywordCompletionName,
   javaCompletionContextAt,
   mapJavaPreviewRangeToSource,
   projectSourceOffsetToJavaPreview,
@@ -14,6 +16,7 @@ import {
 import {
   classifyTxtJetRegionAt,
   classifyTxtJetRegions,
+  previewKindForTxtJetRegion,
   TxtJetRegionKind
 } from "./regionClassifier";
 import { scanTxtJetDirectiveIssues, scanTxtJetIssues, TxtJetIssue } from "./scanner";
@@ -161,6 +164,16 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openRegionInGeneratedPreview", async () => {
+      await openRegionPreview("output");
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openRegionInJavaPreview", async () => {
+      await openRegionPreview("java");
+    })
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.revealPreviewFromSource", async () => {
       await revealPreviewFromSource();
     })
@@ -276,48 +289,6 @@ const JAVA_COMPLETION_TRIGGER_CHARACTERS = [
   ">",
   ..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_".split("")
 ] as const;
-const JAVA_KEYWORD_COMPLETIONS = [
-  "abstract",
-  "boolean",
-  "break",
-  "case",
-  "catch",
-  "class",
-  "continue",
-  "default",
-  "do",
-  "double",
-  "else",
-  "enum",
-  "extends",
-  "false",
-  "final",
-  "finally",
-  "float",
-  "for",
-  "if",
-  "implements",
-  "import",
-  "instanceof",
-  "int",
-  "interface",
-  "long",
-  "new",
-  "null",
-  "private",
-  "protected",
-  "public",
-  "return",
-  "static",
-  "String",
-  "switch",
-  "this",
-  "throw",
-  "true",
-  "try",
-  "void",
-  "while"
-];
 
 class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider {
   private readonly changed = new vscode.EventEmitter<vscode.Uri>();
@@ -530,6 +501,32 @@ async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<voi
     return;
   }
 
+  await openMappedPreview(sourceEditor, kind, selectionToRange(sourceEditor.document, sourceEditor.selection), forceBeside);
+}
+
+async function openRegionPreview(kind: PreviewKind): Promise<void> {
+  const sourceEditor = vscode.window.activeTextEditor;
+  if (!sourceEditor || !isTxtJetFile(sourceEditor.document)) {
+    return;
+  }
+
+  const document = sourceEditor.document;
+  const offset = document.offsetAt(sourceEditor.selection.active);
+  const region = classifyTxtJetRegionAt(document.getText(), offset, selectedTargetLanguage(document));
+  if (!region || previewKindForTxtJetRegion(region) !== kind) {
+    vscode.window.showInformationMessage(regionPreviewMessage(kind));
+    return;
+  }
+
+  await openMappedPreview(sourceEditor, kind, region.range, false);
+}
+
+async function openMappedPreview(
+  sourceEditor: vscode.TextEditor,
+  kind: PreviewKind,
+  sourceRange: TxtJetRange,
+  forceBeside: boolean
+): Promise<void> {
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION, sourceEditor.document.uri);
   if (!config.get<boolean>("previews.enabled", true)) {
     return;
@@ -540,10 +537,7 @@ async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<voi
 
   const selectedLanguage = selectedTargetLanguage(sourceEditor.document);
   const preview = buildPreviewForDocument(sourceEditor.document, kind);
-  const mappedPreviewRange = mapSourceRangeToPreview(
-    preview.mappings,
-    selectionToRange(sourceEditor.document, sourceEditor.selection)
-  );
+  const mappedPreviewRange = mapSourceRangeToPreview(preview.mappings, sourceRange);
   const previewUri = buildPreviewUri(sourceEditor.document, kind);
   const previewDocument = await vscode.workspace.openTextDocument(previewUri);
   const targetLanguage = kind === "java" ? "java" : targetPreviewLanguage(selectedLanguage);
@@ -553,6 +547,12 @@ async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<voi
     : vscode.ViewColumn.Active;
   const previewEditor = await vscode.window.showTextDocument(updatedDocument, { preview: true, viewColumn });
   revealMappedPreviewRange(previewEditor, mappedPreviewRange);
+}
+
+function regionPreviewMessage(kind: PreviewKind): string {
+  return kind === "java"
+    ? "Place the cursor inside a TxtJet scriptlet, expression, declaration, or its marker to open that region in the generated Java preview."
+    : "Place the cursor inside generated-output text to open that region in the generated output preview.";
 }
 
 function buildPreviewUri(document: vscode.TextDocument, kind: PreviewKind): vscode.Uri {
@@ -1296,7 +1296,7 @@ function registerCompletionProvider(): vscode.Disposable {
   return vscode.languages.registerCompletionItemProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
-      async provideCompletionItems(document, position, token, context) {
+      async provideCompletionItems(document, position, _token, context) {
         const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
         if (!config.get<boolean>("completions.enabled", true)) {
           return [];
@@ -1528,7 +1528,7 @@ function fallbackKindForTargetName(name: string, target: TxtJetTargetLanguage): 
       ? vscode.CompletionItemKind.Class
       : vscode.CompletionItemKind.Keyword;
   }
-  if (JAVA_KEYWORD_COMPLETIONS.includes(name)) {
+  if (isJavaKeywordCompletionName(name)) {
     return /^[A-Z]/.test(name) ? vscode.CompletionItemKind.Class : vscode.CompletionItemKind.Keyword;
   }
   return /^[A-Z]/.test(name) ? vscode.CompletionItemKind.Class : vscode.CompletionItemKind.Variable;
@@ -1673,7 +1673,7 @@ function formatTemplateRange(document: vscode.TextDocument, range: vscode.Range)
     if (block.range.end < startOffset || block.range.start > endOffset || block.kind === "outer") {
       continue;
     }
-    const formatted = formatBlock(block);
+    const formatted = formatTxtJetBlock(block);
     if (formatted !== undefined && formatted !== block.content) {
       edits.push(vscode.TextEdit.replace(
         new vscode.Range(document.positionAt(block.contentRange.start), document.positionAt(block.contentRange.end)),
@@ -1688,54 +1688,6 @@ function formatTemplateRange(document: vscode.TextDocument, range: vscode.Range)
 function fullDocumentRange(document: vscode.TextDocument): vscode.Range {
   const lastLine = document.lineAt(document.lineCount - 1);
   return new vscode.Range(new vscode.Position(0, 0), lastLine.range.end);
-}
-
-function formatBlock(block: TxtJetBlock): string | undefined {
-  if (block.kind === "directive") {
-    return formatDirectiveBlock(block);
-  }
-  if (block.kind === "expression") {
-    return ` ${block.content.trim()} `;
-  }
-  if (block.kind === "scriptlet" || block.kind === "declaration") {
-    return formatJavaBlock(block.content);
-  }
-  return undefined;
-}
-
-function formatDirectiveBlock(block: TxtJetBlock): string | undefined {
-  const directive = block.directive;
-  if (!directive?.name) {
-    return undefined;
-  }
-  const attributes = Object.entries(directive.attributes)
-    .map(([name, value]) => `${name}="${value.replace(/"/g, "\\\"")}"`)
-    .join(" ");
-  return attributes ? ` ${directive.name} ${attributes} ` : ` ${directive.name} `;
-}
-
-function formatJavaBlock(content: string): string {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    return " ";
-  }
-  const lines = trimmed.split(/\r?\n/);
-  if (lines.length === 1) {
-    return ` ${lines[0].trim()} `;
-  }
-  let indent = 1;
-  const formatted = lines.map((raw) => {
-    const line = raw.trim();
-    if (/^[})\]]/.test(line)) {
-      indent = Math.max(1, indent - 1);
-    }
-    const result = `${"  ".repeat(indent)}${line}`;
-    if (/[{([]\s*$/.test(line) && !/^[})\]]/.test(line)) {
-      indent += 1;
-    }
-    return result;
-  });
-  return `\n${formatted.join("\n")}\n`;
 }
 
 function markerCompletions(range: vscode.Range | undefined): vscode.CompletionItem[] {
@@ -1785,18 +1737,6 @@ function isInsideDirective(document: vscode.TextDocument, position: vscode.Posit
   const directiveOpen = textBefore.lastIndexOf("<%@");
   const lastClose = textBefore.lastIndexOf("%>");
   return directiveOpen > lastClose;
-}
-
-function isInsideTemplateBlock(document: vscode.TextDocument, position: vscode.Position): boolean {
-  const textBefore = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
-  const blockOpen = Math.max(
-    textBefore.lastIndexOf("<%@"),
-    textBefore.lastIndexOf("<%="),
-    textBefore.lastIndexOf("<%!"),
-    textBefore.lastIndexOf("<%")
-  );
-  const lastClose = textBefore.lastIndexOf("%>");
-  return blockOpen > lastClose;
 }
 
 function markerCompletionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range | undefined {

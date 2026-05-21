@@ -71,6 +71,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm `examples/include-main.txtjet` expands `partials/header.txtjet` and `partials/nav.txtjet` in the generated output preview.
 - Run `TxtJet: Open Generated Java Template Preview` and confirm the preview uses `@jet package`, `class`, and `imports` metadata.
 - Run `TxtJet: Open Preview Beside Source` and confirm the preview opens beside the template.
+- Place the cursor in generated XML/HTML/Python/C/Java output and run `TxtJet: Open Region In Generated Preview`; confirm the mapped generated-output preview region is selected.
+- Place the cursor in a scriptlet, expression, or declaration and run `TxtJet: Open Region In Java Preview`; confirm the mapped generated Java preview region is selected.
 - Run `TxtJet: Reveal Generated Output Preview From Source` and confirm the matching preview region is selected.
 - Run `TxtJet: Reveal Source From Preview` from an open preview and confirm the matching template region is selected.
 - Confirm changing the source template refreshes open preview documents.

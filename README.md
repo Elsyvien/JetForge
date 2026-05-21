@@ -19,7 +19,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - On-demand generated-output writing and previous-generation diffing.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition for `@include file="..."` and `@jet skeleton="..."` references, including configured workspace search paths.
-- Auto Alpha detection that can switch a newly opened `.txtjet` file to the likely target mode.
+- Auto Detect support that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
 - No runtime network access, telemetry, or proprietary template content.
 
@@ -40,7 +40,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.8.vsix
+code --install-extension txtjet-syntax-0.0.10.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -63,7 +63,7 @@ These modes describe the generated output language outside template blocks. Embe
 Template delimiters are also injected into common outer-language strings, comments, and preprocessor regions so generated C/XML/HTML/Python/Java text does not hide TxtJet blocks.
 By default, TxtJet also applies subtle editor decorations that distinguish generated-output text from template markers, directives, and embedded Java. Disable `txtjet.visualDifferentiation.enabled` if a theme already provides enough contrast.
 
-Auto Alpha can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
+Auto Detect can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
 
 If the VSCode language selector is inconvenient, use the TxtJet commands:
 
@@ -80,7 +80,7 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
-Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Alpha checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
+Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Detect checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
 
 You can rerun detection manually with the command:
 
@@ -125,6 +125,8 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Open Generated Output Preview`
 - `TxtJet: Open Generated Java Template Preview`
 - `TxtJet: Open Preview Beside Source`
+- `TxtJet: Open Region In Generated Preview`
+- `TxtJet: Open Region In Java Preview`
 - `TxtJet: Reveal Generated Output Preview From Source`
 - `TxtJet: Reveal Source From Preview`
 - `TxtJet: Generate Output File`
@@ -137,6 +139,8 @@ The generated Java template preview approximates the Java class that a template 
 Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Hover shows resolved/unresolved reference status, and missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 
 Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates.
+
+Region preview commands use the cursor position to choose the mapped source range: generated-output regions open in the generated output preview, while scriptlet, expression, and declaration regions open in the generated Java preview.
 
 `TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. `TxtJet: Diff Current Output Against Last Generation` compares the current generated output with the last generated snapshot for that template.
 
@@ -154,7 +158,7 @@ VSCode document formatting and format selection also normalize directive attribu
 
 ## Development Notes
 
-Version 1 does not implement full semantic analysis directly. Java IntelliSense forwarding depends on installed Java tooling and only runs where a TxtJet source position can be mapped into the generated Java preview. Generated-output suggestions for Java, Python, and C/C++ are local fallbacks, not full language-server results. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+Version 1 does not implement full semantic analysis directly. Java IntelliSense forwarding depends on installed Java tooling and only runs where a TxtJet source position can be mapped into the generated Java preview. Generated-output suggestions for Java, Python, and C/C++ are local fallbacks, not full language-server results. Auto Detect target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
 Visual differentiation is parser-backed and local to the editor; it does not change generated output or replace target-language language servers.
 
 Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).

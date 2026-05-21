@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import {
   classifyTxtJetRegionAt,
-  classifyTxtJetRegions
+  classifyTxtJetRegions,
+  previewKindForTxtJetRegion
 } from "./regionClassifier";
 
 const mixedXml = `<root attr="<%= value %>">
@@ -44,6 +45,10 @@ assert.equal(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("<%="), "txtjet-x
 assert.equal(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("value"), "txtjet-xml")?.kind, "template-java");
 assert.equal(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("include"), "txtjet-xml")?.kind, "directive");
 assert.equal(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("<item>"), "txtjet-xml")?.kind, "generated-output");
+assert.equal(previewKindForTxtJetRegion(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("<root"), "txtjet-xml")!), "output");
+assert.equal(previewKindForTxtJetRegion(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("<%="), "txtjet-xml")!), "java");
+assert.equal(previewKindForTxtJetRegion(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("value"), "txtjet-xml")!), "java");
+assert.equal(previewKindForTxtJetRegion(classifyTxtJetRegionAt(mixedXml, mixedXml.indexOf("include"), "txtjet-xml")!), undefined);
 
 const htmlWithComment = `<!-- <%= title %> --><a href="<%= href %>">Link</a>`;
 const htmlRegions = classifyTxtJetRegions(htmlWithComment, "txtjet-html");

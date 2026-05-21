@@ -174,6 +174,10 @@ export function effectiveJavaCompletionTarget(
     : selectedTargetLanguage;
 }
 
+export function isJavaKeywordCompletionName(name: string): boolean {
+  return JAVA_KEYWORD_COMPLETIONS.includes(name);
+}
+
 export function javaCompletionContextAt(
   text: string,
   sourceOffset: number,
