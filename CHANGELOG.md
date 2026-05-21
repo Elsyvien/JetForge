@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.0.10
+## 0.0.11
 
 - Added parser-backed visual differentiation for TxtJet markers, directives, embedded Java, and generated-output regions.
 - Added region-aware hover fallback text and the `txtjet.visualDifferentiation.enabled` setting.

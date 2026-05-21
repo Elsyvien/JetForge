@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.10.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.10`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.11.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.11`.
 - Reload VSCode after install.
 
 ## Language Modes
