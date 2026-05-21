@@ -32,16 +32,16 @@
       "begin": "(<%@)\\s*([A-Za-z_][\\w.-]*)?",
       "beginCaptures": {
         "1": {
-          "name": "keyword.control.template.begin.txtjet"
+          "name": "punctuation.definition.template.begin.txtjet keyword.control.template.begin.txtjet"
         },
         "2": {
-          "name": "keyword.control.directive.txtjet"
+          "name": "entity.name.directive.txtjet keyword.control.directive.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "keyword.control.template.end.txtjet"
+          "name": "punctuation.definition.template.end.txtjet keyword.control.template.end.txtjet"
         }
       },
       "patterns": [
@@ -61,13 +61,13 @@
       "begin": "(<%=)",
       "beginCaptures": {
         "1": {
-          "name": "keyword.control.template.expression.begin.txtjet"
+          "name": "punctuation.definition.template.expression.begin.txtjet keyword.control.template.expression.begin.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "keyword.control.template.end.txtjet"
+          "name": "punctuation.definition.template.end.txtjet keyword.control.template.end.txtjet"
         }
       },
       "contentName": "source.java",
@@ -82,13 +82,13 @@
       "begin": "(<%!)",
       "beginCaptures": {
         "1": {
-          "name": "keyword.control.template.declaration.begin.txtjet"
+          "name": "punctuation.definition.template.declaration.begin.txtjet keyword.control.template.declaration.begin.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "keyword.control.template.end.txtjet"
+          "name": "punctuation.definition.template.end.txtjet keyword.control.template.end.txtjet"
         }
       },
       "contentName": "source.java",
@@ -103,13 +103,13 @@
       "begin": "(<%)",
       "beginCaptures": {
         "1": {
-          "name": "keyword.control.template.begin.txtjet"
+          "name": "punctuation.definition.template.begin.txtjet keyword.control.template.begin.txtjet"
         }
       },
       "end": "(%>)",
       "endCaptures": {
         "1": {
-          "name": "keyword.control.template.end.txtjet"
+          "name": "punctuation.definition.template.end.txtjet keyword.control.template.end.txtjet"
         }
       },
       "contentName": "source.java",
@@ -120,11 +120,11 @@
       ]
     },
     "directive-attribute": {
-      "name": "entity.other.attribute-name.txtjet",
+      "name": "entity.other.attribute-name.txtjet meta.directive.attribute.txtjet",
       "match": "\\b[A-Za-z_][\\w.-]*(?=\\s*=)"
     },
     "directive-string": {
-      "name": "string.quoted.double.txtjet",
+      "name": "string.quoted.double.directive.txtjet string.quoted.double.txtjet",
       "begin": "\"",
       "end": "\"",
       "patterns": [
@@ -135,7 +135,7 @@
       ]
     },
     "directive-single-string": {
-      "name": "string.quoted.single.txtjet",
+      "name": "string.quoted.single.directive.txtjet string.quoted.single.txtjet",
       "begin": "'",
       "end": "'",
       "patterns": [

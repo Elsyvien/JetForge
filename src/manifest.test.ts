@@ -57,6 +57,7 @@ assert.ok(contributes.configuration.properties["txtjet.navigation.includeDefinit
 assert.ok(contributes.configuration.properties["txtjet.resolution.includePaths"]);
 assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"]);
 assert.ok(contributes.configuration.properties["txtjet.formatting.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.visualDifferentiation.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.generation.outputDirectory"]);
 
 for (const command of [

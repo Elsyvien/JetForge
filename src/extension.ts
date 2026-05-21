@@ -11,6 +11,11 @@ import {
   projectSourceOffsetToJavaPreview,
   targetFallbackCompletionLabels
 } from "./javaIntelliSenseBridge";
+import {
+  classifyTxtJetRegionAt,
+  classifyTxtJetRegions,
+  TxtJetRegionKind
+} from "./regionClassifier";
 import { scanTxtJetDirectiveIssues, scanTxtJetIssues, TxtJetIssue } from "./scanner";
 import {
   buildGeneratedJavaPreview,
@@ -63,7 +68,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(diagnostics);
   const previewProvider = new TxtJetPreviewProvider();
   const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
+  const visualDifferentiator = new TxtJetVisualDifferentiator();
   context.subscriptions.push(
+    visualDifferentiator,
     vscode.workspace.registerTextDocumentContentProvider(OUTPUT_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(JAVA_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(GENERATED_DIFF_SCHEME, generatedDiffProvider)
@@ -77,7 +84,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       await clearStoredLanguage(context, editor.document);
-      await applyDetectedLanguage(context, editor.document, true, statusBar);
+      await applyDetectedLanguage(context, editor.document, true, statusBar, visualDifferentiator);
     })
   );
 
@@ -99,9 +106,9 @@ export function activate(context: vscode.ExtensionContext): void {
       if (picked) {
         if (picked.languageId === "auto") {
           await clearStoredLanguage(context, editor.document);
-          await applyDetectedLanguage(context, editor.document, true, statusBar);
+          await applyDetectedLanguage(context, editor.document, true, statusBar, visualDifferentiator);
         } else {
-          await setLanguage(context, editor.document, picked.languageId, statusBar, true);
+          await setLanguage(context, editor.document, picked.languageId, statusBar, true, visualDifferentiator);
         }
       }
     })
@@ -115,7 +122,7 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
 
-        await setLanguage(context, editor.document, option.languageId, statusBar, true);
+        await setLanguage(context, editor.document, option.languageId, statusBar, true, visualDifferentiator);
       })
     );
   }
@@ -128,13 +135,14 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       await clearStoredLanguage(context, editor.document);
-      await setLanguage(context, editor.document, "txtjet", statusBar, false);
+      await setLanguage(context, editor.document, "txtjet", statusBar, false, visualDifferentiator);
     })
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.clearLanguage.all", async () => {
       await context.workspaceState.update(MODE_STORAGE_KEY, {});
       updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
+      visualDifferentiator.refreshAll();
     })
   );
   context.subscriptions.push(
@@ -175,14 +183,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
-      void applyDetectedLanguage(context, document, false, statusBar);
+      void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
       updateDiagnostics(diagnostics, document);
+      visualDifferentiator.refreshDocument(document);
     })
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
       updateDiagnostics(diagnostics, event.document);
       previewProvider.refresh(event.document.uri);
+      visualDifferentiator.refreshDocument(event.document);
     })
   );
   context.subscriptions.push(
@@ -211,12 +221,14 @@ export function activate(context: vscode.ExtensionContext): void {
       for (const document of vscode.workspace.textDocuments) {
         updateDiagnostics(diagnostics, document);
       }
+      visualDifferentiator.refreshAll();
     })
   );
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((document) => {
       diagnostics.delete(document.uri);
       previewProvider.forget(document.uri);
+      visualDifferentiator.clearDocument(document);
     })
   );
 
@@ -228,12 +240,23 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerFormattingProvider());
 
   for (const document of vscode.workspace.textDocuments) {
-    void applyDetectedLanguage(context, document, false, statusBar);
+    void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
     updateDiagnostics(diagnostics, document);
+    visualDifferentiator.refreshDocument(document);
   }
 
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor((editor) => updateStatusBar(statusBar, editor?.document, context))
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      updateStatusBar(statusBar, editor?.document, context);
+      visualDifferentiator.refreshEditor(editor);
+    })
+  );
+  context.subscriptions.push(
+    vscode.window.onDidChangeVisibleTextEditors((editors) => {
+      for (const editor of editors) {
+        visualDifferentiator.refreshEditor(editor);
+      }
+    })
   );
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument(() => updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context))
@@ -366,6 +389,139 @@ class TxtJetGeneratedDiffProvider implements vscode.TextDocumentContentProvider 
   refresh(uri: vscode.Uri): void {
     this.changed.fire(uri);
   }
+}
+
+class TxtJetVisualDifferentiator implements vscode.Disposable {
+  private readonly markerDecoration = vscode.window.createTextEditorDecorationType({
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    border: "1px solid",
+    borderColor: new vscode.ThemeColor("editorBracketMatch.border"),
+    backgroundColor: new vscode.ThemeColor("editorBracketMatch.background"),
+    fontWeight: "600"
+  });
+  private readonly directiveDecoration = vscode.window.createTextEditorDecorationType({
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    backgroundColor: "rgba(197, 134, 192, 0.12)",
+    border: "1px solid rgba(197, 134, 192, 0.20)"
+  });
+  private readonly templateJavaDecoration = vscode.window.createTextEditorDecorationType({
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    backgroundColor: "rgba(86, 156, 214, 0.10)",
+    border: "1px solid rgba(86, 156, 214, 0.18)"
+  });
+  private readonly outputDecorations: Record<TxtJetTargetLanguage, vscode.TextEditorDecorationType> = {
+    "txtjet": outputDecoration("rgba(128, 128, 128, 0.06)", "rgba(128, 128, 128, 0.20)"),
+    "txtjet-java": outputDecoration("rgba(78, 201, 176, 0.08)", "rgba(78, 201, 176, 0.22)"),
+    "txtjet-html": outputDecoration("rgba(224, 108, 117, 0.08)", "rgba(224, 108, 117, 0.22)"),
+    "txtjet-xml": outputDecoration("rgba(229, 192, 123, 0.10)", "rgba(229, 192, 123, 0.24)"),
+    "txtjet-c": outputDecoration("rgba(97, 175, 239, 0.08)", "rgba(97, 175, 239, 0.22)"),
+    "txtjet-python": outputDecoration("rgba(152, 195, 121, 0.10)", "rgba(152, 195, 121, 0.24)")
+  };
+
+  refreshAll(): void {
+    for (const editor of vscode.window.visibleTextEditors) {
+      this.refreshEditor(editor);
+    }
+  }
+
+  refreshDocument(document: vscode.TextDocument): void {
+    for (const editor of vscode.window.visibleTextEditors) {
+      if (editor.document.uri.toString() === document.uri.toString()) {
+        this.refreshEditor(editor);
+      }
+    }
+  }
+
+  refreshEditor(editor?: vscode.TextEditor): void {
+    if (!editor) {
+      return;
+    }
+
+    const document = editor.document;
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+    if (!isTxtJetDocument(document) || !config.get<boolean>("visualDifferentiation.enabled", true)) {
+      this.clearEditor(editor);
+      return;
+    }
+
+    const target = selectedTargetLanguage(document);
+    const grouped = emptyDecorationGroups();
+    for (const region of classifyTxtJetRegions(document.getText(), target)) {
+      const range = vscodeRangeFor(document, region.range);
+      if (region.kind === "generated-output") {
+        grouped.output[region.targetLanguage].push(range);
+      } else {
+        grouped.template[region.kind].push(range);
+      }
+    }
+
+    editor.setDecorations(this.markerDecoration, grouped.template.marker);
+    editor.setDecorations(this.directiveDecoration, grouped.template.directive);
+    editor.setDecorations(this.templateJavaDecoration, grouped.template["template-java"]);
+    for (const language of TXTJET_LANGUAGES) {
+      editor.setDecorations(this.outputDecorations[language], grouped.output[language]);
+    }
+  }
+
+  clearDocument(document: vscode.TextDocument): void {
+    for (const editor of vscode.window.visibleTextEditors) {
+      if (editor.document.uri.toString() === document.uri.toString()) {
+        this.clearEditor(editor);
+      }
+    }
+  }
+
+  dispose(): void {
+    for (const decoration of this.allDecorations()) {
+      decoration.dispose();
+    }
+  }
+
+  private clearEditor(editor: vscode.TextEditor): void {
+    for (const decoration of this.allDecorations()) {
+      editor.setDecorations(decoration, []);
+    }
+  }
+
+  private allDecorations(): vscode.TextEditorDecorationType[] {
+    return [
+      this.markerDecoration,
+      this.directiveDecoration,
+      this.templateJavaDecoration,
+      ...Array.from(TXTJET_LANGUAGES).map((language) => this.outputDecorations[language])
+    ];
+  }
+}
+
+function outputDecoration(backgroundColor: string, overviewRulerColor: string): vscode.TextEditorDecorationType {
+  return vscode.window.createTextEditorDecorationType({
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    backgroundColor,
+    overviewRulerColor,
+    overviewRulerLane: vscode.OverviewRulerLane.Right
+  });
+}
+
+function emptyDecorationGroups(): {
+  template: Record<TxtJetRegionKind, vscode.Range[]>;
+  output: Record<TxtJetTargetLanguage, vscode.Range[]>;
+} {
+  return {
+    template: {
+      "directive": [],
+      "template-java": [],
+      "generated-output": [],
+      "marker": []
+    },
+    output: {
+      "txtjet": [],
+      "txtjet-java": [],
+      "txtjet-html": [],
+      "txtjet-xml": [],
+      "txtjet-c": [],
+      "txtjet-python": []
+    }
+  };
 }
 
 async function openPreview(kind: PreviewKind, forceBeside: boolean): Promise<void> {
@@ -507,6 +663,13 @@ function selectionToRange(document: vscode.TextDocument, selection: vscode.Selec
   };
 }
 
+function vscodeRangeFor(document: vscode.TextDocument, range: TxtJetRange): vscode.Range {
+  return new vscode.Range(
+    document.positionAt(range.start),
+    document.positionAt(Math.max(range.start, range.end))
+  );
+}
+
 function revealMappedPreviewRange(editor: vscode.TextEditor, range: TxtJetRange | undefined): void {
   if (!range) {
     return;
@@ -635,7 +798,8 @@ async function applyDetectedLanguage(
   context: vscode.ExtensionContext,
   document: vscode.TextDocument,
   allowManualModes: boolean,
-  statusBar: vscode.StatusBarItem
+  statusBar: vscode.StatusBarItem,
+  visualDifferentiator?: TxtJetVisualDifferentiator
 ): Promise<void> {
   if (!isTxtJetDocument(document)) {
     return;
@@ -643,7 +807,7 @@ async function applyDetectedLanguage(
 
   const storedLanguage = getStoredLanguage(context, document);
   if (storedLanguage && !allowManualModes) {
-    await setLanguage(context, document, storedLanguage, statusBar, false);
+    await setLanguage(context, document, storedLanguage, statusBar, false, visualDifferentiator);
     return;
   }
 
@@ -655,7 +819,7 @@ async function applyDetectedLanguage(
   if (!allowManualModes && !config.get<boolean>("autoDetect.enabled", true)) {
     const preferred = config.get<TxtJetTargetLanguage>("defaultTargetLanguage", "txtjet");
     if (preferred !== "txtjet") {
-      await setLanguage(context, document, preferred, statusBar, false);
+      await setLanguage(context, document, preferred, statusBar, false, visualDifferentiator);
     }
     return;
   }
@@ -669,7 +833,7 @@ async function applyDetectedLanguage(
     return;
   }
 
-  await setLanguage(context, document, target, statusBar, false);
+  await setLanguage(context, document, target, statusBar, false, visualDifferentiator);
 }
 
 function isTxtJetDocument(document: vscode.TextDocument): boolean {
@@ -685,7 +849,8 @@ async function setLanguage(
   document: vscode.TextDocument,
   languageId: TxtJetTargetLanguage,
   statusBar: vscode.StatusBarItem,
-  persist: boolean
+  persist: boolean,
+  visualDifferentiator?: TxtJetVisualDifferentiator
 ): Promise<void> {
   if (persist) {
     await storeLanguage(context, document, languageId);
@@ -693,11 +858,13 @@ async function setLanguage(
 
   if (document.languageId === languageId) {
     updateStatusBar(statusBar, document, context);
+    visualDifferentiator?.refreshDocument(document);
     return;
   }
 
   const updatedDocument = await vscode.languages.setTextDocumentLanguage(document, languageId);
   updateStatusBar(statusBar, updatedDocument, context);
+  visualDifferentiator?.refreshDocument(updatedDocument);
 }
 
 function updateStatusBar(
@@ -903,11 +1070,12 @@ function registerHoverProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       async provideHover(document, position) {
+        const text = document.getText();
         const offset = document.offsetAt(position);
-        const model = parseTxtJetTemplate(document.getText());
+        const model = parseTxtJetTemplate(text);
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          return javaBridgeHover(document, position);
+          return await javaBridgeHover(document, position) ?? regionHover(document, text, offset);
         }
 
         const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
@@ -925,6 +1093,32 @@ function registerHoverProvider(): vscode.Disposable {
       }
     }
   );
+}
+
+function regionHover(document: vscode.TextDocument, text: string, offset: number): vscode.Hover | undefined {
+  const region = classifyTxtJetRegionAt(text, offset, selectedTargetLanguage(document));
+  if (!region) {
+    return undefined;
+  }
+
+  const markdown = new vscode.MarkdownString();
+  const language = labelForLanguage(region.targetLanguage);
+  switch (region.kind) {
+    case "marker":
+      markdown.appendMarkdown("**TxtJet template marker**\n\nDelimits a TxtJet directive, expression, declaration, or scriptlet block.");
+      break;
+    case "directive":
+      markdown.appendMarkdown("**TxtJet directive region**\n\nTemplate metadata or include/skeleton routing. This is parsed as TxtJet syntax, not generated output.");
+      break;
+    case "template-java":
+      markdown.appendMarkdown("**TxtJet template Java region**\n\nJava executed by the template while generating output. IntelliSense is routed through the generated Java preview when installed Java tooling can answer it.");
+      break;
+    case "generated-output":
+      markdown.appendMarkdown(`**${language} region**\n\nGenerated-output text for the selected or detected TxtJet target mode.`);
+      break;
+  }
+
+  return new vscode.Hover(markdown, vscodeRangeFor(document, region.range));
 }
 
 function diagnosticToCodeAction(
@@ -1265,7 +1459,8 @@ function fallbackTargetCompletions(document: vscode.TextDocument, position: vsco
     .map((label) => javaFallbackItem(
       label,
       receiver ? vscode.CompletionItemKind.Method : fallbackKindForTargetName(label, target),
-      range
+      range,
+      target
     ));
   return new vscode.CompletionList(items, false);
 }
@@ -1274,11 +1469,31 @@ function completionTarget(document: vscode.TextDocument): TxtJetTargetLanguage {
   return effectiveCompletionTarget(selectedTargetLanguage(document), detectLanguage(document));
 }
 
-function javaFallbackItem(label: string, kind: vscode.CompletionItemKind, range: vscode.Range): vscode.CompletionItem {
+function javaFallbackItem(
+  label: string,
+  kind: vscode.CompletionItemKind,
+  range: vscode.Range,
+  target: TxtJetTargetLanguage
+): vscode.CompletionItem {
   const item = new vscode.CompletionItem(label, kind);
-  item.detail = "TxtJet Java fallback";
+  item.detail = fallbackDetailForTarget(target);
   item.range = range;
   return item;
+}
+
+function fallbackDetailForTarget(target: TxtJetTargetLanguage): string {
+  switch (target) {
+    case "txtjet-python":
+      return "TxtJet Python fallback";
+    case "txtjet-c":
+      return "TxtJet C/C++ fallback";
+    case "txtjet-java":
+    case "txtjet":
+    case "txtjet-html":
+    case "txtjet-xml":
+    default:
+      return "TxtJet Java fallback";
+  }
 }
 
 function javaWordRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range {

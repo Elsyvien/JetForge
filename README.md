@@ -13,6 +13,7 @@ VSCode extension for `.txtjet` Java emitter template files.
   - `<%! ... %>`
   - `<%@ ... %>`
 - Java highlighting inside embedded template blocks.
+- Subtle visual differentiation for template markers, directives, embedded Java, and generated-output regions.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Read-only generated output and generated Java template previews.
 - On-demand generated-output writing and previous-generation diffing.
@@ -60,6 +61,7 @@ If the generated outer content should be highlighted as a specific language, use
 
 These modes describe the generated output language outside template blocks. Embedded Java inside `<% ... %>`, `<%= ... %>`, `<%! ... %>`, and `<%@ ... %>` is highlighted in every TxtJet mode.
 Template delimiters are also injected into common outer-language strings, comments, and preprocessor regions so generated C/XML/HTML/Python/Java text does not hide TxtJet blocks.
+By default, TxtJet also applies subtle editor decorations that distinguish generated-output text from template markers, directives, and embedded Java. Disable `txtjet.visualDifferentiation.enabled` if a theme already provides enough contrast.
 
 Auto Alpha can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
 
@@ -108,6 +110,7 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - unterminated quoted strings inside directives
 
 Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Generated-output regions also get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches.
+Hover text identifies whether the current region is generated output, a TxtJet marker, directive syntax, or embedded template Java.
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
 
@@ -152,6 +155,7 @@ VSCode document formatting and format selection also normalize directive attribu
 ## Development Notes
 
 Version 1 does not implement full semantic analysis directly. Java IntelliSense forwarding depends on installed Java tooling and only runs where a TxtJet source position can be mapped into the generated Java preview. Generated-output suggestions for Java, Python, and C/C++ are local fallbacks, not full language-server results. Auto Alpha target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+Visual differentiation is parser-backed and local to the editor; it does not change generated output or replace target-language language servers.
 
 Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 
@@ -174,6 +178,7 @@ Settings:
 - `txtjet.resolution.includePaths`
 - `txtjet.resolution.skeletonPaths`
 - `txtjet.formatting.enabled`
+- `txtjet.visualDifferentiation.enabled`
 - `txtjet.generation.outputDirectory`
 
 Privacy and workplace use:

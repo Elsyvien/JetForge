@@ -34,6 +34,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm Java inside template blocks is highlighted.
 - Confirm generated outer text is highlighted for the selected output mode.
 - Confirm template blocks inside strings, comments, and C preprocessor-style regions still highlight.
+- Confirm template markers, directives, embedded Java, and generated-output regions have distinct subtle editor decorations.
+- Toggle `txtjet.visualDifferentiation.enabled` and confirm those extra decorations hide/show without changing TextMate highlighting.
 
 ## Diagnostics And Quick Fixes
 
@@ -88,6 +90,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Settings And Privacy
 
 - Toggle `txtjet.statusBar.enabled` and confirm the status bar item hides/shows.
+- Toggle `txtjet.visualDifferentiation.enabled` and confirm mixed-language region decorations hide/show.
 - Set `txtjet.diagnostics.severity` to `error`, `warning`, `information`, and `hint`; confirm diagnostics update.
 - Set `txtjet.diagnostics.maxFileSizeKb` to a low value and confirm diagnostics are skipped for larger files.
-- Confirm the package contains no private templates, local example files, `src`, `test-fixtures`, `node_modules`, or `.github`.
+- Confirm the package contains no private templates, root-level local `example*` files, `src`, `test-fixtures`, `node_modules`, or `.github`.
