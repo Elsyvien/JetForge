@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 
-const packageText = execFileSync("npx", ["vsce", "ls", "--no-dependencies"], {
+const vsceBin = join("node_modules", "@vscode", "vsce", "vsce");
+const packageText = execFileSync(process.execPath, [vsceBin, "ls", "--no-dependencies"], {
   encoding: "utf8",
   stdio: ["ignore", "pipe", "pipe"]
 });

@@ -18,7 +18,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Read-only generated output and generated Java template previews.
 - On-demand generated-output writing and previous-generation diffing.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
-- Go to Definition for `@include file="..."` and `@jet skeleton="..."` references, including configured workspace search paths.
+- Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
 - Auto Detect support that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
 - No runtime network access, telemetry, or proprietary template content.
@@ -40,7 +40,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.11.vsix
+code --install-extension txtjet-syntax-0.0.12.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -109,7 +109,7 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - malformed or empty directives
 - unterminated quoted strings inside directives
 
-Completions are available for template markers after typing `<`, plus directive names and common directive attributes inside `<%@ ... %>` blocks. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Generated-output regions also get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches.
+Completions are available for template markers after typing `<`, plus directive names, common directive attributes, and directive values inside `<%@ ... %>` blocks. Directive value completions suggest local include files, skeleton files, common Java imports, and reasonable `@jet` package/class values without scanning broadly outside the template directory and configured resolution paths. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Generated-output regions also get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches.
 Hover text identifies whether the current region is generated output, a TxtJet marker, directive syntax, or embedded template Java.
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
@@ -136,7 +136,7 @@ The generated output preview preserves outer template text, expands relative inc
 
 The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
 
-Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Hover shows resolved/unresolved reference status, and missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
+Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Template Java calls such as `helper(...)` and `this.helper(...)` can Go to Definition or Peek Definition to matching helper methods declared in `<%! ... %>` blocks, including multiple overload locations when present. Hover shows resolved/unresolved reference status, local helper signatures when Java tooling has no answer, and region context for template syntax. Missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 
 Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates.
 

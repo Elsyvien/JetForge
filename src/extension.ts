@@ -1,14 +1,23 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute as isAbsolutePath, join, relative } from "node:path";
 import * as vscode from "vscode";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
-import { COMPLETION_TRIGGER_CHARACTERS, isTxtJetPath, selectedTargetLanguageId, shouldOfferMarkerCompletions } from "./extensionSupport";
+import {
+  COMPLETION_TRIGGER_CHARACTERS,
+  DIRECTIVE_VALUE_TRIGGER_CHARACTERS,
+  directiveValueContextAt,
+  isTxtJetPath,
+  selectedTargetLanguageId,
+  shouldOfferMarkerCompletions
+} from "./extensionSupport";
 import { formatTxtJetBlock } from "./formatter";
 import {
   effectiveCompletionTarget,
   isJavaKeywordCompletionName,
   javaCompletionContextAt,
+  localJavaDefinitionRangesAt,
+  localJavaHoverSignaturesAt,
   mapJavaPreviewRangeToSource,
   projectSourceOffsetToJavaPreview,
   targetFallbackCompletionLabels
@@ -1045,14 +1054,14 @@ function registerDefinitionProvider(): vscode.Disposable {
       async provideDefinition(document, position) {
         const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
         if (!config.get<boolean>("navigation.includeDefinitions.enabled", true)) {
-          return javaBridgeDefinitions(document, position);
+          return javaDefinitions(document, position);
         }
 
         const offset = document.offsetAt(position);
         const model = parseTxtJetTemplate(document.getText());
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          return javaBridgeDefinitions(document, position);
+          return javaDefinitions(document, position);
         }
 
         const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths");
@@ -1065,6 +1074,16 @@ function registerDefinitionProvider(): vscode.Disposable {
   );
 }
 
+async function javaDefinitions(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Definition | undefined> {
+  return await javaBridgeDefinitions(document, position) ?? localJavaDefinition(document, position);
+}
+
+function localJavaDefinition(document: vscode.TextDocument, position: vscode.Position): vscode.Definition | undefined {
+  const ranges = localJavaDefinitionRangesAt(document.getText(), document.offsetAt(position));
+  const locations = ranges.map((range) => new vscode.Location(document.uri, vscodeRangeFor(document, range)));
+  return locations.length > 0 ? locations : undefined;
+}
+
 function registerHoverProvider(): vscode.Disposable {
   return vscode.languages.registerHoverProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
@@ -1075,7 +1094,7 @@ function registerHoverProvider(): vscode.Disposable {
         const model = parseTxtJetTemplate(text);
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          return await javaBridgeHover(document, position) ?? regionHover(document, text, offset);
+          return await javaBridgeHover(document, position) ?? localJavaHover(document, position) ?? regionHover(document, text, offset);
         }
 
         const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
@@ -1093,6 +1112,20 @@ function registerHoverProvider(): vscode.Disposable {
       }
     }
   );
+}
+
+function localJavaHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined {
+  const signatures = localJavaHoverSignaturesAt(document.getText(), document.offsetAt(position));
+  if (signatures.length === 0) {
+    return undefined;
+  }
+
+  const markdown = new vscode.MarkdownString();
+  markdown.appendMarkdown(signatures.length === 1 ? "**TxtJet local helper**\n\n" : "**TxtJet local helper overloads**\n\n");
+  for (const signature of signatures) {
+    markdown.appendCodeblock(signature, "java");
+  }
+  return new vscode.Hover(markdown, document.getWordRangeAtPosition(position));
 }
 
 function regionHover(document: vscode.TextDocument, text: string, offset: number): vscode.Hover | undefined {
@@ -1303,6 +1336,10 @@ function registerCompletionProvider(): vscode.Disposable {
         }
 
         if (isInsideDirective(document, position)) {
+          const valueCompletions = directiveValueCompletions(document, position);
+          if (valueCompletions) {
+            return valueCompletions;
+          }
           return directiveCompletions();
         }
 
@@ -1323,6 +1360,7 @@ function registerCompletionProvider(): vscode.Disposable {
       }
     },
     ...COMPLETION_TRIGGER_CHARACTERS,
+    ...DIRECTIVE_VALUE_TRIGGER_CHARACTERS,
     ...JAVA_COMPLETION_TRIGGER_CHARACTERS
   );
 }
@@ -1709,6 +1747,189 @@ function directiveCompletions(): vscode.CompletionItem[] {
     attribute("skeleton"),
     attribute("file")
   ];
+}
+
+function directiveValueCompletions(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): vscode.CompletionList | undefined {
+  const context = directiveValueContextAt(document.getText(), document.offsetAt(position));
+  if (!context) {
+    return undefined;
+  }
+
+  if (context.directiveName === "include" && context.attributeName === "file") {
+    return referencePathCompletions(document, position, context, "resolution.includePaths", [
+      ".txtjet",
+      ".jet",
+      ".javajet",
+      ".htmljet",
+      ".xmljet",
+      ".cjet",
+      ".pythonjet",
+      ".jetinc"
+    ], "TxtJet include file");
+  }
+
+  if (context.directiveName === "jet" && context.attributeName === "skeleton") {
+    return referencePathCompletions(document, position, context, "resolution.skeletonPaths", [".skeleton"], "TxtJet skeleton file");
+  }
+
+  if (context.directiveName === "jet" && context.attributeName === "imports") {
+    return staticValueCompletions(
+      [
+        "java.util.List",
+        "java.util.Map",
+        "java.util.Set",
+        "java.util.ArrayList",
+        "java.util.HashMap",
+        "java.io.File",
+        "java.time.Instant",
+        "java.time.LocalDate"
+      ],
+      "TxtJet Java import",
+      vscode.CompletionItemKind.Module,
+      directiveValueSegmentRange(document, position, context, /[;,]/)
+    );
+  }
+
+  if (context.directiveName === "jet" && context.attributeName === "package") {
+    return staticValueCompletions(
+      packageNameCandidates(document),
+      "TxtJet Java package",
+      vscode.CompletionItemKind.Module,
+      new vscode.Range(document.positionAt(context.valueRange.start), position)
+    );
+  }
+
+  if (context.directiveName === "jet" && context.attributeName === "class") {
+    return staticValueCompletions(
+      classNameCandidates(document),
+      "TxtJet Java class",
+      vscode.CompletionItemKind.Class,
+      new vscode.Range(document.positionAt(context.valueRange.start), position)
+    );
+  }
+
+  return new vscode.CompletionList([], false);
+}
+
+function referencePathCompletions(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  context: NonNullable<ReturnType<typeof directiveValueContextAt>>,
+  setting: string,
+  allowedSuffixes: string[],
+  detail: string
+): vscode.CompletionList {
+  const prefix = context.prefix.replace(/\\/g, "/");
+  if (isAbsolutePath(prefix) || prefix.split("/").includes("..")) {
+    return new vscode.CompletionList([], false);
+  }
+
+  const separator = prefix.lastIndexOf("/");
+  const directoryPrefix = separator === -1 ? "" : prefix.slice(0, separator + 1);
+  const filterPrefix = (separator === -1 ? prefix : prefix.slice(separator + 1)).toLowerCase();
+  const replaceStart = context.valueRange.start + (separator === -1 ? 0 : separator + 1);
+  const range = new vscode.Range(document.positionAt(replaceStart), position);
+  const roots = uniqueStrings([dirname(document.fileName), ...configuredReferencePaths(document, setting)]);
+  const items: vscode.CompletionItem[] = [];
+
+  for (const root of roots) {
+    const directory = join(root, directoryPrefix);
+    let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true }) as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const lower = entry.name.toLowerCase();
+      const isAllowedFile = entry.isFile() && allowedSuffixes.some((suffix) => lower.endsWith(suffix));
+      if (!entry.isDirectory() && !isAllowedFile) {
+        continue;
+      }
+      if (filterPrefix && !lower.startsWith(filterPrefix)) {
+        continue;
+      }
+
+      const label = entry.isDirectory() ? `${entry.name}/` : entry.name;
+      if (items.some((item) => item.label === label)) {
+        continue;
+      }
+      const item = new vscode.CompletionItem(label, entry.isDirectory() ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File);
+      item.detail = entry.isDirectory() ? "TxtJet reference folder" : detail;
+      item.insertText = label;
+      item.range = range;
+      item.sortText = `${entry.isDirectory() ? "0" : "1"}_${label}`;
+      items.push(item);
+    }
+  }
+
+  return new vscode.CompletionList(items, false);
+}
+
+function staticValueCompletions(
+  labels: string[],
+  detail: string,
+  kind: vscode.CompletionItemKind,
+  range: vscode.Range
+): vscode.CompletionList {
+  const items = uniqueStrings(labels).map((label) => {
+    const item = new vscode.CompletionItem(label, kind);
+    item.detail = detail;
+    item.range = range;
+    return item;
+  });
+  return new vscode.CompletionList(items, false);
+}
+
+function directiveValueSegmentRange(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  context: NonNullable<ReturnType<typeof directiveValueContextAt>>,
+  separator: RegExp
+): vscode.Range {
+  let start = context.valueRange.start;
+  for (let index = context.prefix.length - 1; index >= 0; index -= 1) {
+    if (separator.test(context.prefix[index])) {
+      start = context.valueRange.start + index + 1;
+      break;
+    }
+  }
+  while (start < document.offsetAt(position) && /\s/.test(document.getText()[start])) {
+    start += 1;
+  }
+  return new vscode.Range(document.positionAt(start), position);
+}
+
+function packageNameCandidates(document: vscode.TextDocument): string[] {
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  const relativeDirectory = workspaceFolder ? relative(workspaceFolder.uri.fsPath, dirname(document.fileName)) : "";
+  const packageFromPath = relativeDirectory
+    .split(/[\\/]+/)
+    .filter((part) => /^[A-Za-z_][\w]*$/.test(part))
+    .join(".");
+  return ["txtjet.generated", "generated", packageFromPath].filter((entry) => entry.length > 0);
+}
+
+function classNameCandidates(document: vscode.TextDocument): string[] {
+  const baseName = stripTxtJetSuffix(basename(document.fileName));
+  const className = baseName
+    .split(/[^A-Za-z0-9_$]+/)
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join("");
+  return [className ? `${className}Template` : "", "GeneratedTxtJetTemplate"].filter((entry) => /^[A-Za-z_$][\w$]*$/.test(entry));
+}
+
+function stripTxtJetSuffix(fileName: string): string {
+  return fileName.replace(/\.(?:txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/i, "");
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values));
 }
 
 function snippet(label: string, detail: string, insertText: string, range?: vscode.Range): vscode.CompletionItem {

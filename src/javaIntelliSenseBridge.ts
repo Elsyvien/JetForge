@@ -23,7 +23,14 @@ export interface TxtJetJavaCompletionContext {
   block: TxtJetBlock;
 }
 
+interface LocalJavaMethodDefinition {
+  name: string;
+  nameRange: TxtJetRange;
+  signature: string;
+}
+
 const JAVA_BRIDGE_BLOCK_KINDS = new Set(["scriptlet", "expression", "declaration"]);
+const LOCAL_JAVA_DEFINITION_BLOCK_KINDS = new Set(["declaration"]);
 const JAVA_KEYWORD_COMPLETIONS = [
   "abstract",
   "boolean",
@@ -155,6 +162,23 @@ const CPP_STD_MEMBER_COMPLETIONS = ["cerr", "cin", "cout", "endl", "make_unique"
 const CPP_VECTOR_MEMBER_COMPLETIONS = ["at", "back", "begin", "clear", "empty", "end", "front", "pop_back", "push_back", "size"];
 const CPP_STRING_MEMBER_COMPLETIONS = ["append", "c_str", "empty", "find", "length", "replace", "size", "substr"];
 const CPP_OBJECT_MEMBER_COMPLETIONS = ["empty", "size"];
+const JAVA_METHOD_MODIFIERS = [
+  "public",
+  "private",
+  "protected",
+  "static",
+  "final",
+  "synchronized",
+  "abstract",
+  "native",
+  "strictfp"
+];
+const JAVA_METHOD_DECLARATION_PATTERN = new RegExp(
+  String.raw`\b` +
+  `(?:(?:${JAVA_METHOD_MODIFIERS.join("|")})\\s+)*(?:<[^>\\n]+>\\s*)?` +
+  String.raw`(?:[A-Za-z_$][\w$]*(?:\s*<[^;{}()]*>)?(?:\s*\[\])?|void)\s+([A-Za-z_$][\w$]*)\s*\([^;{}]*\)\s*(?:throws\s+[A-Za-z_$][\w$.,\s]*)?\{`,
+  "g"
+);
 
 export function effectiveCompletionTarget(
   selectedTargetLanguage: TxtJetTargetLanguage,
@@ -302,8 +326,186 @@ export function mapJavaPreviewRangeToSource(
   return { start: Math.min(start, end), end: Math.max(start, end) };
 }
 
+export function localJavaDefinitionRangesAt(text: string, sourceOffset: number): TxtJetRange[] {
+  return localJavaDefinitionsAt(text, sourceOffset).map((definition) => definition.nameRange);
+}
+
+export function localJavaHoverSignaturesAt(text: string, sourceOffset: number): string[] {
+  return localJavaDefinitionsAt(text, sourceOffset).map((definition) => definition.signature);
+}
+
+function localJavaDefinitionsAt(text: string, sourceOffset: number): LocalJavaMethodDefinition[] {
+  const model = parseTxtJetTemplate(text);
+  const activeBlock = model.blocks.find((candidate) =>
+    JAVA_BRIDGE_BLOCK_KINDS.has(candidate.kind)
+    && candidate.contentRange.start <= sourceOffset
+    && sourceOffset <= candidate.contentRange.end
+  );
+  if (!activeBlock) {
+    return [];
+  }
+
+  const call = javaCallNameAt(activeBlock, sourceOffset);
+  if (!call) {
+    return [];
+  }
+
+  const definitions = model.blocks
+    .filter((block) => LOCAL_JAVA_DEFINITION_BLOCK_KINDS.has(block.kind))
+    .flatMap((block) => javaMethodDefinitionsFromBlock(block));
+  return definitions
+    .filter((definition) => definition.name === call.name);
+}
+
 function mappingForBlock(mappings: TxtJetMapping[], block: TxtJetBlock): TxtJetMapping | undefined {
   return mappings.find((mapping) => sameRange(mapping.source, block.range));
+}
+
+function javaCallNameAt(block: TxtJetBlock, sourceOffset: number): { name: string; range: TxtJetRange } | undefined {
+  const masked = maskJavaCommentsAndStrings(block.content);
+  const localOffset = clamp(sourceOffset - block.contentRange.start, 0, masked.length);
+  const identifier = javaIdentifierAt(masked, localOffset, block.contentRange.start);
+  if (!identifier) {
+    return undefined;
+  }
+
+  const localStart = identifier.range.start - block.contentRange.start;
+  const localEnd = identifier.range.end - block.contentRange.start;
+  let after = localEnd;
+  while (after < masked.length && /\s/.test(masked[after])) {
+    after += 1;
+  }
+  if (masked[after] !== "(") {
+    return undefined;
+  }
+
+  const before = masked.slice(0, localStart);
+  const receiver = before.match(/([A-Za-z_$][\w$]*)\s*\.\s*$/)?.[1];
+  if (receiver && receiver !== "this") {
+    return undefined;
+  }
+
+  return identifier;
+}
+
+function javaIdentifierAt(content: string, offset: number, sourceBase = 0): { name: string; range: TxtJetRange } | undefined {
+  const safeOffset = clamp(offset, 0, content.length);
+  const index = safeOffset > 0 && !isJavaIdentifierPart(content[safeOffset]) && isJavaIdentifierPart(content[safeOffset - 1])
+    ? safeOffset - 1
+    : safeOffset;
+  if (!isJavaIdentifierPart(content[index])) {
+    return undefined;
+  }
+
+  let start = index;
+  while (start > 0 && isJavaIdentifierPart(content[start - 1])) {
+    start -= 1;
+  }
+  let end = index + 1;
+  while (end < content.length && isJavaIdentifierPart(content[end])) {
+    end += 1;
+  }
+
+  if (!isJavaIdentifierStart(content[start])) {
+    return undefined;
+  }
+  return { name: content.slice(start, end), range: { start: sourceBase + start, end: sourceBase + end } };
+}
+
+function javaMethodDefinitionsFromBlock(block: TxtJetBlock): LocalJavaMethodDefinition[] {
+  const definitions: LocalJavaMethodDefinition[] = [];
+  const masked = maskJavaCommentsAndStrings(block.content);
+  let match: RegExpExecArray | null;
+  JAVA_METHOD_DECLARATION_PATTERN.lastIndex = 0;
+  while ((match = JAVA_METHOD_DECLARATION_PATTERN.exec(masked))) {
+    const name = match[1];
+    const nameOffset = match[0].lastIndexOf(name);
+    if (nameOffset === -1) {
+      continue;
+    }
+    const start = block.contentRange.start + match.index + nameOffset;
+    definitions.push({
+      name,
+      nameRange: { start, end: start + name.length },
+      signature: javaMethodSignatureFromMatch(block.content, match)
+    });
+  }
+  return definitions;
+}
+
+function javaMethodSignatureFromMatch(content: string, match: RegExpExecArray): string {
+  const openBrace = match[0].lastIndexOf("{");
+  const signatureEnd = openBrace === -1 ? match.index + match[0].length : match.index + openBrace;
+  return content
+    .slice(match.index, signatureEnd)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function maskJavaCommentsAndStrings(content: string): string {
+  const chars = content.split("");
+  let index = 0;
+  while (index < chars.length) {
+    const char = chars[index];
+    const next = chars[index + 1];
+    if (char === "\"" || char === "'") {
+      const quote = char;
+      chars[index] = " ";
+      index += 1;
+      let escaped = false;
+      while (index < chars.length) {
+        const current = chars[index];
+        chars[index] = " ";
+        if (escaped) {
+          escaped = false;
+        } else if (current === "\\") {
+          escaped = true;
+        } else if (current === quote) {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      chars[index] = " ";
+      chars[index + 1] = " ";
+      index += 2;
+      while (index < chars.length && chars[index] !== "\n") {
+        chars[index] = " ";
+        index += 1;
+      }
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      chars[index] = " ";
+      chars[index + 1] = " ";
+      index += 2;
+      while (index < chars.length) {
+        const current = chars[index];
+        const following = chars[index + 1];
+        chars[index] = " ";
+        if (current === "*" && following === "/") {
+          chars[index + 1] = " ";
+          index += 2;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    index += 1;
+  }
+  return chars.join("");
+}
+
+function isJavaIdentifierStart(char: string | undefined): boolean {
+  return Boolean(char && /[A-Za-z_$]/.test(char));
+}
+
+function isJavaIdentifierPart(char: string | undefined): boolean {
+  return Boolean(char && /[A-Za-z0-9_$]/.test(char));
 }
 
 function sourceOffsetToPreviewOffset(

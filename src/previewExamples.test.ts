@@ -81,7 +81,7 @@ const skeletonJavaOutput = javaPreview("examples/skeleton-directive.txtjet");
 assert.ok(skeletonJavaOutput.includes("// TxtJet skeleton reference (loaded): templates/base.skeleton"));
 assert.ok(skeletonJavaOutput.includes("public final class SkeletonSample"));
 
-assert.equal(relative(".", resolveIncludePath("examples/include-main.txtjet", "partials/header.txtjet") ?? ""), "examples/partials/header.txtjet");
+assert.equal(relative(".", resolveIncludePath("examples/include-main.txtjet", "partials/header.txtjet") ?? ""), join("examples", "partials", "header.txtjet"));
 assert.equal(targetPreviewLanguage("txtjet-java"), "java");
 
 console.log("preview example tests ok");

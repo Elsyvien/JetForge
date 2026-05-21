@@ -57,6 +57,9 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm normal typing on spaces does not show noisy marker completions.
 - Inside `<%@ ... %>`, confirm directive completions for `jet`, `include`, `package`, `class`, `imports`, and `file`.
 - Confirm `skeleton` is offered as a directive attribute completion.
+- Inside `file=""`, confirm local `.txtjet`/`.jetinc` include path completions appear without listing unrelated file types.
+- Inside `skeleton=""`, confirm local `.skeleton` path completions appear.
+- Inside `imports=""`, `package=""`, and `class=""`, confirm Java-oriented value completions appear and replace only the active value segment.
 - In `examples/sample-java.txtjet`, place the cursor inside generated Java output, type `ret` or press Cmd+Space/Ctrl+Space, and confirm Java fallback suggestions appear.
 - In `examples/sample-python.txtjet`, place the cursor in generated Python output and confirm Python keyword/builtin suggestions appear; after `items.ap`, confirm `append` is offered when a local list assignment is present.
 - In `examples/sample-c.txtjet` or a C++-style `.cjet` scratch, confirm C/C++ suggestions appear; after `std::co`, confirm `cout` is offered.
@@ -79,6 +82,9 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm the generated output preview language follows the selected generated-output mode.
 - Create a sanitized relative include and confirm Go to Definition from `file="..."` opens it.
 - Open `examples/skeleton-directive.txtjet` and confirm Go to Definition from `skeleton="..."` opens `templates/base.skeleton`.
+- In a scriptlet or expression that calls a helper declared in `<%! ... %>`, confirm Go to Definition jumps to the helper method name.
+- With multiple same-name helper overloads in `<%! ... %>`, confirm Peek Definition shows each local overload.
+- Hover a local helper call and confirm the helper signature appears when Java tooling does not provide hover content.
 - Hover over include and skeleton references and confirm the resolved path/status is shown.
 - Open the generated Java preview for `examples/skeleton-directive.txtjet` and confirm the `.skeleton` token layout is used.
 - Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.

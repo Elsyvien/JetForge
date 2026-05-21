@@ -6,6 +6,8 @@ import {
   isJavaKeywordCompletionName,
   javaCompletionContextAt,
   javaFallbackCompletionLabels,
+  localJavaDefinitionRangesAt,
+  localJavaHoverSignaturesAt,
   mapJavaPreviewRangeToSource,
   projectSourceOffsetToJavaPreview,
   targetFallbackCompletionLabels
@@ -73,6 +75,56 @@ assert.equal(javaCompletionContextAt(template, expressionSource, "txtjet-java")?
 assert.ok(javaFallbackCompletionLabels(template, scriptletSource + "names.".length, "txtjet-java").includes("get"));
 assert.ok(javaFallbackCompletionLabels(template, declarationSource, "txtjet-java").includes("return"));
 assert.ok(javaFallbackCompletionLabels(template, expressionSource + "names.".length, "txtjet-java").includes("get"));
+
+const helperCallTemplate = `<%@ jet package="demo" class="Definitions" %>
+<%
+helper("x");
+this.helper("y");
+service.helper("z");
+%>
+<%= helper(name) %>
+<%!
+private String helper(String value) {
+    return value;
+}
+private String helper(Object value) {
+    return String.valueOf(value);
+}
+%>`;
+const helperDefinitions = localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("helper(\"x\")") + 2);
+assert.equal(helperDefinitions.length, 2);
+assert.deepEqual(helperDefinitions.map((range) => helperCallTemplate.slice(range.start, range.end)), ["helper", "helper"]);
+assert.deepEqual(localJavaHoverSignaturesAt(helperCallTemplate, helperCallTemplate.indexOf("helper(\"x\")") + 2), [
+  "private String helper(String value)",
+  "private String helper(Object value)"
+]);
+assert.equal(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("this.helper") + "this.helper".length).length, 2);
+assert.equal(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("helper(name)") + 2).length, 2);
+assert.deepEqual(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("service.helper") + "service.helper".length), []);
+assert.deepEqual(localJavaHoverSignaturesAt(helperCallTemplate, helperCallTemplate.indexOf("service.helper") + "service.helper".length), []);
+assert.deepEqual(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("package")), []);
+
+const scriptletMethodShape = `<%
+private String localOnly(String value) {
+    return value;
+}
+localOnly("x");
+%>`;
+assert.deepEqual(localJavaDefinitionRangesAt(scriptletMethodShape, scriptletMethodShape.lastIndexOf("localOnly") + 2), []);
+
+const maskedCallTemplate = `<%@ jet package="demo" class="Masked" %>
+<%
+// helper("x");
+String literal = "helper(y)";
+%>
+<%!
+private String helper(String value) {
+    return value;
+}
+%>`;
+assert.deepEqual(localJavaDefinitionRangesAt(maskedCallTemplate, maskedCallTemplate.indexOf("// helper") + 4), []);
+assert.deepEqual(localJavaDefinitionRangesAt(maskedCallTemplate, maskedCallTemplate.indexOf("\"helper") + 2), []);
+
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-java"), "txtjet-java");
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-html"), "txtjet");
 assert.equal(effectiveJavaCompletionTarget("txtjet-html", "txtjet-java"), "txtjet-html");

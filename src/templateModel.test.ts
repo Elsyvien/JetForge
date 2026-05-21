@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { join, resolve } from "node:path";
 import {
   buildGeneratedJavaPreview,
   buildGeneratedOutputPreview,
@@ -125,11 +126,14 @@ const fallbackJavaPreview = buildGeneratedJavaPreview("<%@ jet package=\"123\" c
 assert.ok(fallbackJavaPreview.text.includes("package txtjet.generated;"));
 assert.ok(fallbackJavaPreview.text.includes("public class GeneratedTxtJetTemplate"));
 
+const workspaceRoot = resolve("workspace");
+const workspaceMain = join(workspaceRoot, "main.txtjet");
+const workspaceTemplatesMain = join(workspaceRoot, "templates", "main.txtjet");
 const skeletonTemplate = "<%@ jet package=\"demo\" class=\"WithSkeleton\" skeleton=\"templates/base.skeleton\" %>hello <%= name %>";
-const skeletonJavaPreview = buildGeneratedJavaPreview(skeletonTemplate, "/workspace/main.txtjet", {
-  sourceFileName: "/workspace/main.txtjet",
+const skeletonJavaPreview = buildGeneratedJavaPreview(skeletonTemplate, workspaceMain, {
+  sourceFileName: workspaceMain,
   readSkeleton(path) {
-    assert.equal(path, "/workspace/templates/base.skeleton");
+    assert.equal(path, join(workspaceRoot, "templates", "base.skeleton"));
     return "${packageDeclaration}\n\npublic final class ${class} {\n${members}\n${generateMethod}\n}\n";
   }
 });
@@ -145,28 +149,28 @@ assert.equal(targetPreviewLanguage("txtjet-java"), "java");
 assert.equal(targetPreviewLanguage("txtjet-html"), "html");
 assert.equal(targetPreviewLanguage("txtjet"), "plaintext");
 
-assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", "parts/header.txtjet"), "/workspace/templates/parts/header.txtjet");
-assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", "/tmp/header.txtjet"), undefined);
-assert.equal(resolveIncludePath("/workspace/templates/main.txtjet", ""), undefined);
-assert.deepEqual(resolveReferenceCandidates("/workspace/templates/main.txtjet", "shared/header", {
-  searchPaths: ["/workspace/includes"]
+assert.equal(resolveIncludePath(workspaceTemplatesMain, "parts/header.txtjet"), join(workspaceRoot, "templates", "parts", "header.txtjet"));
+assert.equal(resolveIncludePath(workspaceTemplatesMain, resolve("tmp", "header.txtjet")), undefined);
+assert.equal(resolveIncludePath(workspaceTemplatesMain, ""), undefined);
+assert.deepEqual(resolveReferenceCandidates(workspaceTemplatesMain, "shared/header", {
+  searchPaths: [join(workspaceRoot, "includes")]
 }), [
-  "/workspace/templates/shared/header",
-  "/workspace/templates/shared/header.txtjet",
-  "/workspace/templates/shared/header.jetinc",
-  "/workspace/templates/shared/header.skeleton",
-  "/workspace/includes/shared/header",
-  "/workspace/includes/shared/header.txtjet",
-  "/workspace/includes/shared/header.jetinc",
-  "/workspace/includes/shared/header.skeleton"
+  join(workspaceRoot, "templates", "shared", "header"),
+  join(workspaceRoot, "templates", "shared", "header.txtjet"),
+  join(workspaceRoot, "templates", "shared", "header.jetinc"),
+  join(workspaceRoot, "templates", "shared", "header.skeleton"),
+  join(workspaceRoot, "includes", "shared", "header"),
+  join(workspaceRoot, "includes", "shared", "header.txtjet"),
+  join(workspaceRoot, "includes", "shared", "header.jetinc"),
+  join(workspaceRoot, "includes", "shared", "header.skeleton")
 ]);
 
 const includeMappedTemplate = "<%@ include file=\"parts/item.txtjet\" %>";
 const includeMappedPreview = buildGeneratedOutputPreview(includeMappedTemplate, "txtjet-html", {
-  sourceFileName: "/workspace/main.txtjet",
+  sourceFileName: workspaceMain,
   expandIncludes: true,
   readInclude(path) {
-    assert.equal(path, "/workspace/parts/item.txtjet");
+    assert.equal(path, join(workspaceRoot, "parts", "item.txtjet"));
     return "<li><%= item %></li>";
   }
 });

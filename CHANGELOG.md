@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.12
+
+- Added directive value completions for include `file`, skeleton, Java `imports`, `package`, and `class` attributes.
+- Added local Go to Definition and Peek Definition fallback support for TxtJet template Java helper methods declared in `<%! ... %>` blocks.
+- Added local hover fallback signatures for TxtJet template Java helper calls when external Java tooling has no answer.
+- Fixed Windows-local test portability for path assertions and package hygiene validation.
+
 ## 0.0.11
 
 - Added parser-backed visual differentiation for TxtJet markers, directives, embedded Java, and generated-output regions.
