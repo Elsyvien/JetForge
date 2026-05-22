@@ -6,6 +6,7 @@ import {
   isJavaKeywordCompletionName,
   javaCompletionContextAt,
   javaFallbackCompletionLabels,
+  localJavaDefinitionAndReferenceRangesAt,
   localJavaDefinitionRangesAt,
   localJavaHoverSignaturesAt,
   mapJavaPreviewRangeToSource,
@@ -103,6 +104,9 @@ assert.equal(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.
 assert.deepEqual(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("service.helper") + "service.helper".length), []);
 assert.deepEqual(localJavaHoverSignaturesAt(helperCallTemplate, helperCallTemplate.indexOf("service.helper") + "service.helper".length), []);
 assert.deepEqual(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTemplate.indexOf("package")), []);
+const helperRefs = localJavaDefinitionAndReferenceRangesAt(helperCallTemplate, helperCallTemplate.indexOf("helper(\"x\")") + 2);
+assert.equal(helperRefs.length, 5);
+assert.equal(helperRefs.filter((range) => helperCallTemplate.slice(range.start, range.end) === "helper").length, 5);
 
 const scriptletMethodShape = `<%
 private String localOnly(String value) {

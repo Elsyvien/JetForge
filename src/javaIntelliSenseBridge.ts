@@ -334,6 +334,23 @@ export function localJavaHoverSignaturesAt(text: string, sourceOffset: number): 
   return localJavaDefinitionsAt(text, sourceOffset).map((definition) => definition.signature);
 }
 
+export function localJavaDefinitionAndReferenceRangesAt(text: string, sourceOffset: number): TxtJetRange[] {
+  const definitions = localJavaDefinitionsAt(text, sourceOffset);
+  if (definitions.length === 0) {
+    return [];
+  }
+
+  const ranges: TxtJetRange[] = definitions.map((definition) => definition.nameRange);
+  const model = parseTxtJetTemplate(text);
+  for (const block of model.blocks) {
+    if (!JAVA_BRIDGE_BLOCK_KINDS.has(block.kind)) {
+      continue;
+    }
+    ranges.push(...javaCallRangesInBlock(block, definitions.map((definition) => definition.name)));
+  }
+  return dedupeRanges(ranges);
+}
+
 function localJavaDefinitionsAt(text: string, sourceOffset: number): LocalJavaMethodDefinition[] {
   const model = parseTxtJetTemplate(text);
   const activeBlock = model.blocks.find((candidate) =>
@@ -355,6 +372,44 @@ function localJavaDefinitionsAt(text: string, sourceOffset: number): LocalJavaMe
     .flatMap((block) => javaMethodDefinitionsFromBlock(block));
   return definitions
     .filter((definition) => definition.name === call.name);
+}
+
+function javaCallRangesInBlock(block: TxtJetBlock, methodNames: string[]): TxtJetRange[] {
+  const results: TxtJetRange[] = [];
+  const masked = maskJavaCommentsAndStrings(block.content);
+  const methodSet = new Set(methodNames);
+  const pattern = /\b([A-Za-z_$][\w$]*)\s*\(/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(masked))) {
+    const name = match[1];
+    if (!methodSet.has(name)) {
+      continue;
+    }
+    const nameOffset = match[0].indexOf(name);
+    if (nameOffset === -1) {
+      continue;
+    }
+    const absoluteStart = block.contentRange.start + match.index + nameOffset;
+    const prefix = masked.slice(Math.max(0, match.index - 16), match.index);
+    const receiver = prefix.match(/([A-Za-z_$][\w$]*)\s*\.\s*$/)?.[1];
+    if (receiver && receiver !== "this") {
+      continue;
+    }
+    results.push({ start: absoluteStart, end: absoluteStart + name.length });
+  }
+  return results;
+}
+
+function dedupeRanges(ranges: TxtJetRange[]): TxtJetRange[] {
+  const seen = new Set<string>();
+  return ranges.filter((range) => {
+    const key = `${range.start}:${range.end}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function mappingForBlock(mappings: TxtJetMapping[], block: TxtJetBlock): TxtJetMapping | undefined {
