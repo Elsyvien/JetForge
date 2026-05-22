@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute as isAbsolutePath, join, relative } from "node:path";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
@@ -71,6 +73,7 @@ const OUTPUT_PREVIEW_SCHEME = "txtjet-preview-output";
 const JAVA_PREVIEW_SCHEME = "txtjet-preview-java";
 const GENERATED_DIFF_SCHEME = "txtjet-generated-diff";
 const GENERATION_STORAGE_KEY = "txtjet.lastGeneratedOutput.v1";
+const execAsync = promisify(exec);
 
 export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -200,6 +203,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.diffLastGeneratedOutput", async () => {
       await generateOutput(context, generatedDiffProvider, true);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.compileTemplate", async () => {
+      await compileTemplateWithExternalTool();
     })
   );
 
@@ -730,6 +738,70 @@ async function generateOutput(
     currentDocument.uri,
     `TxtJet generated diff: ${basename(editor.document.fileName)}`
   );
+}
+
+async function compileTemplateWithExternalTool(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || !isTxtJetFile(editor.document)) {
+    return;
+  }
+  if (editor.document.isDirty) {
+    const choice = await vscode.window.showWarningMessage(
+      "Save the current template before compiling it.",
+      "Save and Compile",
+      "Cancel"
+    );
+    if (choice !== "Save and Compile") {
+      return;
+    }
+    await editor.document.save();
+  }
+
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, editor.document.uri);
+  const compileCommand = config.get<string>("compiler.command", "").trim();
+  if (compileCommand.length === 0) {
+    vscode.window.showErrorMessage("TxtJet compile command is not configured. Set txtjet.compiler.command in settings.");
+    return;
+  }
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath ?? dirname(editor.document.fileName);
+  const outputPath = generationOutputUri(editor.document).fsPath;
+  mkdirSync(dirname(outputPath), { recursive: true });
+  const fullCommand = compileCommand
+    .split("${file}").join(shellEscape(editor.document.fileName))
+    .split("${workspaceFolder}").join(shellEscape(workspaceFolder))
+    .split("${outputFile}").join(shellEscape(outputPath));
+
+  try {
+    const { stdout, stderr } = await execAsync(fullCommand, { cwd: workspaceFolder, maxBuffer: 10 * 1024 * 1024 });
+    if (stdout.trim().length > 0 || stderr.trim().length > 0) {
+      void vscode.window.showInformationMessage("TxtJet compile finished. Open the TxtJet output channel for logs.");
+    }
+    if (stdout.trim().length > 0) {
+      appendOutputLog("stdout", stdout);
+    }
+    if (stderr.trim().length > 0) {
+      appendOutputLog("stderr", stderr);
+    }
+    if (existsSync(outputPath)) {
+      await vscode.window.showTextDocument(vscode.Uri.file(outputPath), { preview: false, viewColumn: vscode.ViewColumn.Beside });
+    } else {
+      vscode.window.showWarningMessage("Compile command finished, but no output file was found at txtjet.generation.outputDirectory.");
+    }
+  } catch (error) {
+    appendOutputLog("error", String(error));
+    vscode.window.showErrorMessage("TxtJet compile failed. Open the TxtJet output channel for details.");
+  }
+}
+
+const outputChannel = vscode.window.createOutputChannel("TxtJet");
+
+function appendOutputLog(stream: "stdout" | "stderr" | "error", content: string): void {
+  outputChannel.appendLine(`[${new Date().toISOString()}] ${stream}`);
+  outputChannel.appendLine(content.trimEnd());
+}
+
+function shellEscape(value: string): string {
+  return `"${value.split("\"").join("\\\"")}"`;
 }
 
 function generationOutputUri(document: vscode.TextDocument): vscode.Uri {

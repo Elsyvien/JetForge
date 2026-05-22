@@ -131,6 +131,7 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Reveal Source From Preview`
 - `TxtJet: Generate Output File`
 - `TxtJet: Diff Current Output Against Last Generation`
+- `TxtJet: Compile Template With External Compiler`
 
 The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. The preview language follows the selected or detected generated-output mode.
 
@@ -143,6 +144,7 @@ Include and skeleton resolution starts relative to the current template, then ch
 Region preview commands use the cursor position to choose the mapped source range: generated-output regions open in the generated output preview, while scriptlet, expression, and declaration regions open in the generated Java preview.
 
 `TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. `TxtJet: Diff Current Output Against Last Generation` compares the current generated output with the last generated snapshot for that template.
+`TxtJet: Compile Template With External Compiler` runs a user-configured shell command (`txtjet.compiler.command`) so teams can invoke Eclipse JET (or another real template compiler) and inspect the true generated output beside the template.
 
 ## Formatting Helpers
 
@@ -184,6 +186,7 @@ Settings:
 - `txtjet.formatting.enabled`
 - `txtjet.visualDifferentiation.enabled`
 - `txtjet.generation.outputDirectory`
+- `txtjet.compiler.command`
 
 Privacy and workplace use:
 
