@@ -16,6 +16,7 @@ import {
   effectiveCompletionTarget,
   isJavaKeywordCompletionName,
   javaCompletionContextAt,
+  localJavaDefinitionAndReferenceRangesAt,
   localJavaDefinitionRangesAt,
   localJavaHoverSignaturesAt,
   mapJavaPreviewRangeToSource,
@@ -259,6 +260,9 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerDocumentSymbolProvider());
   context.subscriptions.push(registerDefinitionProvider());
   context.subscriptions.push(registerHoverProvider());
+  context.subscriptions.push(registerReferenceProvider());
+  context.subscriptions.push(registerRenameProvider());
+  context.subscriptions.push(registerSignatureHelpProvider());
   context.subscriptions.push(registerFormattingProvider());
 
   for (const document of vscode.workspace.textDocuments) {
@@ -1126,6 +1130,71 @@ function localJavaHover(document: vscode.TextDocument, position: vscode.Position
     markdown.appendCodeblock(signature, "java");
   }
   return new vscode.Hover(markdown, document.getWordRangeAtPosition(position));
+}
+
+function registerReferenceProvider(): vscode.Disposable {
+  return vscode.languages.registerReferenceProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      provideReferences(document, position) {
+        const ranges = localJavaDefinitionAndReferenceRangesAt(document.getText(), document.offsetAt(position));
+        return ranges.map((range) => new vscode.Location(document.uri, vscodeRangeFor(document, range)));
+      }
+    }
+  );
+}
+
+function registerRenameProvider(): vscode.Disposable {
+  return vscode.languages.registerRenameProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      prepareRename(document, position) {
+        const ranges = localJavaDefinitionAndReferenceRangesAt(document.getText(), document.offsetAt(position));
+        if (ranges.length === 0) {
+          throw new Error("TxtJet rename is available for local declaration helper methods and their call sites.");
+        }
+        const target = ranges.find((range) => vscodeRangeFor(document, range).contains(position)) ?? ranges[0];
+        return vscodeRangeFor(document, target);
+      },
+      provideRenameEdits(document, position, newName) {
+        if (!/^[A-Za-z_$][\w$]*$/.test(newName)) {
+          throw new Error("TxtJet helper method names must be valid Java identifiers.");
+        }
+        const ranges = localJavaDefinitionAndReferenceRangesAt(document.getText(), document.offsetAt(position));
+        const edit = new vscode.WorkspaceEdit();
+        for (const range of ranges) {
+          edit.replace(document.uri, vscodeRangeFor(document, range), newName);
+        }
+        return edit;
+      }
+    }
+  );
+}
+
+function registerSignatureHelpProvider(): vscode.Disposable {
+  return vscode.languages.registerSignatureHelpProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      provideSignatureHelp(document, position) {
+        const signatures = localJavaHoverSignaturesAt(document.getText(), document.offsetAt(position));
+        if (signatures.length === 0) {
+          return undefined;
+        }
+        const help = new vscode.SignatureHelp();
+        help.activeParameter = 0;
+        help.activeSignature = 0;
+        help.signatures = signatures.map((signature) => {
+          const info = new vscode.SignatureInformation(signature);
+          const params = signature.match(/\((.*)\)/)?.[1].split(",").map((entry) => entry.trim()).filter(Boolean) ?? [];
+          info.parameters = params.map((param) => new vscode.ParameterInformation(param));
+          return info;
+        });
+        return help;
+      }
+    },
+    "(",
+    ","
+  );
 }
 
 function regionHover(document: vscode.TextDocument, text: string, offset: number): vscode.Hover | undefined {
