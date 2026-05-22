@@ -271,6 +271,11 @@
       {
         "command": "txtjet.diffLastGeneratedOutput",
         "title": "TxtJet: Diff Current Output Against Last Generation"
+      },
+      {
+        "command": "txtjet.compileTemplate",
+        "title": "TxtJet: Compile Template With External Compiler",
+        "category": "TxtJet"
       }
     ],
     "configuration": {
@@ -391,6 +396,12 @@
           "type": "string",
           "default": "${workspaceFolder}/generated",
           "description": "Directory used by TxtJet: Generate Output File. Supports ${workspaceFolder}."
+        },
+        "txtjet.compiler.command": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Shell command used by **TxtJet: Compile Template With External Compiler**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
+          "scope": "resource"
         }
       }
     },
@@ -470,6 +481,17 @@
         },
         {
           "command": "txtjet.clearLanguage.all"
+        },
+        {
+          "command": "txtjet.compileTemplate",
+          "when": "resourceLangId =~ /^txtjet/"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "txtjet.compileTemplate",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@30"
         }
       ]
     }
@@ -493,7 +515,8 @@
     "onCommand:txtjet.revealPreviewFromSource",
     "onCommand:txtjet.revealSourceFromPreview",
     "onCommand:txtjet.generateOutput",
-    "onCommand:txtjet.diffLastGeneratedOutput"
+    "onCommand:txtjet.diffLastGeneratedOutput",
+    "onCommand:txtjet.compileTemplate"
   ],
   "scripts": {
     "compile": "tsc -p ./",
