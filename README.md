@@ -118,6 +118,8 @@ Additional directive diagnostics report duplicate `@jet` directives, missing or 
 
 Diagnostics, Quick Fixes, completions, Java IntelliSense forwarding, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
 
+Compiler-backed diagnostics are available through `TxtJet: Validate Template With External Compiler`. The command reuses `txtjet.compiler.command`, parses stdout/stderr with `txtjet.diagnostics.compiler.problemMatcher`, and maps diagnostics from the generated Java/output file back into the source template when the preview source map can do so deterministically. `txtjet.diagnostics.compiler.runOnSave` can run this validation after saves; it is disabled by default so slow compiler pipelines stay explicit.
+
 ## Preview And Navigation
 
 TxtJet can open local, read-only preview documents for the active template:
@@ -132,6 +134,7 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Generate Output File`
 - `TxtJet: Diff Current Output Against Last Generation`
 - `TxtJet: Compile Template With External Compiler`
+- `TxtJet: Validate Template With External Compiler`
 
 The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. The preview language follows the selected or detected generated-output mode.
 
@@ -145,6 +148,7 @@ Region preview commands use the cursor position to choose the mapped source rang
 
 `TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. `TxtJet: Diff Current Output Against Last Generation` compares the current generated output with the last generated snapshot for that template.
 `TxtJet: Compile Template With External Compiler` runs a user-configured shell command (`txtjet.compiler.command`) so teams can invoke Eclipse JET (or another real template compiler) and inspect the true generated output beside the template.
+`TxtJet: Validate Template With External Compiler` runs the same command without requiring a preview to be open, parses compiler problems, and reports mapped diagnostics in the `.txtjet` editor. The default matcher supports `file:line:column: severity: message` and `file:line:column: message`; customize `txtjet.diagnostics.compiler.problemMatcher` for compiler-specific output.
 
 ## Formatting Helpers
 
@@ -173,6 +177,9 @@ Settings:
 - `txtjet.diagnostics.severity`
 - `txtjet.diagnostics.maxFileSizeKb`
 - `txtjet.diagnostics.generatedJava.enabled`
+- `txtjet.diagnostics.compiler.enabled`
+- `txtjet.diagnostics.compiler.runOnSave`
+- `txtjet.diagnostics.compiler.problemMatcher`
 - `txtjet.codeActions.enabled`
 - `txtjet.completions.enabled`
 - `txtjet.javaIntelliSense.enabled`

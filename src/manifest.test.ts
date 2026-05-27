@@ -46,6 +46,9 @@ for (const command of contributedCommands) {
 
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.generatedJava.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.runOnSave"]);
+assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.problemMatcher"]);
 assert.ok(contributes.configuration.properties["txtjet.codeActions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.javaIntelliSense.enabled"]);
@@ -69,7 +72,8 @@ for (const command of [
   "txtjet.revealPreviewFromSource",
   "txtjet.revealSourceFromPreview",
   "txtjet.generateOutput",
-  "txtjet.diffLastGeneratedOutput"
+  "txtjet.diffLastGeneratedOutput",
+  "txtjet.validateWithCompiler"
 ]) {
   assert.ok(contributedCommands.has(command), `${command} command missing`);
   assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);

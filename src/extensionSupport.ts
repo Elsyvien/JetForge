@@ -52,6 +52,10 @@ export function selectedTargetLanguageId(
     : detectedLanguageId;
 }
 
+export function shellSingleQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
 export function directiveValueContextAt(text: string, offset: number): TxtJetDirectiveValueContext | undefined {
   const safeOffset = Math.max(0, Math.min(offset, text.length));
   const directiveOpen = text.lastIndexOf("<%@", safeOffset);

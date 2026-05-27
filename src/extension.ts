@@ -4,6 +4,11 @@ import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
+import {
+  mapCompilerProblemsToSource,
+  parseCompilerProblems,
+  TxtJetCompilerDiagnosticSeverity
+} from "./compilerDiagnostics";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
@@ -11,6 +16,7 @@ import {
   directiveValueContextAt,
   isTxtJetPath,
   selectedTargetLanguageId,
+  shellSingleQuote,
   shouldOfferMarkerCompletions
 } from "./extensionSupport";
 import { formatTxtJetBlock } from "./formatter";
@@ -82,6 +88,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(statusBar);
   const diagnostics = vscode.languages.createDiagnosticCollection("txtjet");
   context.subscriptions.push(diagnostics);
+  const compilerDiagnosticsBySource = new Map<string, vscode.Diagnostic[]>();
   const previewProvider = new TxtJetPreviewProvider();
   const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
   const visualDifferentiator = new TxtJetVisualDifferentiator();
@@ -211,19 +218,40 @@ export function activate(context: vscode.ExtensionContext): void {
       await compileTemplateWithExternalTool();
     })
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.validateWithCompiler", async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || !isTxtJetFile(editor.document)) {
+        return;
+      }
+      await validateTemplateWithCompiler(editor.document, diagnostics, compilerDiagnosticsBySource, true);
+    })
+  );
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
       void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
-      updateDiagnostics(diagnostics, document);
+      updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       visualDifferentiator.refreshDocument(document);
     })
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
-      updateDiagnostics(diagnostics, event.document);
+      updateDiagnostics(diagnostics, event.document, compilerDiagnosticsBySource);
       previewProvider.refresh(event.document.uri);
       visualDifferentiator.refreshDocument(event.document);
+    })
+  );
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+      if (
+        isTxtJetFile(document)
+        && config.get<boolean>("diagnostics.compiler.enabled", true)
+        && config.get<boolean>("diagnostics.compiler.runOnSave", false)
+      ) {
+        void validateTemplateWithCompiler(document, diagnostics, compilerDiagnosticsBySource, false);
+      }
     })
   );
   context.subscriptions.push(
@@ -237,7 +265,7 @@ export function activate(context: vscode.ExtensionContext): void {
           ? vscode.workspace.textDocuments.find((document) => document.uri.toString() === source.toString())
           : undefined;
         if (sourceDocument) {
-          updateDiagnostics(diagnostics, sourceDocument);
+          updateDiagnostics(diagnostics, sourceDocument, compilerDiagnosticsBySource);
         }
       }
     })
@@ -250,13 +278,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
       updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
       for (const document of vscode.workspace.textDocuments) {
-        updateDiagnostics(diagnostics, document);
+        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       }
       visualDifferentiator.refreshAll();
     })
   );
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((document) => {
+      compilerDiagnosticsBySource.delete(document.uri.toString());
       diagnostics.delete(document.uri);
       previewProvider.forget(document.uri);
       visualDifferentiator.clearDocument(document);
@@ -275,7 +304,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   for (const document of vscode.workspace.textDocuments) {
     void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
-    updateDiagnostics(diagnostics, document);
+    updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
     visualDifferentiator.refreshDocument(document);
   }
 
@@ -797,6 +826,153 @@ async function compileTemplateWithExternalTool(): Promise<void> {
   }
 }
 
+async function validateTemplateWithCompiler(
+  document: vscode.TextDocument,
+  collection: vscode.DiagnosticCollection,
+  compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
+  interactive: boolean
+): Promise<void> {
+  if (!isTxtJetFile(document)) {
+    return;
+  }
+
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  if (!config.get<boolean>("diagnostics.enabled", true) || !config.get<boolean>("diagnostics.compiler.enabled", true)) {
+    compilerDiagnosticsBySource.delete(document.uri.toString());
+    updateDiagnostics(collection, document, compilerDiagnosticsBySource);
+    return;
+  }
+
+  if (document.isDirty) {
+    if (!interactive) {
+      return;
+    }
+    const choice = await vscode.window.showWarningMessage(
+      "Save the current template before validating it with the external compiler.",
+      "Save and Validate",
+      "Cancel"
+    );
+    if (choice !== "Save and Validate") {
+      return;
+    }
+    await document.save();
+  }
+
+  const compileCommand = config.get<string>("compiler.command", "").trim();
+  if (compileCommand.length === 0) {
+    compilerDiagnosticsBySource.delete(document.uri.toString());
+    updateDiagnostics(collection, document, compilerDiagnosticsBySource);
+    if (interactive) {
+      vscode.window.showErrorMessage("TxtJet compile command is not configured. Set txtjet.compiler.command in settings.");
+    }
+    return;
+  }
+
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? dirname(document.fileName);
+  const outputPath = generationOutputUri(document).fsPath;
+  mkdirSync(dirname(outputPath), { recursive: true });
+  const fullCommand = compilerCommandFor(compileCommand, document.fileName, workspaceFolder, outputPath);
+
+  const result = await runCompilerCommand(fullCommand, workspaceFolder);
+  if (result.stdout.trim().length > 0) {
+    appendOutputLog("stdout", result.stdout);
+  }
+  if (result.stderr.trim().length > 0) {
+    appendOutputLog("stderr", result.stderr);
+  }
+  if (result.error.trim().length > 0) {
+    appendOutputLog("error", result.error);
+  }
+
+  const matcher = config.get<string>("diagnostics.compiler.problemMatcher", "");
+  const problems = parseCompilerProblems([result.stdout, result.stderr].filter(Boolean).join("\n"), matcher);
+  const preview = buildGeneratedJavaPreview(document.getText(), document.fileName, javaPreviewOptions(document));
+  const mappedProblems = mapCompilerProblemsToSource(
+    problems,
+    document.fileName,
+    document.getText(),
+    preview,
+    outputPath,
+    workspaceFolder
+  );
+  const mappedDiagnostics = mappedProblems.map((problem) => compilerProblemToDiagnostic(document, problem.message, problem.severity, problem.sourceRange));
+
+  if (mappedDiagnostics.length > 0) {
+    compilerDiagnosticsBySource.set(document.uri.toString(), mappedDiagnostics);
+  } else {
+    compilerDiagnosticsBySource.delete(document.uri.toString());
+  }
+  updateDiagnostics(collection, document, compilerDiagnosticsBySource);
+
+  if (!interactive) {
+    return;
+  }
+  if (mappedDiagnostics.length > 0) {
+    vscode.window.showWarningMessage(`TxtJet compiler validation found ${mappedDiagnostics.length} mapped diagnostic${mappedDiagnostics.length === 1 ? "" : "s"}.`);
+  } else if (problems.length > 0) {
+    vscode.window.showWarningMessage("TxtJet compiler validation finished, but no compiler diagnostics could be mapped to this template.");
+  } else if (result.failed) {
+    vscode.window.showErrorMessage("TxtJet compiler validation failed. Open the TxtJet output channel for details.");
+  } else {
+    vscode.window.showInformationMessage("TxtJet compiler validation finished without mapped diagnostics.");
+  }
+}
+
+async function runCompilerCommand(
+  command: string,
+  cwd: string
+): Promise<{ stdout: string; stderr: string; error: string; failed: boolean }> {
+  try {
+    const { stdout, stderr } = await execAsync(command, { cwd, maxBuffer: 10 * 1024 * 1024 });
+    return { stdout, stderr, error: "", failed: false };
+  } catch (error) {
+    const failed = error as { stdout?: string; stderr?: string; message?: string };
+    return {
+      stdout: failed.stdout ?? "",
+      stderr: failed.stderr ?? "",
+      error: failed.message ?? String(error),
+      failed: true
+    };
+  }
+}
+
+function compilerCommandFor(command: string, fileName: string, workspaceFolder: string, outputPath: string): string {
+  return command
+    .split("${file}").join(shellEscape(fileName))
+    .split("${workspaceFolder}").join(shellEscape(workspaceFolder))
+    .split("${outputFile}").join(shellEscape(outputPath));
+}
+
+function compilerProblemToDiagnostic(
+  document: vscode.TextDocument,
+  message: string,
+  severity: TxtJetCompilerDiagnosticSeverity,
+  sourceRange: TxtJetRange
+): vscode.Diagnostic {
+  const diagnostic = new vscode.Diagnostic(
+    vscodeRangeFor(document, sourceRange),
+    `Compiler: ${message}`,
+    compilerDiagnosticSeverity(severity)
+  );
+  diagnostic.source = `${DIAGNOSTIC_SOURCE}.compiler`;
+  diagnostic.code = "compiler";
+  return diagnostic;
+}
+
+function compilerDiagnosticSeverity(severity: TxtJetCompilerDiagnosticSeverity): vscode.DiagnosticSeverity {
+  switch (severity) {
+    case "error":
+      return vscode.DiagnosticSeverity.Error;
+    case "information":
+      return vscode.DiagnosticSeverity.Information;
+    case "hint":
+      return vscode.DiagnosticSeverity.Hint;
+    case "warning":
+    default:
+      return vscode.DiagnosticSeverity.Warning;
+  }
+}
+
 const outputChannel = vscode.window.createOutputChannel("TxtJet");
 
 function appendOutputLog(stream: "stdout" | "stderr" | "error", content: string): void {
@@ -805,7 +981,7 @@ function appendOutputLog(stream: "stdout" | "stderr" | "error", content: string)
 }
 
 function shellEscape(value: string): string {
-  return `"${value.split("\"").join("\\\"")}"`;
+  return shellSingleQuote(value);
 }
 
 function generationOutputUri(document: vscode.TextDocument): vscode.Uri {
@@ -981,20 +1157,27 @@ function updateStatusBar(
   statusBar.show();
 }
 
-function updateDiagnostics(collection: vscode.DiagnosticCollection, document: vscode.TextDocument): void {
+function updateDiagnostics(
+  collection: vscode.DiagnosticCollection,
+  document: vscode.TextDocument,
+  compilerDiagnosticsBySource?: Map<string, vscode.Diagnostic[]>
+): void {
   if (!isTxtJetFile(document)) {
+    compilerDiagnosticsBySource?.delete(document.uri.toString());
     collection.delete(document.uri);
     return;
   }
 
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
   if (!config.get<boolean>("diagnostics.enabled", true)) {
+    compilerDiagnosticsBySource?.delete(document.uri.toString());
     collection.delete(document.uri);
     return;
   }
 
   const maxFileSizeKb = config.get<number>("diagnostics.maxFileSizeKb", DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB);
   if (maxFileSizeKb > 0 && Buffer.byteLength(document.getText(), "utf8") > maxFileSizeKb * 1024) {
+    compilerDiagnosticsBySource?.delete(document.uri.toString());
     collection.delete(document.uri);
     return;
   }
@@ -1008,7 +1191,13 @@ function updateDiagnostics(collection: vscode.DiagnosticCollection, document: vs
       skeletonExists: (skeletonFile) => fileReferenceExists(document, skeletonFile, "resolution.skeletonPaths")
     })
   ].map((issue) => issueToDiagnostic(document, issue, severity));
-  collection.set(document.uri, diagnostics.concat(mappedGeneratedJavaDiagnostics(document)));
+  const compilerDiagnostics = config.get<boolean>("diagnostics.compiler.enabled", true)
+    ? compilerDiagnosticsBySource?.get(document.uri.toString()) ?? []
+    : [];
+  if (!config.get<boolean>("diagnostics.compiler.enabled", true)) {
+    compilerDiagnosticsBySource?.delete(document.uri.toString());
+  }
+  collection.set(document.uri, diagnostics.concat(compilerDiagnostics, mappedGeneratedJavaDiagnostics(document)));
 }
 
 function issueToDiagnostic(

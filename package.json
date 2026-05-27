@@ -276,6 +276,11 @@
         "command": "txtjet.compileTemplate",
         "title": "TxtJet: Compile Template With External Compiler",
         "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.validateWithCompiler",
+        "title": "TxtJet: Validate Template With External Compiler",
+        "category": "TxtJet"
       }
     ],
     "configuration": {
@@ -325,6 +330,21 @@
           "type": "boolean",
           "default": false,
           "description": "Map diagnostics from open generated Java preview documents back to the source template. Experimental and disabled by default."
+        },
+        "txtjet.diagnostics.compiler.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable compiler-backed diagnostics produced by TxtJet: Validate Template With External Compiler."
+        },
+        "txtjet.diagnostics.compiler.runOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run compiler-backed validation when a TxtJet template is saved."
+        },
+        "txtjet.diagnostics.compiler.problemMatcher": {
+          "type": "string",
+          "default": "^(?<file>.*?):(?<line>\\d+):(?<column>\\d+):(?:\\s*(?<severity>error|warning|info|information|hint):)?\\s*(?<message>.+)$",
+          "markdownDescription": "Regex used to parse compiler diagnostics from stdout and stderr. The default supports `file:line:column: severity: message` and `file:line:column: message`; custom expressions should expose `file`, `line`, `column`, optional `severity`, and `message` capture groups."
         },
         "txtjet.codeActions.enabled": {
           "type": "boolean",
@@ -485,6 +505,10 @@
         {
           "command": "txtjet.compileTemplate",
           "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.validateWithCompiler",
+          "when": "resourceLangId =~ /^txtjet/"
         }
       ],
       "editor/context": [
@@ -492,6 +516,11 @@
           "command": "txtjet.compileTemplate",
           "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@30"
+        },
+        {
+          "command": "txtjet.validateWithCompiler",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@31"
         }
       ]
     }
@@ -516,11 +545,12 @@
     "onCommand:txtjet.revealSourceFromPreview",
     "onCommand:txtjet.generateOutput",
     "onCommand:txtjet.diffLastGeneratedOutput",
-    "onCommand:txtjet.compileTemplate"
+    "onCommand:txtjet.compileTemplate",
+    "onCommand:txtjet.validateWithCompiler"
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/compilerDiagnostics.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
     "vscode:prepublish": "npm run compile",

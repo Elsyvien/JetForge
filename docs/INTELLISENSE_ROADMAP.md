@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, and local generated-output fallback suggestions for Java, Python, and C/C++. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
+TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, compiler-backed diagnostics through a configured external compiler, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, and local generated-output fallback suggestions for Java, Python, and C/C++. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -46,6 +46,10 @@ VSCode language servers generally operate on one coherent language document. A `
   - Document formatting and format selection normalize directive attributes, expressions, and template Java block indentation.
   - On-demand generation writes the generated-output approximation to disk and can diff the current output against the last generation snapshot.
 
+- Compiler-backed diagnostics
+  - `TxtJet: Validate Template With External Compiler` runs the configured compiler command, parses stdout/stderr with a configurable problem matcher, and maps generated Java/output locations back into `.txtjet` ranges where the preview source map is deterministic.
+  - Optional on-save validation is available but disabled by default so compiler cost stays under workspace control.
+
 ## Remaining Future Direction
 
 1. Inline IntelliSense
@@ -53,8 +57,8 @@ VSCode language servers generally operate on one coherent language document. A `
    - Keep mapping one-way and conservative until rename/edit application can be proven safe across scriptlet, expression, declaration, and skeleton-rendered regions.
 
 2. Compiler-backed diagnostics
-   - Prefer diagnostics from a generated Java document or configured compiler pipeline, then map them back through the existing preview source map.
-   - Promote this out of the current optional bridge only after diagnostics are deterministic for unopened previews and do not depend on a user manually opening the generated Java preview first.
+   - Expand real-world matcher examples for Eclipse JET, `javac`, and team-specific compiler wrappers.
+   - Keep diagnostics conservative: if a compiler problem cannot be mapped deterministically, leave it in the output channel instead of attaching it to the wrong template range.
 
 ## Additional Eclipse-Inspired Feature Ideas
 

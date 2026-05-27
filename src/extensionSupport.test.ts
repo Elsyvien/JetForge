@@ -5,6 +5,7 @@ import {
   directiveValueContextAt,
   isTxtJetPath,
   selectedTargetLanguageId,
+  shellSingleQuote,
   shouldOfferMarkerCompletions
 } from "./extensionSupport";
 
@@ -31,6 +32,10 @@ assert.equal(isTxtJetPath("vscode-remote://ssh-remote+host/workspace/example.txt
 assert.equal(selectedTargetLanguageId("txtjet-html", "txtjet-java"), "txtjet-html");
 assert.equal(selectedTargetLanguageId("txtjet", "txtjet-python"), "txtjet");
 assert.equal(selectedTargetLanguageId("plaintext", "txtjet-python"), "txtjet-python");
+
+assert.equal(shellSingleQuote("/tmp/template.txtjet"), "'/tmp/template.txtjet'");
+assert.equal(shellSingleQuote("/tmp/with spaces/$HOME/`name`.txtjet"), "'/tmp/with spaces/$HOME/`name`.txtjet'");
+assert.equal(shellSingleQuote("/tmp/it's.txtjet"), "'/tmp/it'\\''s.txtjet'");
 
 const includeDirective = "<%@ include file=\"partials/head\" %>";
 assert.deepEqual(directiveValueContextAt(includeDirective, includeDirective.indexOf("head") + 4), {
