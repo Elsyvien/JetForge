@@ -20,6 +20,21 @@ assert.deepEqual(parsed.map((problem) => problem.message), [
   "unchecked conversion",
   "plain message"
 ]);
+const eclipseJetStyle = parseCompilerProblems(
+  "generated/sample.java:8:17: The method missingCall() is undefined for the type Sample",
+  DEFAULT_COMPILER_PROBLEM_MATCHER
+);
+assert.equal(eclipseJetStyle.length, 1);
+assert.equal(eclipseJetStyle[0].severity, "warning");
+assert.equal(eclipseJetStyle[0].message, "The method missingCall() is undefined for the type Sample");
+const wrapperStyle = parseCompilerProblems(
+  "[txtjet] generated/sample.java:9:5: error: wrapped compiler failure",
+  "^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$"
+);
+assert.equal(wrapperStyle.length, 1);
+assert.equal(wrapperStyle[0].file, "generated/sample.java");
+assert.equal(wrapperStyle[0].severity, "error");
+assert.equal(wrapperStyle[0].message, "wrapped compiler failure");
 assert.deepEqual(parseCompilerProblems("broken", "["), []);
 
 const sourceFile = resolve("workspace", "template.txtjet");
@@ -68,5 +83,37 @@ const direct = mapCompilerProblemsToSource(
 assert.equal(direct.length, 1);
 assert.equal(direct[0].mappedFrom, "source");
 assert.match(template.slice(direct[0].sourceRange.start, direct[0].sourceRange.end), /missingCall/);
+
+const unrelated = mapCompilerProblemsToSource(
+  [{
+    file: join("generated", "other.java"),
+    line: 1,
+    column: 1,
+    severity: "error",
+    message: "unrelated generated file"
+  }],
+  sourceFile,
+  template,
+  preview,
+  generatedFile,
+  resolve("workspace")
+);
+assert.equal(unrelated.length, 0);
+
+const unmappedPreviewHeader = mapCompilerProblemsToSource(
+  [{
+    file: join("generated", "sample.java"),
+    line: 1,
+    column: 1,
+    severity: "error",
+    message: "header cannot map safely"
+  }],
+  sourceFile,
+  template,
+  preview,
+  generatedFile,
+  resolve("workspace")
+);
+assert.equal(unmappedPreviewHeader.length, 0);
 
 console.log("compiler diagnostics tests ok");

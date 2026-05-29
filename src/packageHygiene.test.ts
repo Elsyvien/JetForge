@@ -10,18 +10,46 @@ const packageText = execFileSync(process.execPath, [vsceBin, "ls", "--no-depende
 const files = packageText.trim().split(/\r?\n/).filter(Boolean);
 
 const forbidden = [
+  /^\.DS_Store$/,
+  /^\.playwright-cli\//,
   /^src\//,
   /^test-fixtures\//,
   /^node_modules\//,
   /^\.github\//,
+  /^index\.html$/,
+  /^styles\.css$/,
+  /^script\.js$/,
+  /^package-lock\.json$/,
+  /^tsconfig\.json$/,
+  /^out\/.*\.map$/,
+  /^out\/.*\.test\.js$/,
   /^example\.txt$/,
   /^example\.txtjet$/,
   /^private-examples\//,
-  /^.*\.vsix$/
+  /^.*\.vsix$/,
+  /^.*\.log$/
+];
+
+const allowed = [
+  /^package\.json$/,
+  /^language-configuration\.json$/,
+  /^README\.md$/,
+  /^LICENSE$/,
+  /^CHANGELOG\.md$/,
+  /^assets\/icon\.png$/,
+  /^docs\/[A-Za-z0-9_-]+\.md$/,
+  /^examples\/.+$/,
+  /^out\/[A-Za-z0-9_-]+\.js$/,
+  /^snippets\/txtjet\.code-snippets$/,
+  /^syntaxes\/[A-Za-z0-9_.-]+\.json$/
 ];
 
 for (const pattern of forbidden) {
   assert.equal(files.some((file: string) => pattern.test(file)), false, `forbidden package path matched ${pattern}`);
+}
+
+for (const file of files) {
+  assert.ok(allowed.some((pattern) => pattern.test(file)), `unexpected package path ${file}`);
 }
 
 assert.ok(files.includes("package.json"));

@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="JetForge is a local-first VS Code extension for TxtJet and Eclipse JET template work: previews, navigation, diagnostics, formatting, and generation."
+    >
+    <title>JetForge | TxtJet Workbench for VS Code</title>
+    <link rel="icon" href="assets/icon.png" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <canvas class="forge-field" id="forge-field" aria-hidden="true"></canvas>
+    <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
+
+    <header class="topbar" aria-label="Site navigation">
+      <a class="brand-mark" href="#top" aria-label="JetForge home">
+        <img src="assets/icon.png" alt="" width="34" height="34">
+        <span>JetForge</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#flow">Flow</a>
+        <a href="#capabilities">Intelligence</a>
+        <a href="#modes">Modes</a>
+        <a href="#install">Install</a>
+      </nav>
+      <a class="nav-action" href="https://github.com/Elsyvien/JetForge">GitHub</a>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">TxtJet / Eclipse JET tooling for VS Code</p>
+          <h1 id="hero-title">A sharper VS Code workbench for TxtJet templates.</h1>
+          <p class="hero-lede">
+            Navigate generated output, Java preview maps, diagnostics, formatting, and local generation
+            without leaving the editor or sending template code anywhere.
+          </p>
+          <div class="hero-actions" aria-label="Primary actions">
+            <a class="button primary" href="#install">Install locally</a>
+            <a class="button secondary" href="#flow">Watch the flow</a>
+          </div>
+          <div class="hero-proof" aria-label="JetForge capabilities">
+            <span>Mapped previews</span>
+            <span>Java-aware blocks</span>
+            <span>No telemetry</span>
+          </div>
+        </div>
+
+        <div class="workbench" aria-label="Animated JetForge workbench">
+          <div class="workbench-chrome">
+            <span></span>
+            <span></span>
+            <span></span>
+            <strong>model.javajet</strong>
+          </div>
+
+          <div class="split-editor">
+            <article class="code-pane source-pane">
+              <header>
+                <span>Source template</span>
+                <b id="active-source-label">TxtJet Java Output</b>
+              </header>
+              <pre><code id="source-code"></code></pre>
+            </article>
+
+            <div class="transform-core" aria-hidden="true">
+              <div class="core-ring"></div>
+              <div class="core-dot"></div>
+              <p>map</p>
+            </div>
+
+            <article class="code-pane output-pane">
+              <header>
+                <span>Generated preview</span>
+                <b>read-only mapped output</b>
+              </header>
+              <pre><code id="output-code"></code></pre>
+            </article>
+          </div>
+
+          <div class="status-lane" aria-label="Live JetForge status">
+            <span class="pulse"></span>
+            <span id="status-text">Mapping source region to generated output</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="ticker" aria-label="Supported extensions">
+        <div class="ticker-track">
+          <span>.txtjet</span>
+          <span>.jet</span>
+          <span>.javajet</span>
+          <span>.htmljet</span>
+          <span>.xmljet</span>
+          <span>.cjet</span>
+          <span>.pythonjet</span>
+          <span>.txtjet</span>
+          <span>.jet</span>
+          <span>.javajet</span>
+          <span>.htmljet</span>
+          <span>.xmljet</span>
+          <span>.cjet</span>
+          <span>.pythonjet</span>
+        </div>
+      </section>
+
+      <section class="flow" id="flow" aria-labelledby="flow-title">
+        <div class="section-kicker">
+          <p class="eyebrow">Compiler flow</p>
+          <h2 id="flow-title">From template source to generated output, without losing context.</h2>
+        </div>
+        <div class="flow-grid">
+          <article class="flow-card is-active" data-step="0">
+            <span>01</span>
+            <h3>Parse template regions</h3>
+            <p>Markers, directives, scriptlets, declarations, expressions, and generated-output text are classified.</p>
+          </article>
+          <article class="flow-card" data-step="1">
+            <span>02</span>
+            <h3>Build preview maps</h3>
+            <p>Source ranges connect to generated-output and generated-Java preview positions for reveal commands.</p>
+          </article>
+          <article class="flow-card" data-step="2">
+            <span>03</span>
+            <h3>Forward editor intelligence</h3>
+            <p>Java completions, hover, Go to Definition, and local fallbacks stay available inside template blocks.</p>
+          </article>
+          <article class="flow-card" data-step="3">
+            <span>04</span>
+            <h3>Generate and diff</h3>
+            <p>Write the deterministic generated-output approximation and compare the current template against the last run.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="capabilities" id="capabilities" aria-labelledby="capabilities-title">
+        <div>
+          <p class="eyebrow">Editor intelligence</p>
+          <h2 id="capabilities-title">Editor support for the parts of JET that usually stay invisible.</h2>
+        </div>
+        <div class="capability-orbit">
+          <article>
+            <h3>Diagnostics</h3>
+            <p>Unclosed blocks, unexpected delimiters, malformed directives, invalid attributes, and missing include files.</p>
+          </article>
+          <article>
+            <h3>Navigation</h3>
+            <p>Go to include files, skeletons, helper declarations, generated output, and generated Java preview regions.</p>
+          </article>
+          <article>
+            <h3>Formatting</h3>
+            <p>Normalize directive attributes, expression spacing, and Java blocks without rewriting generated-output text.</p>
+          </article>
+          <article>
+            <h3>Local privacy</h3>
+            <p>No runtime network access, no telemetry, no template uploads, and no proprietary content leaving VS Code.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="modes" id="modes" aria-labelledby="modes-title">
+        <div class="modes-copy">
+          <p class="eyebrow">Target modes</p>
+          <h2 id="modes-title">Switch generated-output modes and keep embedded Java readable.</h2>
+          <p>
+            JetForge keeps embedded Java visible while the outer generated-output regions behave like Java, HTML,
+            XML, C, or Python surfaces.
+          </p>
+        </div>
+        <div class="mode-console">
+          <div class="mode-tabs" role="tablist" aria-label="Generated output modes">
+            <button class="mode-tab is-active" id="tab-java" type="button" role="tab" aria-selected="true" aria-controls="mode-panel" data-mode="java">Java</button>
+            <button class="mode-tab" id="tab-html" type="button" role="tab" aria-selected="false" aria-controls="mode-panel" data-mode="html">HTML</button>
+            <button class="mode-tab" id="tab-xml" type="button" role="tab" aria-selected="false" aria-controls="mode-panel" data-mode="xml">XML</button>
+            <button class="mode-tab" id="tab-c" type="button" role="tab" aria-selected="false" aria-controls="mode-panel" data-mode="c">C</button>
+            <button class="mode-tab" id="tab-python" type="button" role="tab" aria-selected="false" aria-controls="mode-panel" data-mode="python">Python</button>
+          </div>
+          <pre id="mode-panel" role="tabpanel" aria-live="polite" aria-labelledby="tab-java"><code id="mode-code"></code></pre>
+        </div>
+      </section>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div>
+          <p class="eyebrow">Local install</p>
+          <h2 id="install-title">Package. Verify. Install.</h2>
+        </div>
+        <div class="terminal">
+          <p><span>$</span> npm run package</p>
+          <p><span>$</span> npm run verify</p>
+          <p><span>$</span> code --install-extension txtjet-syntax-0.0.13.vsix</p>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>

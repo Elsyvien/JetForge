@@ -1,6 +1,7 @@
 # Dependencies and local tooling
 node_modules/
 .vscode-test/
+.playwright-cli/
 out/
 
 # Local packaging output and reference files

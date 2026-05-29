@@ -27,6 +27,7 @@ import {
   localJavaDefinitionAndReferenceRangesAt,
   localJavaDefinitionRangesAt,
   localJavaHoverSignaturesAt,
+  localJavaSignatureHelpAt,
   mapJavaPreviewRangeToSource,
   projectSourceOffsetToJavaPreview,
   targetFallbackCompletionLabels
@@ -1340,6 +1341,9 @@ function registerDefinitionProvider(): vscode.Disposable {
 }
 
 async function javaDefinitions(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.Definition | undefined> {
+  if (!javaBridgeEnabled(document)) {
+    return undefined;
+  }
   return await javaBridgeDefinitions(document, position) ?? localJavaDefinition(document, position);
 }
 
@@ -1359,7 +1363,10 @@ function registerHoverProvider(): vscode.Disposable {
         const model = parseTxtJetTemplate(text);
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          return await javaBridgeHover(document, position) ?? localJavaHover(document, position) ?? regionHover(document, text, offset);
+          const javaHover = javaBridgeEnabled(document)
+            ? await javaBridgeHover(document, position) ?? localJavaHover(document, position)
+            : undefined;
+          return javaHover ?? regionHover(document, text, offset);
         }
 
         const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
@@ -1398,6 +1405,9 @@ function registerReferenceProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       provideReferences(document, position) {
+        if (!javaBridgeEnabled(document)) {
+          return [];
+        }
         const ranges = localJavaDefinitionAndReferenceRangesAt(document.getText(), document.offsetAt(position));
         return ranges.map((range) => new vscode.Location(document.uri, vscodeRangeFor(document, range)));
       }
@@ -1410,6 +1420,9 @@ function registerRenameProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       prepareRename(document, position) {
+        if (!javaBridgeEnabled(document)) {
+          return undefined;
+        }
         const ranges = localJavaDefinitionAndReferenceRangesAt(document.getText(), document.offsetAt(position));
         if (ranges.length === 0) {
           throw new Error("TxtJet rename is available for local declaration helper methods and their call sites.");
@@ -1418,6 +1431,9 @@ function registerRenameProvider(): vscode.Disposable {
         return vscodeRangeFor(document, target);
       },
       provideRenameEdits(document, position, newName) {
+        if (!javaBridgeEnabled(document)) {
+          return undefined;
+        }
         if (!/^[A-Za-z_$][\w$]*$/.test(newName)) {
           throw new Error("TxtJet helper method names must be valid Java identifiers.");
         }
@@ -1437,14 +1453,17 @@ function registerSignatureHelpProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       provideSignatureHelp(document, position) {
-        const signatures = localJavaHoverSignaturesAt(document.getText(), document.offsetAt(position));
-        if (signatures.length === 0) {
+        if (!javaBridgeEnabled(document)) {
+          return undefined;
+        }
+        const signatureHelp = localJavaSignatureHelpAt(document.getText(), document.offsetAt(position));
+        if (!signatureHelp) {
           return undefined;
         }
         const help = new vscode.SignatureHelp();
-        help.activeParameter = 0;
+        help.activeParameter = signatureHelp.activeParameter;
         help.activeSignature = 0;
-        help.signatures = signatures.map((signature) => {
+        help.signatures = signatureHelp.signatures.map((signature) => {
           const info = new vscode.SignatureInformation(signature);
           const params = signature.match(/\((.*)\)/)?.[1].split(",").map((entry) => entry.trim()).filter(Boolean) ?? [];
           info.parameters = params.map((param) => new vscode.ParameterInformation(param));

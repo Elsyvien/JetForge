@@ -2,6 +2,10 @@
 .github/**
 .gitignore
 GOAL.md
+.playwright-cli/**
+index.html
+styles.css
+script.js
 .vscode-test/**
 node_modules/**
 src/**

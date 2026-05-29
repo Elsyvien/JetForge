@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, compiler-backed diagnostics through a configured external compiler, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, and local generated-output fallback suggestions for Java, Python, and C/C++. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
+TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, compiler-backed diagnostics through a configured external compiler, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, and local generated-output fallback suggestions for Java, Python, and C/C++. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -38,6 +38,7 @@ VSCode language servers generally operate on one coherent language document. A `
   - Include `file="..."` references support Go to Definition for relative paths.
   - Directive completions include `skeleton` alongside the existing directive names and attributes.
   - Scriptlet, expression, and declaration blocks can forward completion, hover, and Go to Definition requests through the generated Java preview when installed Java tooling can answer them.
+  - Local helper methods declared in `<%! ... %>` blocks support Go to Definition, Find All References, conservative Rename Symbol, Hover fallback signatures, and Signature Help for direct and `this.` call sites.
   - Generated-output Java, Python, and C/C++ regions provide deterministic local fallback suggestions for common keywords, builtins, and standard-library members.
   - Parser-backed region classification distinguishes generated output, TxtJet markers, directives, and embedded template Java for editor decorations and fallback hover text.
 
@@ -54,10 +55,10 @@ VSCode language servers generally operate on one coherent language document. A `
 
 1. Inline IntelliSense
    - Harden the generated-Java provider bridge with more real-workspace validation and expand it only where source/edit mappings are deterministic.
-   - Keep mapping one-way and conservative until rename/edit application can be proven safe across scriptlet, expression, declaration, and skeleton-rendered regions.
+   - Keep full semantic rename/edit application out of scope until it can be proven safe across scriptlet, expression, declaration, include-expanded, and skeleton-rendered regions. Local helper rename remains intentionally narrow.
 
 2. Compiler-backed diagnostics
-   - Expand real-world matcher examples for Eclipse JET, `javac`, and team-specific compiler wrappers.
+   - Continue expanding real-world matcher examples for Eclipse JET, `javac`, and team-specific compiler wrappers as new compiler output formats appear.
    - Keep diagnostics conservative: if a compiler problem cannot be mapped deterministically, leave it in the output channel instead of attaching it to the wrong template range.
 
 ## Additional Eclipse-Inspired Feature Ideas

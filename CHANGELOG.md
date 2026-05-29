@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.13
+
+- Hardened release packaging so local browser snapshots, static site files, source files, tests, fixtures, logs, and generated VSIX files stay out of packaged extensions.
+- Promoted local helper References, Rename Symbol, and Signature Help to documented Java IntelliSense features gated by `txtjet.javaIntelliSense.enabled`.
+- Improved local helper Signature Help so active parameters are computed across nested calls and overloads.
+- Added regression coverage for multiline Java mappings, trimmed expressions, skeleton-rendered previews, conservative helper rename/reference ranges, and compiler problem matcher variants.
+- Added practical compiler matcher documentation and manual Marketplace publish workflow prep.
+
 ## 0.0.12
 
 - Added directive value completions for include `file`, skeleton, Java `imports`, `package`, and `class` attributes.

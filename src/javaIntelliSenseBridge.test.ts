@@ -9,6 +9,7 @@ import {
   localJavaDefinitionAndReferenceRangesAt,
   localJavaDefinitionRangesAt,
   localJavaHoverSignaturesAt,
+  localJavaSignatureHelpAt,
   mapJavaPreviewRangeToSource,
   projectSourceOffsetToJavaPreview,
   targetFallbackCompletionLabels
@@ -69,6 +70,73 @@ assert.equal(template.slice(expressionRange.start, expressionRange.end), "names"
 const unmappedRange = mapJavaPreviewRangeToSource(template, "/workspace/bridge.txtjet", { start: 0, end: 1 });
 assert.equal(unmappedRange, undefined);
 
+const multilineBridgeTemplate = `<%@ jet package="demo" class="MultilineBridge" %>
+<%
+if (ready) {
+    names.add("x");
+}
+%>
+<%!
+private String helper(
+    String value
+) {
+    return value;
+}
+%>`;
+const multilineSource = multilineBridgeTemplate.indexOf("names.add") + "names.add".length;
+const multilineProjection = projectSourceOffsetToJavaPreview(multilineBridgeTemplate, "/workspace/multiline.txtjet", multilineSource);
+assert.ok(multilineProjection, "multiline scriptlet Java position should project");
+assert.ok(multilineProjection.preview.text.slice(multilineProjection.previewOffset - "names.add".length, multilineProjection.previewOffset).includes("names.add"));
+const multilineBackRange = mapJavaPreviewRangeToSource(
+  multilineBridgeTemplate,
+  "/workspace/multiline.txtjet",
+  { start: multilineProjection.previewOffset - "names.add".length, end: multilineProjection.previewOffset }
+);
+assert.ok(multilineBackRange, "multiline scriptlet preview range should map back");
+assert.equal(multilineBridgeTemplate.slice(multilineBackRange.start, multilineBackRange.end), "names.add");
+
+const trimmedExpressionTemplate = `<%@ jet package="demo" class="TrimmedExpression" %>
+<%=
+  helper(name)
+%>`;
+const trimmedExpressionSource = trimmedExpressionTemplate.indexOf("helper(name)") + "helper".length;
+const trimmedExpressionProjection = projectSourceOffsetToJavaPreview(trimmedExpressionTemplate, "/workspace/expression.txtjet", trimmedExpressionSource);
+assert.ok(trimmedExpressionProjection, "trimmed multiline expression should project");
+const trimmedExpressionRange = mapJavaPreviewRangeToSource(
+  trimmedExpressionTemplate,
+  "/workspace/expression.txtjet",
+  { start: trimmedExpressionProjection.previewOffset - "helper".length, end: trimmedExpressionProjection.previewOffset }
+);
+assert.ok(trimmedExpressionRange, "trimmed multiline expression should map back");
+assert.equal(trimmedExpressionTemplate.slice(trimmedExpressionRange.start, trimmedExpressionRange.end), "helper");
+
+const skeletonBridgeTemplate = `<%@ jet package="demo" class="SkeletonBridge" skeleton="layout.skeleton" %>
+<%
+helper("x");
+%>
+<%!
+private String helper(String value) {
+    return value;
+}
+%>`;
+const skeletonOptions = {
+  readSkeleton() {
+    return "${packageDeclaration}\n\npublic final class ${class} {\n${members}\n${generateMethod}\n}\n";
+  }
+};
+const skeletonSource = skeletonBridgeTemplate.indexOf("helper(\"x\")") + "helper".length;
+const skeletonProjection = projectSourceOffsetToJavaPreview(skeletonBridgeTemplate, "/workspace/skeleton.txtjet", skeletonSource, skeletonOptions);
+assert.ok(skeletonProjection, "skeleton-rendered Java preview position should project");
+assert.ok(skeletonProjection.preview.text.includes("public final class SkeletonBridge"));
+const skeletonBackRange = mapJavaPreviewRangeToSource(
+  skeletonBridgeTemplate,
+  "/workspace/skeleton.txtjet",
+  { start: skeletonProjection.previewOffset - "helper".length, end: skeletonProjection.previewOffset },
+  skeletonOptions
+);
+assert.ok(skeletonBackRange, "skeleton-rendered Java preview range should map back");
+assert.equal(skeletonBridgeTemplate.slice(skeletonBackRange.start, skeletonBackRange.end), "helper");
+
 assert.equal(javaCompletionContextAt(template, scriptletSource, "txtjet-java")?.kind, "template-java");
 assert.equal(javaCompletionContextAt(template, declarationSource, "txtjet-java")?.kind, "template-java");
 assert.equal(javaCompletionContextAt(template, expressionSource, "txtjet-java")?.kind, "template-java");
@@ -107,6 +175,41 @@ assert.deepEqual(localJavaDefinitionRangesAt(helperCallTemplate, helperCallTempl
 const helperRefs = localJavaDefinitionAndReferenceRangesAt(helperCallTemplate, helperCallTemplate.indexOf("helper(\"x\")") + 2);
 assert.equal(helperRefs.length, 5);
 assert.equal(helperRefs.filter((range) => helperCallTemplate.slice(range.start, range.end) === "helper").length, 5);
+const helperDefinitionRefs = localJavaDefinitionAndReferenceRangesAt(helperCallTemplate, helperCallTemplate.indexOf("helper(String value)") + 2);
+assert.equal(helperDefinitionRefs.length, 5);
+assert.equal(helperDefinitionRefs.filter((range) => helperCallTemplate.slice(range.start, range.end) === "helper").length, 5);
+
+const signatureHelpTemplate = `<%@ jet package="demo" class="Signatures" %>
+<%
+helperPair(first, combine(second, third),
+this.helperPair(one, two
+service.helperPair(nope,
+%>
+<%!
+private String helperPair(String first, String second, String third) {
+    return first;
+}
+private String helperPair(Object first, Object second, Object third) {
+    return String.valueOf(first);
+}
+%>`;
+const signatureHelp = localJavaSignatureHelpAt(
+  signatureHelpTemplate,
+  signatureHelpTemplate.indexOf("third),") + "third),".length
+);
+assert.deepEqual(signatureHelp?.signatures, [
+  "private String helperPair(String first, String second, String third)",
+  "private String helperPair(Object first, Object second, Object third)"
+]);
+assert.equal(signatureHelp?.activeParameter, 2);
+assert.equal(
+  localJavaSignatureHelpAt(signatureHelpTemplate, signatureHelpTemplate.indexOf("this.helperPair(one, two") + "this.helperPair(one, two".length)?.activeParameter,
+  1
+);
+assert.equal(
+  localJavaSignatureHelpAt(signatureHelpTemplate, signatureHelpTemplate.indexOf("service.helperPair(nope") + "service.helperPair(nope".length),
+  undefined
+);
 
 const scriptletMethodShape = `<%
 private String localOnly(String value) {
@@ -128,6 +231,7 @@ private String helper(String value) {
 %>`;
 assert.deepEqual(localJavaDefinitionRangesAt(maskedCallTemplate, maskedCallTemplate.indexOf("// helper") + 4), []);
 assert.deepEqual(localJavaDefinitionRangesAt(maskedCallTemplate, maskedCallTemplate.indexOf("\"helper") + 2), []);
+assert.equal(localJavaSignatureHelpAt(maskedCallTemplate, maskedCallTemplate.indexOf("// helper") + 10), undefined);
 
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-java"), "txtjet-java");
 assert.equal(effectiveJavaCompletionTarget("txtjet", "txtjet-html"), "txtjet");

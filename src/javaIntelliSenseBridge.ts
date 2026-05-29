@@ -23,6 +23,11 @@ export interface TxtJetJavaCompletionContext {
   block: TxtJetBlock;
 }
 
+export interface TxtJetJavaSignatureHelp {
+  signatures: string[];
+  activeParameter: number;
+}
+
 interface LocalJavaMethodDefinition {
   name: string;
   nameRange: TxtJetRange;
@@ -351,6 +356,40 @@ export function localJavaDefinitionAndReferenceRangesAt(text: string, sourceOffs
   return dedupeRanges(ranges);
 }
 
+export function localJavaSignatureHelpAt(text: string, sourceOffset: number): TxtJetJavaSignatureHelp | undefined {
+  const model = parseTxtJetTemplate(text);
+  const activeBlock = model.blocks.find((candidate) =>
+    JAVA_BRIDGE_BLOCK_KINDS.has(candidate.kind)
+    && candidate.contentRange.start <= sourceOffset
+    && sourceOffset <= candidate.contentRange.end
+  );
+  if (!activeBlock) {
+    return undefined;
+  }
+
+  const invocation = javaInvocationAt(activeBlock, sourceOffset);
+  if (!invocation) {
+    return undefined;
+  }
+
+  const definitions = model.blocks
+    .filter((block) => LOCAL_JAVA_DEFINITION_BLOCK_KINDS.has(block.kind))
+    .flatMap((block) => javaMethodDefinitionsFromBlock(block))
+    .filter((definition) => definition.name === invocation.name);
+  if (definitions.length === 0) {
+    return undefined;
+  }
+
+  const signatures = definitions.map((definition) => definition.signature);
+  const maxParameterCount = Math.max(0, ...signatures.map(signatureParameterCount));
+  return {
+    signatures,
+    activeParameter: maxParameterCount === 0
+      ? 0
+      : clamp(invocation.activeParameter, 0, maxParameterCount - 1)
+  };
+}
+
 function localJavaDefinitionsAt(text: string, sourceOffset: number): LocalJavaMethodDefinition[] {
   const model = parseTxtJetTemplate(text);
   const activeBlock = model.blocks.find((candidate) =>
@@ -443,6 +482,78 @@ function javaCallNameAt(block: TxtJetBlock, sourceOffset: number): { name: strin
   return identifier;
 }
 
+function javaInvocationAt(
+  block: TxtJetBlock,
+  sourceOffset: number
+): { name: string; activeParameter: number } | undefined {
+  const masked = maskJavaCommentsAndStrings(block.content);
+  const localOffset = clamp(sourceOffset - block.contentRange.start, 0, masked.length);
+  const open = innermostOpenParenBefore(masked, localOffset);
+  if (open === undefined) {
+    return undefined;
+  }
+
+  let nameEnd = open;
+  while (nameEnd > 0 && /\s/.test(masked[nameEnd - 1])) {
+    nameEnd -= 1;
+  }
+  let nameStart = nameEnd;
+  while (nameStart > 0 && isJavaIdentifierPart(masked[nameStart - 1])) {
+    nameStart -= 1;
+  }
+  if (nameStart === nameEnd || !isJavaIdentifierStart(masked[nameStart])) {
+    return undefined;
+  }
+
+  const before = masked.slice(0, nameStart);
+  const receiver = before.match(/([A-Za-z_$][\w$]*)\s*\.\s*$/)?.[1];
+  if (receiver && receiver !== "this") {
+    return undefined;
+  }
+
+  return {
+    name: masked.slice(nameStart, nameEnd),
+    activeParameter: activeParameterIndex(masked.slice(open + 1, localOffset))
+  };
+}
+
+function innermostOpenParenBefore(content: string, offset: number): number | undefined {
+  let depth = 0;
+  for (let index = Math.min(offset - 1, content.length - 1); index >= 0; index -= 1) {
+    const char = content[index];
+    if (char === ")") {
+      depth += 1;
+      continue;
+    }
+    if (char === "(") {
+      if (depth === 0) {
+        return index;
+      }
+      depth -= 1;
+    }
+  }
+  return undefined;
+}
+
+function activeParameterIndex(argumentText: string): number {
+  let depth = 0;
+  let parameter = 0;
+  for (const char of argumentText) {
+    if (char === "(" || char === "[" || char === "{") {
+      depth += 1;
+      continue;
+    }
+    if (char === ")" || char === "]" || char === "}") {
+      depth = Math.max(0, depth - 1);
+      continue;
+    }
+    if (char === "," && depth === 0) {
+      parameter += 1;
+    }
+  }
+  return parameter;
+}
+
 function javaIdentifierAt(content: string, offset: number, sourceBase = 0): { name: string; range: TxtJetRange } | undefined {
   const safeOffset = clamp(offset, 0, content.length);
   const index = safeOffset > 0 && !isJavaIdentifierPart(content[safeOffset]) && isJavaIdentifierPart(content[safeOffset - 1])
@@ -495,6 +606,11 @@ function javaMethodSignatureFromMatch(content: string, match: RegExpExecArray): 
     .slice(match.index, signatureEnd)
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function signatureParameterCount(signature: string): number {
+  const params = signature.match(/\((.*)\)/)?.[1].trim();
+  return params ? params.split(",").length : 0;
 }
 
 function maskJavaCommentsAndStrings(content: string): string {

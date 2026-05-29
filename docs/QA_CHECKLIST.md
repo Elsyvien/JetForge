@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.12.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.12`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.13.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.13`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -85,12 +85,17 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - In a scriptlet or expression that calls a helper declared in `<%! ... %>`, confirm Go to Definition jumps to the helper method name.
 - With multiple same-name helper overloads in `<%! ... %>`, confirm Peek Definition shows each local overload.
 - Hover a local helper call and confirm the helper signature appears when Java tooling does not provide hover content.
+- Run Find All References on a local helper call and confirm the helper declarations plus direct/`this.` calls are listed, excluding comments, strings, and non-local receivers.
+- Run Rename Symbol on a local helper declaration and confirm matching direct/`this.` call sites update while comments, strings, and `service.helper(...)` calls do not.
+- Trigger Signature Help inside a local helper call and confirm overloads appear with the active parameter moving after commas and ignoring nested-call commas.
 - Hover over include and skeleton references and confirm the resolved path/status is shown.
 - Open the generated Java preview for `examples/skeleton-directive.txtjet` and confirm the `.skeleton` token layout is used.
 - Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.
 - Add a temporary missing `skeleton="..."` reference and confirm a missing-skeleton diagnostic appears.
 - Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
 - Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
+- Configure `txtjet.compiler.command` with a sanitized local wrapper that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
+- Configure the wrapper-style matcher `^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$` and confirm `[txtjet] file:line:column: error: message` output is parsed.
 - Confirm disabling `txtjet.previews.enabled` disables preview commands.
 - Confirm disabling `txtjet.previews.generatedJava.enabled` disables the generated Java preview command.
 - Confirm disabling `txtjet.navigation.includeDefinitions.enabled` removes include and skeleton Go to Definition.
@@ -101,4 +106,6 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Toggle `txtjet.visualDifferentiation.enabled` and confirm mixed-language region decorations hide/show.
 - Set `txtjet.diagnostics.severity` to `error`, `warning`, `information`, and `hint`; confirm diagnostics update.
 - Set `txtjet.diagnostics.maxFileSizeKb` to a low value and confirm diagnostics are skipped for larger files.
-- Confirm the package contains no private templates, root-level local `example*` files, `src`, `test-fixtures`, `node_modules`, or `.github`.
+- Run `node node_modules/@vscode/vsce/vsce ls --no-dependencies` and inspect the package file list.
+- Confirm the package contains no private templates, root-level local `example*` files, `src`, `test-fixtures`, `node_modules`, `.github`, `.playwright-cli`, static site files, logs, or local VSIX files.
+- Confirm the package contains only the manifest, README, changelog, license, language configuration, icon, docs, examples, snippets, syntaxes, and compiled `out/*.js` files.
