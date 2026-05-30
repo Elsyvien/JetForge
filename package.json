@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -235,6 +235,11 @@
       {
         "command": "txtjet.clearLanguage.all",
         "title": "TxtJet: Clear All Remembered Target Languages"
+      },
+      {
+        "command": "txtjet.toggleVisualDifferentiation",
+        "title": "TxtJet: Toggle Region Background Coloring",
+        "category": "TxtJet"
       },
       {
         "command": "txtjet.openGeneratedOutputPreview",
@@ -503,6 +508,10 @@
           "command": "txtjet.clearLanguage.all"
         },
         {
+          "command": "txtjet.toggleVisualDifferentiation",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
           "command": "txtjet.compileTemplate",
           "when": "resourceLangId =~ /^txtjet/"
         },
@@ -512,6 +521,11 @@
         }
       ],
       "editor/context": [
+        {
+          "command": "txtjet.toggleVisualDifferentiation",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@29"
+        },
         {
           "command": "txtjet.compileTemplate",
           "when": "resourceLangId =~ /^txtjet/",
@@ -536,6 +550,7 @@
     "onCommand:txtjet.detectTargetLanguage",
     "onCommand:txtjet.clearLanguage.active",
     "onCommand:txtjet.clearLanguage.all",
+    "onCommand:txtjet.toggleVisualDifferentiation",
     "onCommand:txtjet.openGeneratedOutputPreview",
     "onCommand:txtjet.openGeneratedJavaPreview",
     "onCommand:txtjet.openPreviewBesideSource",

@@ -170,6 +170,19 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.toggleVisualDifferentiation", async () => {
+      const resource = vscode.window.activeTextEditor?.document.uri;
+      const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+      const nextEnabled = !config.get<boolean>("visualDifferentiation.enabled", true);
+      const target = vscode.workspace.workspaceFolders?.length
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+      await config.update("visualDifferentiation.enabled", nextEnabled, target);
+      visualDifferentiator.refreshAll();
+      vscode.window.setStatusBarMessage(`TxtJet region background coloring ${nextEnabled ? "enabled" : "disabled"}.`, 4000);
+    })
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.openGeneratedOutputPreview", async () => {
       await openPreview("output", false);
     })

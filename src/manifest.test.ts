@@ -62,6 +62,9 @@ assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"
 assert.ok(contributes.configuration.properties["txtjet.formatting.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.visualDifferentiation.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.generation.outputDirectory"]);
+assert.ok(contributedCommands.has("txtjet.toggleVisualDifferentiation"));
+assert.ok(commandPaletteCommands.has("txtjet.toggleVisualDifferentiation"));
+assert.ok(activationEvents.has("onCommand:txtjet.toggleVisualDifferentiation"));
 
 for (const command of [
   "txtjet.openGeneratedOutputPreview",

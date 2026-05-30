@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.14
+
+- Added `TxtJet: Toggle Region Background Coloring` so users can quickly turn parser-backed region background decorations on or off without opening settings.
+
 ## 0.0.13
 
 - Hardened release packaging so local browser snapshots, static site files, source files, tests, fixtures, logs, and generated VSIX files stay out of packaged extensions.

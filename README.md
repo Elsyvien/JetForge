@@ -41,7 +41,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.13.vsix
+code --install-extension txtjet-syntax-0.0.14.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -62,7 +62,7 @@ If the generated outer content should be highlighted as a specific language, use
 
 These modes describe the generated output language outside template blocks. Embedded Java inside `<% ... %>`, `<%= ... %>`, `<%! ... %>`, and `<%@ ... %>` is highlighted in every TxtJet mode.
 Template delimiters are also injected into common outer-language strings, comments, and preprocessor regions so generated C/XML/HTML/Python/Java text does not hide TxtJet blocks.
-By default, TxtJet also applies subtle editor decorations that distinguish generated-output text from template markers, directives, and embedded Java. Disable `txtjet.visualDifferentiation.enabled` if a theme already provides enough contrast.
+By default, TxtJet also applies subtle editor decorations that distinguish generated-output text from template markers, directives, and embedded Java. Run `TxtJet: Toggle Region Background Coloring` or disable `txtjet.visualDifferentiation.enabled` if a theme already provides enough contrast.
 
 Auto Detect can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
 
@@ -78,6 +78,7 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 - `TxtJet: Use Generic Template Mode`
 - `TxtJet: Clear Remembered Target Language`
 - `TxtJet: Clear All Remembered Target Languages`
+- `TxtJet: Toggle Region Background Coloring`
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 

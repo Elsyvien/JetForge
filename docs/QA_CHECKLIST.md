@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.13.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.13`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.14.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.14`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -35,7 +35,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Confirm generated outer text is highlighted for the selected output mode.
 - Confirm template blocks inside strings, comments, and C preprocessor-style regions still highlight.
 - Confirm template markers, directives, embedded Java, and generated-output regions have distinct subtle editor decorations.
-- Toggle `txtjet.visualDifferentiation.enabled` and confirm those extra decorations hide/show without changing TextMate highlighting.
+- Run `TxtJet: Toggle Region Background Coloring` and confirm those extra decorations hide/show without changing TextMate highlighting.
+- Toggle `txtjet.visualDifferentiation.enabled` directly and confirm the command reflects the same setting.
 
 ## Diagnostics And Quick Fixes
 
@@ -103,7 +104,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Settings And Privacy
 
 - Toggle `txtjet.statusBar.enabled` and confirm the status bar item hides/shows.
-- Toggle `txtjet.visualDifferentiation.enabled` and confirm mixed-language region decorations hide/show.
+- Run `TxtJet: Toggle Region Background Coloring` and confirm mixed-language region decorations hide/show.
 - Set `txtjet.diagnostics.severity` to `error`, `warning`, `information`, and `hint`; confirm diagnostics update.
 - Set `txtjet.diagnostics.maxFileSizeKb` to a low value and confirm diagnostics are skipped for larger files.
 - Run `node node_modules/@vscode/vsce/vsce ls --no-dependencies` and inspect the package file list.
