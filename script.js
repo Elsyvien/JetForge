@@ -1,6 +1,6 @@
 const samples = {
   java: {
-    label: "TxtJet Java Output",
+    label: "Java preview",
     source: [
       ['<%@ jet package="demo.codegen" class="ModelWriter" %>', "token-muted"],
       ['<% for (Field field : model.fields()) { %>', "token-java"],
@@ -22,7 +22,7 @@ const samples = {
 }`
   },
   html: {
-    label: "TxtJet HTML Output",
+    label: "HTML preview",
     source: [
       ['<%@ jet class="CardWriter" %>', "token-muted"],
       ['<article class="model-card">', "token-out"],
@@ -42,7 +42,7 @@ const samples = {
 </article>`
   },
   xml: {
-    label: "TxtJet XML Output",
+    label: "XML preview",
     source: [
       ['<entity name="<%= model.name() %>">', "token-out"],
       ['<% for (Field field : model.fields()) { %>', "token-java"],
@@ -63,7 +63,7 @@ const samples = {
 </entity>`
   },
   c: {
-    label: "TxtJet C Output",
+    label: "C preview",
     source: [
       ['typedef struct {', "token-out"],
       ['<% for (Field field : fields) { %>', "token-java"],
@@ -83,7 +83,7 @@ const samples = {
 } GeneratedModel;`
   },
   python: {
-    label: "TxtJet Python Output",
+    label: "Python preview",
     source: [
       ['class <%= model.name() %>:', "token-out"],
       ['<% for (Field field : model.fields()) { %>', "token-java"],
@@ -210,10 +210,10 @@ function highlightLine() {
 
   const mode = modeOrder[activeIndex];
   const labels = [
-    `Mapping ${samples[mode].label} source region`,
-    "Forwarding Java hover through generated preview",
-    "Resolving include and skeleton references",
-    "Preparing generated-output diff"
+    `Highlighting the source behind this ${samples[mode].label}`,
+    "Showing Java hover inside the template",
+    "Finding includes and skeleton files",
+    "Preparing a preview diff"
   ];
   statusText.textContent = labels[activeLine % labels.length];
   activeLine += 1;

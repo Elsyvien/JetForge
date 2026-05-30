@@ -21,8 +21,8 @@
         <span>JetForge</span>
       </a>
       <nav class="nav-links" aria-label="Primary">
-        <a href="#flow">Flow</a>
-        <a href="#capabilities">Intelligence</a>
+        <a href="#flow">How it works</a>
+        <a href="#capabilities">Features</a>
         <a href="#modes">Modes</a>
         <a href="#install">Install</a>
       </nav>
@@ -33,18 +33,18 @@
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
           <p class="eyebrow">TxtJet / Eclipse JET tooling for VS Code</p>
-          <h1 id="hero-title">A sharper VS Code workbench for TxtJet templates.</h1>
+          <h1 id="hero-title">VS Code support for TxtJet templates that generate real code.</h1>
           <p class="hero-lede">
-            Navigate generated output, Java preview maps, diagnostics, formatting, and local generation
-            without leaving the editor or sending template code anywhere.
+            JetForge adds previews, navigation, diagnostics, formatting, and local generation for
+            TxtJet and JET files without sending template code anywhere.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="#install">Install locally</a>
-            <a class="button secondary" href="#flow">Watch the flow</a>
+            <a class="button primary" href="#install">Install the VSIX</a>
+            <a class="button secondary" href="#flow">See how it maps</a>
           </div>
           <div class="hero-proof" aria-label="JetForge capabilities">
-            <span>Mapped previews</span>
-            <span>Java-aware blocks</span>
+            <span>Preview mapping</span>
+            <span>Java inside templates</span>
             <span>No telemetry</span>
           </div>
         </div>
@@ -61,7 +61,7 @@
             <article class="code-pane source-pane">
               <header>
                 <span>Source template</span>
-                <b id="active-source-label">TxtJet Java Output</b>
+                <b id="active-source-label">Java preview</b>
               </header>
               <pre><code id="source-code"></code></pre>
             </article>
@@ -74,8 +74,8 @@
 
             <article class="code-pane output-pane">
               <header>
-                <span>Generated preview</span>
-                <b>read-only mapped output</b>
+                <span>Output preview</span>
+                <b>mapped read-only view</b>
               </header>
               <pre><code id="output-code"></code></pre>
             </article>
@@ -83,7 +83,7 @@
 
           <div class="status-lane" aria-label="Live JetForge status">
             <span class="pulse"></span>
-            <span id="status-text">Mapping source region to generated output</span>
+            <span id="status-text">Highlighting the template code behind this output</span>
           </div>
         </div>
       </section>
@@ -109,54 +109,54 @@
 
       <section class="flow" id="flow" aria-labelledby="flow-title">
         <div class="section-kicker">
-          <p class="eyebrow">Compiler flow</p>
-          <h2 id="flow-title">From template source to generated output, without losing context.</h2>
+          <p class="eyebrow">How it works</p>
+          <h2 id="flow-title">Move between a template and the code it creates.</h2>
         </div>
         <div class="flow-grid">
           <article class="flow-card is-active" data-step="0">
             <span>01</span>
-            <h3>Parse template regions</h3>
-            <p>Markers, directives, scriptlets, declarations, expressions, and generated-output text are classified.</p>
+            <h3>Understand template parts</h3>
+            <p>JetForge recognizes directives, Java blocks, expressions, includes, and plain output text.</p>
           </article>
           <article class="flow-card" data-step="1">
             <span>02</span>
-            <h3>Build preview maps</h3>
-            <p>Source ranges connect to generated-output and generated-Java preview positions for reveal commands.</p>
+            <h3>Map source to output</h3>
+            <p>Preview ranges connect template lines to generated code, so reveal commands land in the right place.</p>
           </article>
           <article class="flow-card" data-step="2">
             <span>03</span>
-            <h3>Forward editor intelligence</h3>
-            <p>Java completions, hover, Go to Definition, and local fallbacks stay available inside template blocks.</p>
+            <h3>Keep Java help available</h3>
+            <p>Completions, hover, Go to Definition, and local fallbacks keep working inside template Java.</p>
           </article>
           <article class="flow-card" data-step="3">
             <span>04</span>
-            <h3>Generate and diff</h3>
-            <p>Write the deterministic generated-output approximation and compare the current template against the last run.</p>
+            <h3>Generate and compare</h3>
+            <p>Run local generation, then compare the latest output with the previous preview.</p>
           </article>
         </div>
       </section>
 
       <section class="capabilities" id="capabilities" aria-labelledby="capabilities-title">
         <div>
-          <p class="eyebrow">Editor intelligence</p>
-          <h2 id="capabilities-title">Editor support for the parts of JET that usually stay invisible.</h2>
+          <p class="eyebrow">Features</p>
+          <h2 id="capabilities-title">Editor help for the JET details that are easy to lose.</h2>
         </div>
         <div class="capability-orbit">
           <article>
-            <h3>Diagnostics</h3>
-            <p>Unclosed blocks, unexpected delimiters, malformed directives, invalid attributes, and missing include files.</p>
+            <h3>Catch template mistakes</h3>
+            <p>Find unclosed blocks, unexpected delimiters, malformed directives, invalid attributes, and missing includes.</p>
           </article>
           <article>
-            <h3>Navigation</h3>
-            <p>Go to include files, skeletons, helper declarations, generated output, and generated Java preview regions.</p>
+            <h3>Jump to related files</h3>
+            <p>Go to includes, skeletons, helper declarations, output previews, and generated Java regions.</p>
           </article>
           <article>
-            <h3>Formatting</h3>
-            <p>Normalize directive attributes, expression spacing, and Java blocks without rewriting generated-output text.</p>
+            <h3>Format safely</h3>
+            <p>Clean up directive attributes, expression spacing, and Java blocks without rewriting output text.</p>
           </article>
           <article>
-            <h3>Local privacy</h3>
-            <p>No runtime network access, no telemetry, no template uploads, and no proprietary content leaving VS Code.</p>
+            <h3>Stay local</h3>
+            <p>No runtime network access, no telemetry, no template uploads, and no proprietary code leaving VS Code.</p>
           </article>
         </div>
       </section>
@@ -164,10 +164,9 @@
       <section class="modes" id="modes" aria-labelledby="modes-title">
         <div class="modes-copy">
           <p class="eyebrow">Target modes</p>
-          <h2 id="modes-title">Switch generated-output modes and keep embedded Java readable.</h2>
+          <h2 id="modes-title">Choose the language your template outputs.</h2>
           <p>
-            JetForge keeps embedded Java visible while the outer generated-output regions behave like Java, HTML,
-            XML, C, or Python surfaces.
+            Use Java, HTML, XML, C, or Python output previews while embedded Java remains readable and navigable.
           </p>
         </div>
         <div class="mode-console">
@@ -185,12 +184,12 @@
       <section class="install" id="install" aria-labelledby="install-title">
         <div>
           <p class="eyebrow">Local install</p>
-          <h2 id="install-title">Package. Verify. Install.</h2>
+          <h2 id="install-title">Build and install the extension locally.</h2>
         </div>
         <div class="terminal">
           <p><span>$</span> npm run package</p>
           <p><span>$</span> npm run verify</p>
-          <p><span>$</span> code --install-extension txtjet-syntax-0.0.13.vsix</p>
+          <p><span>$</span> code --install-extension txtjet-syntax-0.0.14.vsix</p>
         </div>
       </section>
     </main>
