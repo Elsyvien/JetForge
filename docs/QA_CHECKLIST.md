@@ -103,11 +103,12 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 ## Workspace Intelligence
 
-- Open the `TxtJet Workspace` Explorer view and confirm Templates, Includes, Skeletons, Unresolved References, and Generated Output Targets are populated for sanitized examples.
+- Open the `TxtJet Workspace` Explorer view and confirm Root Templates, Includes, Skeletons, Unresolved References, and Generated Output Targets are populated for sanitized examples.
 - Run `TxtJet: Refresh Workspace Model` and confirm the tree refreshes without changing files.
 - Open an include fragment and run `TxtJet: Open Including Template`; confirm the referencing template opens.
 - Run `TxtJet: Open Generated Java For Template` from a template and from the workspace tree; confirm the generated Java preview opens beside the source.
 - Add a temporary unresolved include or skeleton reference and confirm it appears in the workspace tree and editor diagnostics.
+- Close the file containing the temporary unresolved reference, refresh the workspace model, and confirm the diagnostic remains visible in the Problems panel for the indexed file.
 - Create the referenced file and confirm the unresolved tree entry and diagnostic disappear after refresh/save.
 - Run `TxtJet: Validate Workspace Templates` with a sanitized compiler wrapper and confirm root templates are validated without forcing unmappable diagnostics into source ranges.
 

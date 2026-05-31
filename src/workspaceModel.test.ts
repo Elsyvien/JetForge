@@ -9,6 +9,7 @@ const root = resolve("workspace");
 const main = join(root, "templates", "main.javajet");
 const fragment = join(root, "templates", "partials", "header.jetinc");
 const shared = join(root, "shared", "footer.txtjet");
+const nestedFragment = join(root, "shared", "nested.txtjet");
 const skeleton = join(root, "templates", "base.skeleton");
 const model = createTxtJetWorkspaceModel(
   [
@@ -27,7 +28,11 @@ const model = createTxtJetWorkspaceModel(
     },
     {
       fileName: shared,
-      text: "footer"
+      text: '<%@ include file="nested.txtjet" %>footer'
+    },
+    {
+      fileName: nestedFragment,
+      text: "nested footer"
     },
     {
       fileName: skeleton,
@@ -47,10 +52,12 @@ const model = createTxtJetWorkspaceModel(
 assert.equal(workspaceEntryKind("example.txtjet"), "template");
 assert.equal(workspaceEntryKind("partial.jetinc"), "include");
 assert.equal(workspaceEntryKind("base.skeleton"), "skeleton");
-assert.equal(model.templates.length, 2);
-assert.equal(model.includes.length, 1);
+assert.equal(model.templates.length, 3);
+assert.deepEqual(model.rootTemplates.map((entry) => entry.fileName), [main]);
+assert.deepEqual(model.includes.map((entry) => entry.fileName), [nestedFragment, shared, fragment].sort());
 assert.equal(model.skeletons.length, 1);
 assert.equal(model.entry(main)?.targetLanguage, "txtjet-java");
+assert.equal(model.entry(shared)?.isRootTemplate, false);
 
 const includeReferences = model.referencesFrom(main, "include");
 assert.equal(includeReferences.length, 3);
@@ -62,13 +69,15 @@ assert.equal(model.unresolvedReferences[0].referenceFile, "missing");
 assert.equal(model.referenceExists(main, "partials/header", "include"), true);
 assert.equal(model.referenceExists(main, "missing", "include"), false);
 assert.deepEqual(model.includingTemplates(fragment).map((entry) => entry.fileName), [main]);
+assert.deepEqual(model.includingTemplates(nestedFragment).map((entry) => entry.fileName), [main]);
 assert.deepEqual(model.entry(skeleton)?.skeletonUsedBy, [main]);
 
 const circular = createTxtJetWorkspaceModel([
   { fileName: join(root, "a.txtjet"), text: '<%@ include file="b.txtjet" %>' },
   { fileName: join(root, "b.txtjet"), text: '<%@ include file="a.txtjet" %>' }
 ]);
-assert.deepEqual(circular.includingTemplates(join(root, "a.txtjet")).map((entry) => entry.fileName), [join(root, "b.txtjet")]);
-assert.deepEqual(circular.includingTemplates(join(root, "b.txtjet")).map((entry) => entry.fileName), [join(root, "a.txtjet")]);
+assert.deepEqual(circular.rootTemplates.map((entry) => entry.fileName), []);
+assert.deepEqual(circular.includingTemplates(join(root, "a.txtjet")).map((entry) => entry.fileName), []);
+assert.deepEqual(circular.includingTemplates(join(root, "b.txtjet")).map((entry) => entry.fileName), []);
 
 console.log("workspace model tests ok");

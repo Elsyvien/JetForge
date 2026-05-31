@@ -87,7 +87,7 @@ Manual selections are remembered for the file in the current workspace. Auto-det
 
 ## TxtJet Workspace Intelligence
 
-The `TxtJet Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, and generated output targets. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.jetinc`, and `.skeleton` files.
+The `TxtJet Workspace` Explorer view indexes root templates, include fragments, skeleton files, unresolved references, and generated output targets. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.jetinc`, and `.skeleton` files. Template files referenced by includes are shown as include fragments, so project validation stays focused on root templates.
 
 Use these commands for project-level workflows:
 
@@ -96,7 +96,7 @@ Use these commands for project-level workflows:
 - `TxtJet: Open Generated Java For Template`
 - `TxtJet: Validate Workspace Templates`
 
-Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
+Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed, including for indexed files that are not currently open. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
 
 You can rerun detection manually with the command:
 

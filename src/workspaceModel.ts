@@ -28,6 +28,7 @@ export interface TxtJetWorkspaceReference {
 export interface TxtJetWorkspaceEntry {
   fileName: string;
   kind: TxtJetWorkspaceEntryKind;
+  isRootTemplate: boolean;
   text?: string;
   targetLanguage: TxtJetTargetLanguage;
   references: TxtJetWorkspaceReference[];
@@ -38,6 +39,7 @@ export interface TxtJetWorkspaceEntry {
 export interface TxtJetWorkspaceModel {
   entries: TxtJetWorkspaceEntry[];
   templates: TxtJetWorkspaceEntry[];
+  rootTemplates: TxtJetWorkspaceEntry[];
   includes: TxtJetWorkspaceEntry[];
   skeletons: TxtJetWorkspaceEntry[];
   unresolvedReferences: TxtJetWorkspaceReference[];
@@ -70,6 +72,7 @@ export function createTxtJetWorkspaceModel(
     entriesByFile.set(fileName, {
       fileName,
       kind,
+      isRootTemplate: kind === "template",
       text: file.text,
       targetLanguage: detectTargetLanguageFromFileName(fileName),
       references: [],
@@ -96,6 +99,7 @@ export function createTxtJetWorkspaceModel(
       }
       if (reference.kind === "include") {
         target.includedBy = sortedUnique([...target.includedBy, entry.fileName]);
+        target.isRootTemplate = false;
       } else {
         target.skeletonUsedBy = sortedUnique([...target.skeletonUsedBy, entry.fileName]);
       }
@@ -111,7 +115,8 @@ export function createTxtJetWorkspaceModel(
   return {
     entries,
     templates: entries.filter((entry) => entry.kind === "template"),
-    includes: entries.filter((entry) => entry.kind === "include"),
+    rootTemplates: entries.filter((entry) => entry.kind === "template" && entry.isRootTemplate),
+    includes: entries.filter((entry) => entry.kind === "include" || (entry.kind === "template" && !entry.isRootTemplate)),
     skeletons: entries.filter((entry) => entry.kind === "skeleton"),
     unresolvedReferences,
     entry(fileName) {
@@ -127,14 +132,7 @@ export function createTxtJetWorkspaceModel(
       );
     },
     includingTemplates(fileName) {
-      const entry = entriesByFile.get(normalize(fileName));
-      if (!entry) {
-        return [];
-      }
-      return entry.includedBy
-        .map((includingFile) => entriesByFile.get(includingFile))
-        .filter((includingEntry): includingEntry is TxtJetWorkspaceEntry => Boolean(includingEntry))
-        .sort(compareEntry);
+      return transitiveIncludingTemplates(normalize(fileName), entriesByFile);
     }
   };
 }
@@ -206,6 +204,33 @@ function referencesForFileName(
 
 function compareEntry(left: TxtJetWorkspaceEntry, right: TxtJetWorkspaceEntry): number {
   return left.fileName.localeCompare(right.fileName);
+}
+
+function transitiveIncludingTemplates(
+  fileName: string,
+  entriesByFile: Map<string, TxtJetWorkspaceEntry>
+): TxtJetWorkspaceEntry[] {
+  const visited = new Set<string>();
+  const roots = new Map<string, TxtJetWorkspaceEntry>();
+  const stack = [...(entriesByFile.get(fileName)?.includedBy ?? [])];
+
+  while (stack.length > 0) {
+    const includingFile = stack.pop();
+    if (!includingFile || visited.has(includingFile)) {
+      continue;
+    }
+    visited.add(includingFile);
+    const includingEntry = entriesByFile.get(includingFile);
+    if (!includingEntry) {
+      continue;
+    }
+    if (includingEntry.kind === "template" && includingEntry.isRootTemplate) {
+      roots.set(includingEntry.fileName, includingEntry);
+    }
+    stack.push(...includingEntry.includedBy);
+  }
+
+  return Array.from(roots.values()).sort(compareEntry);
 }
 
 function compareReference(left: TxtJetWorkspaceReference, right: TxtJetWorkspaceReference): number {

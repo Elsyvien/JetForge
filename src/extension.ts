@@ -117,6 +117,8 @@ export function activate(context: vscode.ExtensionContext): void {
     if (invalidateCompilerDiagnostics) {
       compilerDiagnosticsBySource.clear();
     }
+    diagnostics.clear();
+    updateWorkspaceDiagnostics(diagnostics, activeWorkspaceModel, compilerDiagnosticsBySource);
     for (const document of vscode.workspace.textDocuments) {
       updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
     }
@@ -522,10 +524,7 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
         arguments: [
           vscode.Uri.file(element.reference.sourceFileName),
           {
-            selection: new vscode.Range(
-              new vscode.Position(0, 0),
-              new vscode.Position(0, 0)
-            )
+            selection: rangeForWorkspaceReference(this.model, element.reference)
           }
         ]
       };
@@ -567,11 +566,11 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
     }
     if (!element) {
       return [
-        { kind: "group", id: "templates", label: `Templates (${this.model.templates.length})` },
+        { kind: "group", id: "templates", label: `Root Templates (${this.model.rootTemplates.length})` },
         { kind: "group", id: "includes", label: `Includes (${this.model.includes.length})` },
         { kind: "group", id: "skeletons", label: `Skeletons (${this.model.skeletons.length})` },
         { kind: "group", id: "unresolved", label: `Unresolved References (${this.model.unresolvedReferences.length})` },
-        { kind: "group", id: "generated", label: `Generated Output Targets (${this.model.templates.length})` }
+        { kind: "group", id: "generated", label: `Generated Output Targets (${this.model.rootTemplates.length})` }
       ];
     }
     if (element.kind !== "group") {
@@ -579,7 +578,7 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
     }
     switch (element.id) {
       case "templates":
-        return this.model.templates.map((entry) => ({ kind: "entry", entry }));
+        return this.model.rootTemplates.map((entry) => ({ kind: "entry", entry }));
       case "includes":
         return this.model.includes.map((entry) => ({ kind: "entry", entry }));
       case "skeletons":
@@ -587,7 +586,7 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
       case "unresolved":
         return this.model.unresolvedReferences.map((reference) => ({ kind: "reference", reference }));
       case "generated":
-        return this.model.templates.map((entry) => ({ kind: "generated", entry }));
+        return this.model.rootTemplates.map((entry) => ({ kind: "generated", entry }));
       default:
         return [];
     }
@@ -986,9 +985,9 @@ async function validateWorkspaceTemplates(
   if (!activeWorkspaceModel) {
     activeWorkspaceModel = await buildTxtJetWorkspaceModel();
   }
-  const templates = activeWorkspaceModel.templates;
+  const templates = activeWorkspaceModel.rootTemplates;
   if (templates.length === 0) {
-    vscode.window.showInformationMessage("TxtJet found no workspace templates to validate.");
+    vscode.window.showInformationMessage("TxtJet found no root workspace templates to validate.");
     return;
   }
 
@@ -1529,6 +1528,65 @@ function updateDiagnostics(
   collection.set(document.uri, diagnostics.concat(compilerDiagnostics, mappedGeneratedJavaDiagnostics(document)));
 }
 
+function updateWorkspaceDiagnostics(
+  collection: vscode.DiagnosticCollection,
+  model: TxtJetWorkspaceModel,
+  compilerDiagnosticsBySource?: Map<string, vscode.Diagnostic[]>
+): void {
+  for (const entry of model.entries) {
+    if (entry.kind === "skeleton" || entry.text === undefined || openDocumentForFileName(entry.fileName)) {
+      continue;
+    }
+
+    const uri = vscode.Uri.file(entry.fileName);
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION, uri);
+    if (!config.get<boolean>("diagnostics.enabled", true)) {
+      compilerDiagnosticsBySource?.delete(uri.toString());
+      collection.delete(uri);
+      continue;
+    }
+
+    const maxFileSizeKb = config.get<number>("diagnostics.maxFileSizeKb", DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB);
+    if (maxFileSizeKb > 0 && Buffer.byteLength(entry.text, "utf8") > maxFileSizeKb * 1024) {
+      compilerDiagnosticsBySource?.delete(uri.toString());
+      collection.delete(uri);
+      continue;
+    }
+
+    const severity = diagnosticSeverityFromSetting(config.get<string>("diagnostics.severity", "warning"));
+    const diagnostics = [
+      ...scanTxtJetIssues(entry.text),
+      ...scanTxtJetDirectiveIssues(entry.text, {
+        includeExists: (includeFile) => model.referenceExists(entry.fileName, includeFile, "include"),
+        skeletonExists: (skeletonFile) => model.referenceExists(entry.fileName, skeletonFile, "skeleton")
+      })
+    ].map((issue) => issueToWorkspaceDiagnostic(entry.text ?? "", issue, severity));
+    const compilerDiagnostics = config.get<boolean>("diagnostics.compiler.enabled", true)
+      ? compilerDiagnosticsBySource?.get(uri.toString()) ?? []
+      : [];
+    collection.set(uri, diagnostics.concat(compilerDiagnostics));
+  }
+}
+
+function issueToWorkspaceDiagnostic(
+  text: string,
+  issue: TxtJetIssue,
+  severity: vscode.DiagnosticSeverity
+): vscode.Diagnostic {
+  const diagnostic = new vscode.Diagnostic(
+    new vscode.Range(positionAtTextOffset(text, issue.start), positionAtTextOffset(text, issue.end)),
+    issue.message,
+    severity
+  );
+  diagnostic.source = DIAGNOSTIC_SOURCE;
+  diagnostic.code = issue.code;
+  return diagnostic;
+}
+
+function openDocumentForFileName(fileName: string): vscode.TextDocument | undefined {
+  return vscode.workspace.textDocuments.find((document) => document.fileName === fileName);
+}
+
 function issueToDiagnostic(
   document: vscode.TextDocument,
   issue: TxtJetIssue,
@@ -1604,6 +1662,30 @@ function offsetAt(text: string, position: vscode.Position): number {
     }
   }
   return line === position.line ? Math.min(lineStart + position.character, text.length) : text.length;
+}
+
+function positionAtTextOffset(text: string, offset: number): vscode.Position {
+  const safeOffset = Math.max(0, Math.min(offset, text.length));
+  let line = 0;
+  let lineStart = 0;
+  for (let index = 0; index < safeOffset; index += 1) {
+    if (text[index] === "\n") {
+      line += 1;
+      lineStart = index + 1;
+    }
+  }
+  return new vscode.Position(line, safeOffset - lineStart);
+}
+
+function rangeForWorkspaceReference(
+  model: TxtJetWorkspaceModel | undefined,
+  reference: TxtJetWorkspaceReference
+): vscode.Range {
+  const text = model?.entry(reference.sourceFileName)?.text ?? "";
+  return new vscode.Range(
+    positionAtTextOffset(text, reference.range.start),
+    positionAtTextOffset(text, reference.range.end)
+  );
 }
 
 function registerCodeActionProvider(): vscode.Disposable {
