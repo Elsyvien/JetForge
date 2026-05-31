@@ -1,5 +1,5 @@
 import { basename, isAbsolute, normalize, resolve } from "node:path";
-import { mapPreviewRangeToSource, TxtJetGeneratedPreview, TxtJetRange } from "./templateModel";
+import { mapPreviewRangeToSource, TxtJetGeneratedPreview, TxtJetMapping, TxtJetRange } from "./templateModel";
 
 export type TxtJetCompilerDiagnosticSeverity = "error" | "warning" | "information" | "hint";
 
@@ -13,7 +13,7 @@ export interface TxtJetCompilerProblem {
 
 export interface TxtJetMappedCompilerProblem extends TxtJetCompilerProblem {
   sourceRange: TxtJetRange;
-  mappedFrom: "source" | "generated-java";
+  mappedFrom: "source" | "generated-java" | "generated-output";
 }
 
 export const DEFAULT_COMPILER_PROBLEM_MATCHER =
@@ -56,6 +56,7 @@ export function mapCompilerProblemsToSource(
   sourceFileName: string,
   sourceText: string,
   generatedJavaPreview: TxtJetGeneratedPreview,
+  generatedOutputPreview: TxtJetGeneratedPreview | undefined,
   generatedFileName: string,
   workspaceFolder: string
 ): TxtJetMappedCompilerProblem[] {
@@ -73,21 +74,48 @@ export function mapCompilerProblemsToSource(
       return [];
     }
 
-    const previewOffset = lineColumnOffset(generatedJavaPreview.text, problem.line, problem.column);
-    const mappedRange = mapPreviewRangeToSource(generatedJavaPreview.mappings, {
-      start: previewOffset,
-      end: previewOffset
-    });
-    if (!mappedRange) {
+    const mappedJavaProblem = mapProblemThroughPreview(problem, generatedJavaPreview, "generated-java");
+    if (mappedJavaProblem) {
+      return [mappedJavaProblem];
+    }
+
+    const mappedOutputProblem = generatedOutputPreview
+      ? mapProblemThroughPreview(
+        problem,
+        {
+          text: generatedOutputPreview.text,
+          mappings: generatedOutputPreview.mappings.filter((mapping) => mapping.kind === "outer")
+        },
+        "generated-output"
+      )
+      : undefined;
+    if (!mappedOutputProblem) {
       return [];
     }
 
-    return [{
-      ...problem,
-      sourceRange: mappedRange,
-      mappedFrom: "generated-java" as const
-    }];
+    return [mappedOutputProblem];
   });
+}
+
+function mapProblemThroughPreview(
+  problem: TxtJetCompilerProblem,
+  preview: { text: string; mappings: TxtJetMapping[] },
+  mappedFrom: "generated-java" | "generated-output"
+): TxtJetMappedCompilerProblem | undefined {
+  const previewOffset = lineColumnOffset(preview.text, problem.line, problem.column);
+  const mappedRange = mapPreviewRangeToSource(preview.mappings, {
+    start: previewOffset,
+    end: previewOffset
+  });
+  if (!mappedRange) {
+    return undefined;
+  }
+
+  return {
+    ...problem,
+    sourceRange: mappedRange,
+    mappedFrom
+  };
 }
 
 function compileMatcher(matcher: string): RegExp | undefined {
