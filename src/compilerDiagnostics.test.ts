@@ -5,7 +5,7 @@ import {
   mapCompilerProblemsToSource,
   parseCompilerProblems
 } from "./compilerDiagnostics";
-import { buildGeneratedJavaPreview } from "./templateModel";
+import { buildGeneratedJavaPreview, buildGeneratedOutputPreview } from "./templateModel";
 
 const output = [
   "generated/sample.java:4:9: error: cannot find symbol",
@@ -47,6 +47,7 @@ const template = [
   "hello"
 ].join("\n");
 const preview = buildGeneratedJavaPreview(template, sourceFile);
+const outputPreview = buildGeneratedOutputPreview(template);
 const previewLine = preview.text.slice(0, preview.text.indexOf("missingCall")).split("\n").length;
 const mapped = mapCompilerProblemsToSource(
   [{
@@ -59,6 +60,7 @@ const mapped = mapCompilerProblemsToSource(
   sourceFile,
   template,
   preview,
+  outputPreview,
   generatedFile,
   resolve("workspace")
 );
@@ -77,6 +79,7 @@ const direct = mapCompilerProblemsToSource(
   sourceFile,
   template,
   preview,
+  outputPreview,
   generatedFile,
   resolve("workspace")
 );
@@ -95,10 +98,31 @@ const unrelated = mapCompilerProblemsToSource(
   sourceFile,
   template,
   preview,
+  outputPreview,
   generatedFile,
   resolve("workspace")
 );
 assert.equal(unrelated.length, 0);
+
+const outputLine = outputPreview.text.slice(0, outputPreview.text.indexOf("hello")).split("\n").length;
+const mappedOutput = mapCompilerProblemsToSource(
+  [{
+    file: join("generated", "sample.java"),
+    line: outputLine,
+    column: 1,
+    severity: "error",
+    message: "generated output failure"
+  }],
+  sourceFile,
+  template,
+  preview,
+  outputPreview,
+  generatedFile,
+  resolve("workspace")
+);
+assert.equal(mappedOutput.length, 1);
+assert.equal(mappedOutput[0].mappedFrom, "generated-output");
+assert.match(template.slice(mappedOutput[0].sourceRange.start, mappedOutput[0].sourceRange.end), /hello/);
 
 const unmappedPreviewHeader = mapCompilerProblemsToSource(
   [{
@@ -111,6 +135,7 @@ const unmappedPreviewHeader = mapCompilerProblemsToSource(
   sourceFile,
   template,
   preview,
+  outputPreview,
   generatedFile,
   resolve("workspace")
 );

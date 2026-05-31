@@ -35,7 +35,8 @@ assert.deepEqual(contributes.languages[0].extensions, [
   ".htmljet",
   ".xmljet",
   ".cjet",
-  ".pythonjet"
+  ".pythonjet",
+  ".jetinc"
 ]);
 
 for (const command of contributedCommands) {
@@ -62,6 +63,7 @@ assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"
 assert.ok(contributes.configuration.properties["txtjet.formatting.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.visualDifferentiation.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.generation.outputDirectory"]);
+assert.ok(contributes.views.explorer.some((view: { id: string; name: string }) => view.id === "txtjetWorkspace" && view.name === "TxtJet Workspace"));
 assert.ok(contributedCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(commandPaletteCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(activationEvents.has("onCommand:txtjet.toggleVisualDifferentiation"));
@@ -76,11 +78,17 @@ for (const command of [
   "txtjet.revealSourceFromPreview",
   "txtjet.generateOutput",
   "txtjet.diffLastGeneratedOutput",
-  "txtjet.validateWithCompiler"
+  "txtjet.compileTemplate",
+  "txtjet.validateWithCompiler",
+  "txtjet.refreshWorkspaceModel",
+  "txtjet.openIncludingTemplate",
+  "txtjet.openGeneratedJavaForTemplate",
+  "txtjet.validateWorkspaceTemplates"
 ]) {
   assert.ok(contributedCommands.has(command), `${command} command missing`);
   assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);
   assert.ok(activationEvents.has(`onCommand:${command}`), `${command} activation missing`);
 }
+assert.ok(activationEvents.has("onView:txtjetWorkspace"));
 
 console.log("manifest tests ok");

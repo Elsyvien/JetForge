@@ -54,6 +54,15 @@ import {
   TxtJetGeneratedPreview,
   TxtJetRange
 } from "./templateModel";
+import {
+  createTxtJetWorkspaceModel,
+  TXTJET_WORKSPACE_EXCLUDE_GLOB,
+  TXTJET_WORKSPACE_GLOB,
+  TxtJetWorkspaceEntry,
+  TxtJetWorkspaceModel,
+  TxtJetWorkspaceReference,
+  workspaceEntryKind
+} from "./workspaceModel";
 
 const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet",
@@ -82,6 +91,7 @@ const JAVA_PREVIEW_SCHEME = "txtjet-preview-java";
 const GENERATED_DIFF_SCHEME = "txtjet-generated-diff";
 const GENERATION_STORAGE_KEY = "txtjet.lastGeneratedOutput.v1";
 const execAsync = promisify(exec);
+let activeWorkspaceModel: TxtJetWorkspaceModel | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -93,12 +103,24 @@ export function activate(context: vscode.ExtensionContext): void {
   const previewProvider = new TxtJetPreviewProvider();
   const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
   const visualDifferentiator = new TxtJetVisualDifferentiator();
+  const workspaceTreeProvider = new TxtJetWorkspaceTreeProvider();
   context.subscriptions.push(
     visualDifferentiator,
+    vscode.window.registerTreeDataProvider("txtjetWorkspace", workspaceTreeProvider),
     vscode.workspace.registerTextDocumentContentProvider(OUTPUT_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(JAVA_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(GENERATED_DIFF_SCHEME, generatedDiffProvider)
   );
+  const refreshWorkspaceModel = async (invalidateCompilerDiagnostics: boolean): Promise<void> => {
+    activeWorkspaceModel = await buildTxtJetWorkspaceModel();
+    workspaceTreeProvider.setModel(activeWorkspaceModel);
+    if (invalidateCompilerDiagnostics) {
+      compilerDiagnosticsBySource.clear();
+    }
+    for (const document of vscode.workspace.textDocuments) {
+      updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
+    }
+  };
 
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.detectTargetLanguage", async () => {
@@ -241,16 +263,39 @@ export function activate(context: vscode.ExtensionContext): void {
       await validateTemplateWithCompiler(editor.document, diagnostics, compilerDiagnosticsBySource, true);
     })
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.refreshWorkspaceModel", async () => {
+      await refreshWorkspaceModel(true);
+      vscode.window.setStatusBarMessage("TxtJet workspace model refreshed.", 4000);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openIncludingTemplate", async (item?: TxtJetWorkspaceTreeNode) => {
+      await openIncludingTemplate(item);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openGeneratedJavaForTemplate", async (item?: TxtJetWorkspaceTreeNode) => {
+      await openGeneratedJavaForTemplate(item);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.validateWorkspaceTemplates", async () => {
+      await validateWorkspaceTemplates(diagnostics, compilerDiagnosticsBySource);
+    })
+  );
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
       void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
       updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       visualDifferentiator.refreshDocument(document);
+      void refreshWorkspaceModel(false);
     })
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
+      compilerDiagnosticsBySource.delete(event.document.uri.toString());
       updateDiagnostics(diagnostics, event.document, compilerDiagnosticsBySource);
       previewProvider.refresh(event.document.uri);
       visualDifferentiator.refreshDocument(event.document);
@@ -266,7 +311,15 @@ export function activate(context: vscode.ExtensionContext): void {
       ) {
         void validateTemplateWithCompiler(document, diagnostics, compilerDiagnosticsBySource, false);
       }
+      void refreshWorkspaceModel(true);
     })
+  );
+  const workspaceWatcher = vscode.workspace.createFileSystemWatcher(TXTJET_WORKSPACE_GLOB);
+  context.subscriptions.push(
+    workspaceWatcher,
+    workspaceWatcher.onDidCreate(() => void refreshWorkspaceModel(true)),
+    workspaceWatcher.onDidChange(() => void refreshWorkspaceModel(true)),
+    workspaceWatcher.onDidDelete(() => void refreshWorkspaceModel(true))
   );
   context.subscriptions.push(
     vscode.languages.onDidChangeDiagnostics((event) => {
@@ -295,6 +348,7 @@ export function activate(context: vscode.ExtensionContext): void {
         updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       }
       visualDifferentiator.refreshAll();
+      void refreshWorkspaceModel(true);
     })
   );
   context.subscriptions.push(
@@ -339,6 +393,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidCloseTextDocument(() => updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context))
   );
   updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
+  void refreshWorkspaceModel(false);
 }
 
 export function deactivate(): void {
@@ -423,6 +478,147 @@ class TxtJetGeneratedDiffProvider implements vscode.TextDocumentContentProvider 
 
   refresh(uri: vscode.Uri): void {
     this.changed.fire(uri);
+  }
+}
+
+type TxtJetWorkspaceTreeNode =
+  | { kind: "group"; id: "templates" | "includes" | "skeletons" | "unresolved" | "generated"; label: string }
+  | { kind: "entry"; entry: TxtJetWorkspaceEntry }
+  | { kind: "reference"; reference: TxtJetWorkspaceReference }
+  | { kind: "generated"; entry: TxtJetWorkspaceEntry };
+type TxtJetWorkspaceGroupId = Extract<TxtJetWorkspaceTreeNode, { kind: "group" }>["id"];
+
+class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorkspaceTreeNode> {
+  private readonly changed = new vscode.EventEmitter<TxtJetWorkspaceTreeNode | undefined>();
+  private model: TxtJetWorkspaceModel | undefined;
+
+  readonly onDidChangeTreeData = this.changed.event;
+
+  setModel(model: TxtJetWorkspaceModel): void {
+    this.model = model;
+    this.changed.fire(undefined);
+  }
+
+  getTreeItem(element: TxtJetWorkspaceTreeNode): vscode.TreeItem {
+    if (element.kind === "group") {
+      const item = new vscode.TreeItem(element.label, vscode.TreeItemCollapsibleState.Collapsed);
+      item.contextValue = `txtjetWorkspace.${element.id}`;
+      item.iconPath = groupIcon(element.id);
+      return item;
+    }
+
+    if (element.kind === "reference") {
+      const item = new vscode.TreeItem(
+        `${basename(element.reference.sourceFileName)} -> ${element.reference.referenceFile}`,
+        vscode.TreeItemCollapsibleState.None
+      );
+      item.description = element.reference.kind;
+      item.tooltip = `Unresolved ${element.reference.kind} reference in ${element.reference.sourceFileName}`;
+      item.contextValue = "txtjetWorkspace.unresolvedReference";
+      item.iconPath = new vscode.ThemeIcon("warning");
+      item.command = {
+        command: "vscode.open",
+        title: "Open TxtJet reference source",
+        arguments: [
+          vscode.Uri.file(element.reference.sourceFileName),
+          {
+            selection: new vscode.Range(
+              new vscode.Position(0, 0),
+              new vscode.Position(0, 0)
+            )
+          }
+        ]
+      };
+      return item;
+    }
+
+    if (element.kind === "generated") {
+      const item = new vscode.TreeItem(
+        `${basename(element.entry.fileName)} -> ${targetPreviewLanguage(element.entry.targetLanguage)}`,
+        vscode.TreeItemCollapsibleState.None
+      );
+      item.description = workspaceRelativeLabel(element.entry.fileName);
+      item.contextValue = "txtjetWorkspace.generated";
+      item.iconPath = new vscode.ThemeIcon("symbol-file");
+      item.command = {
+        command: "txtjet.openGeneratedJavaForTemplate",
+        title: "Open Generated Java For Template",
+        arguments: [element]
+      };
+      return item;
+    }
+
+    const item = new vscode.TreeItem(basename(element.entry.fileName), vscode.TreeItemCollapsibleState.None);
+    item.description = workspaceRelativeLabel(element.entry.fileName);
+    item.tooltip = element.entry.fileName;
+    item.contextValue = `txtjetWorkspace.${element.entry.kind}`;
+    item.iconPath = entryIcon(element.entry.kind);
+    item.command = {
+      command: "vscode.open",
+      title: "Open TxtJet workspace file",
+      arguments: [vscode.Uri.file(element.entry.fileName)]
+    };
+    return item;
+  }
+
+  getChildren(element?: TxtJetWorkspaceTreeNode): TxtJetWorkspaceTreeNode[] {
+    if (!this.model) {
+      return [];
+    }
+    if (!element) {
+      return [
+        { kind: "group", id: "templates", label: `Templates (${this.model.templates.length})` },
+        { kind: "group", id: "includes", label: `Includes (${this.model.includes.length})` },
+        { kind: "group", id: "skeletons", label: `Skeletons (${this.model.skeletons.length})` },
+        { kind: "group", id: "unresolved", label: `Unresolved References (${this.model.unresolvedReferences.length})` },
+        { kind: "group", id: "generated", label: `Generated Output Targets (${this.model.templates.length})` }
+      ];
+    }
+    if (element.kind !== "group") {
+      return [];
+    }
+    switch (element.id) {
+      case "templates":
+        return this.model.templates.map((entry) => ({ kind: "entry", entry }));
+      case "includes":
+        return this.model.includes.map((entry) => ({ kind: "entry", entry }));
+      case "skeletons":
+        return this.model.skeletons.map((entry) => ({ kind: "entry", entry }));
+      case "unresolved":
+        return this.model.unresolvedReferences.map((reference) => ({ kind: "reference", reference }));
+      case "generated":
+        return this.model.templates.map((entry) => ({ kind: "generated", entry }));
+      default:
+        return [];
+    }
+  }
+}
+
+function groupIcon(id: TxtJetWorkspaceGroupId): vscode.ThemeIcon {
+  switch (id) {
+    case "templates":
+      return new vscode.ThemeIcon("files");
+    case "includes":
+      return new vscode.ThemeIcon("references");
+    case "skeletons":
+      return new vscode.ThemeIcon("symbol-class");
+    case "unresolved":
+      return new vscode.ThemeIcon("warning");
+    case "generated":
+    default:
+      return new vscode.ThemeIcon("output");
+  }
+}
+
+function entryIcon(kind: TxtJetWorkspaceEntry["kind"]): vscode.ThemeIcon {
+  switch (kind) {
+    case "include":
+      return new vscode.ThemeIcon("file-submodule");
+    case "skeleton":
+      return new vscode.ThemeIcon("symbol-class");
+    case "template":
+    default:
+      return new vscode.ThemeIcon("file-code");
   }
 }
 
@@ -711,13 +907,126 @@ function javaPreviewOptions(document: vscode.TextDocument) {
 }
 
 function configuredReferencePaths(document: vscode.TextDocument, setting: string): string[] {
-  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  return configuredReferencePathsForFileName(document.fileName, document.uri, setting);
+}
+
+function configuredReferencePathsForFileName(fileName: string, uri: vscode.Uri, setting: string): string[] {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, uri);
   const paths = config.get<string[]>(setting, []);
-  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
   return paths
     .filter((entry) => entry.trim().length > 0)
-    .map((entry) => entry.replace("${workspaceFolder}", workspaceFolder?.uri.fsPath ?? dirname(document.fileName)))
-    .map((entry) => isAbsolutePath(entry) ? entry : join(workspaceFolder?.uri.fsPath ?? dirname(document.fileName), entry));
+    .map((entry) => entry.replace("${workspaceFolder}", workspaceFolder?.uri.fsPath ?? dirname(fileName)))
+    .map((entry) => isAbsolutePath(entry) ? entry : join(workspaceFolder?.uri.fsPath ?? dirname(fileName), entry));
+}
+
+async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
+  const files = new Map<string, { fileName: string; text?: string }>();
+  const uris = await vscode.workspace.findFiles(TXTJET_WORKSPACE_GLOB, TXTJET_WORKSPACE_EXCLUDE_GLOB);
+  for (const uri of uris) {
+    try {
+      files.set(uri.fsPath, { fileName: uri.fsPath, text: readFileSync(uri.fsPath, "utf8") });
+    } catch {
+      files.set(uri.fsPath, { fileName: uri.fsPath });
+    }
+  }
+  for (const document of vscode.workspace.textDocuments) {
+    if (workspaceEntryKind(document.fileName)) {
+      files.set(document.fileName, { fileName: document.fileName, text: document.getText() });
+    }
+  }
+  return createTxtJetWorkspaceModel(Array.from(files.values()), {
+    includePathsForFile(fileName) {
+      return configuredReferencePathsForFileName(fileName, vscode.Uri.file(fileName), "resolution.includePaths");
+    },
+    skeletonPathsForFile(fileName) {
+      return configuredReferencePathsForFileName(fileName, vscode.Uri.file(fileName), "resolution.skeletonPaths");
+    }
+  });
+}
+
+async function openIncludingTemplate(item?: TxtJetWorkspaceTreeNode): Promise<void> {
+  const fileName = workspaceFileNameFromNode(item) ?? vscode.window.activeTextEditor?.document.fileName;
+  if (!fileName || !activeWorkspaceModel) {
+    return;
+  }
+
+  const includingTemplates = activeWorkspaceModel.includingTemplates(fileName);
+  if (includingTemplates.length === 0) {
+    vscode.window.showInformationMessage("TxtJet found no including template for this workspace file.");
+    return;
+  }
+
+  const selected = includingTemplates.length === 1
+    ? includingTemplates[0]
+    : await pickWorkspaceEntry(includingTemplates, "Open including TxtJet template");
+  if (!selected) {
+    return;
+  }
+  await vscode.window.showTextDocument(vscode.Uri.file(selected.fileName), { preview: false });
+}
+
+async function openGeneratedJavaForTemplate(item?: TxtJetWorkspaceTreeNode): Promise<void> {
+  const fileName = workspaceFileNameFromNode(item) ?? vscode.window.activeTextEditor?.document.fileName;
+  if (!fileName) {
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(fileName));
+  if (!isTxtJetFile(document)) {
+    return;
+  }
+  const editor = await vscode.window.showTextDocument(document, { preview: false });
+  await openMappedPreview(editor, "java", { start: 0, end: 0 }, true);
+}
+
+async function validateWorkspaceTemplates(
+  collection: vscode.DiagnosticCollection,
+  compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>
+): Promise<void> {
+  if (!activeWorkspaceModel) {
+    activeWorkspaceModel = await buildTxtJetWorkspaceModel();
+  }
+  const templates = activeWorkspaceModel.templates;
+  if (templates.length === 0) {
+    vscode.window.showInformationMessage("TxtJet found no workspace templates to validate.");
+    return;
+  }
+
+  for (const template of templates) {
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(template.fileName));
+    await validateTemplateWithCompiler(document, collection, compilerDiagnosticsBySource, false);
+  }
+  vscode.window.showInformationMessage(`TxtJet validated ${templates.length} workspace template${templates.length === 1 ? "" : "s"}.`);
+}
+
+function workspaceFileNameFromNode(item?: TxtJetWorkspaceTreeNode): string | undefined {
+  if (!item) {
+    return undefined;
+  }
+  if (item.kind === "entry" || item.kind === "generated") {
+    return item.entry.fileName;
+  }
+  if (item.kind === "reference") {
+    return item.reference.sourceFileName;
+  }
+  return undefined;
+}
+
+async function pickWorkspaceEntry(entries: TxtJetWorkspaceEntry[], title: string): Promise<TxtJetWorkspaceEntry | undefined> {
+  const picked = await vscode.window.showQuickPick(
+    entries.map((entry) => ({
+      label: basename(entry.fileName),
+      description: workspaceRelativeLabel(entry.fileName),
+      entry
+    })),
+    { title }
+  );
+  return picked?.entry;
+}
+
+function workspaceRelativeLabel(fileName: string): string {
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(fileName));
+  return workspaceFolder ? relative(workspaceFolder.uri.fsPath, fileName) : fileName;
 }
 
 function selectionToRange(document: vscode.TextDocument, selection: vscode.Selection): TxtJetRange {
@@ -901,11 +1210,17 @@ async function validateTemplateWithCompiler(
   const matcher = config.get<string>("diagnostics.compiler.problemMatcher", "");
   const problems = parseCompilerProblems([result.stdout, result.stderr].filter(Boolean).join("\n"), matcher);
   const preview = buildGeneratedJavaPreview(document.getText(), document.fileName, javaPreviewOptions(document));
+  const outputPreview = buildGeneratedOutputPreview(
+    document.getText(),
+    selectedTargetLanguage(document),
+    outputPreviewOptions(document)
+  );
   const mappedProblems = mapCompilerProblemsToSource(
     problems,
     document.fileName,
     document.getText(),
     preview,
+    outputPreview,
     outputPath,
     workspaceFolder
   );
@@ -1201,8 +1516,8 @@ function updateDiagnostics(
   const diagnostics = [
     ...scanTxtJetIssues(text),
     ...scanTxtJetDirectiveIssues(text, {
-      includeExists: (includeFile) => fileReferenceExists(document, includeFile, "resolution.includePaths"),
-      skeletonExists: (skeletonFile) => fileReferenceExists(document, skeletonFile, "resolution.skeletonPaths")
+      includeExists: (includeFile) => workspaceReferenceExists(document, includeFile, "include"),
+      skeletonExists: (skeletonFile) => workspaceReferenceExists(document, skeletonFile, "skeleton")
     })
   ].map((issue) => issueToDiagnostic(document, issue, severity));
   const compilerDiagnostics = config.get<boolean>("diagnostics.compiler.enabled", true)
@@ -1677,14 +1992,34 @@ function referenceDirectiveAtOffset(
   return undefined;
 }
 
-function fileReferenceExists(document: vscode.TextDocument, referenceFile: string, setting: string): boolean {
+function workspaceReferenceExists(
+  document: vscode.TextDocument,
+  referenceFile: string,
+  kind: "include" | "skeleton"
+): boolean {
+  const setting = kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths";
+  if (activeWorkspaceModel?.referenceExists(document.fileName, referenceFile, kind)) {
+    return true;
+  }
   return Boolean(resolveExistingReferencePath(document, referenceFile, setting));
 }
 
 function resolveExistingReferencePath(document: vscode.TextDocument, referenceFile: string, setting: string): string | undefined {
+  const workspaceReference = resolveWorkspaceReferencePath(document, referenceFile, setting);
+  if (workspaceReference) {
+    return workspaceReference;
+  }
   return resolveReferenceCandidates(document.fileName, referenceFile, {
     searchPaths: configuredReferencePaths(document, setting)
   }).find((candidate) => existsSync(candidate));
+}
+
+function resolveWorkspaceReferencePath(document: vscode.TextDocument, referenceFile: string, setting: string): string | undefined {
+  const kind = setting === "resolution.skeletonPaths" ? "skeleton" : "include";
+  return activeWorkspaceModel
+    ?.referencesFrom(document.fileName, kind)
+    .find((reference) => reference.referenceFile === referenceFile)
+    ?.resolvedFileName;
 }
 
 function registerCompletionProvider(): vscode.Disposable {

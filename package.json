@@ -51,7 +51,8 @@
           ".htmljet",
           ".xmljet",
           ".cjet",
-          ".pythonjet"
+          ".pythonjet",
+          ".jetinc"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -286,8 +287,37 @@
         "command": "txtjet.validateWithCompiler",
         "title": "TxtJet: Validate Template With External Compiler",
         "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.refreshWorkspaceModel",
+        "title": "TxtJet: Refresh Workspace Model",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.openIncludingTemplate",
+        "title": "TxtJet: Open Including Template",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.openGeneratedJavaForTemplate",
+        "title": "TxtJet: Open Generated Java For Template",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.validateWorkspaceTemplates",
+        "title": "TxtJet: Validate Workspace Templates",
+        "category": "TxtJet"
       }
     ],
+    "views": {
+      "explorer": [
+        {
+          "id": "txtjetWorkspace",
+          "name": "TxtJet Workspace",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
     "configuration": {
       "title": "TxtJet",
       "properties": {
@@ -518,6 +548,20 @@
         {
           "command": "txtjet.validateWithCompiler",
           "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.refreshWorkspaceModel"
+        },
+        {
+          "command": "txtjet.openIncludingTemplate",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.openGeneratedJavaForTemplate",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.validateWorkspaceTemplates"
         }
       ],
       "editor/context": [
@@ -535,6 +579,40 @@
           "command": "txtjet.validateWithCompiler",
           "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@31"
+        },
+        {
+          "command": "txtjet.openIncludingTemplate",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@32"
+        },
+        {
+          "command": "txtjet.openGeneratedJavaForTemplate",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@33"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "txtjet.refreshWorkspaceModel",
+          "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
+          "command": "txtjet.validateWorkspaceTemplates",
+          "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "txtjet.openIncludingTemplate",
+          "when": "view == txtjetWorkspace && viewItem =~ /txtjetWorkspace\\.(include|template)/",
+          "group": "inline"
+        },
+        {
+          "command": "txtjet.openGeneratedJavaForTemplate",
+          "when": "view == txtjetWorkspace && viewItem =~ /txtjetWorkspace\\.(template|generated)/",
+          "group": "inline"
         }
       ]
     }
@@ -561,11 +639,16 @@
     "onCommand:txtjet.generateOutput",
     "onCommand:txtjet.diffLastGeneratedOutput",
     "onCommand:txtjet.compileTemplate",
-    "onCommand:txtjet.validateWithCompiler"
+    "onCommand:txtjet.validateWithCompiler",
+    "onCommand:txtjet.refreshWorkspaceModel",
+    "onCommand:txtjet.openIncludingTemplate",
+    "onCommand:txtjet.openGeneratedJavaForTemplate",
+    "onCommand:txtjet.validateWorkspaceTemplates",
+    "onView:txtjetWorkspace"
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/compilerDiagnostics.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/compilerDiagnostics.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
     "vscode:prepublish": "npm run compile",
