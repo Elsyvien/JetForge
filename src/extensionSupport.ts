@@ -22,7 +22,8 @@ const TXTJET_PATH_SUFFIXES = [
   ".htmljet",
   ".xmljet",
   ".cjet",
-  ".pythonjet"
+  ".pythonjet",
+  ".jetinc"
 ];
 
 const TXTJET_LANGUAGE_IDS = new Set<TxtJetTargetLanguage>([

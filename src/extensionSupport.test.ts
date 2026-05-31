@@ -25,6 +25,7 @@ assert.equal(isTxtJetPath("/workspace/example.htmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.xmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.cjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.pythonjet"), true);
+assert.equal(isTxtJetPath("/workspace/example.jetinc"), true);
 assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
 assert.equal(isTxtJetPath("/workspace/example.txt"), false);
 assert.equal(isTxtJetPath("vscode-remote://ssh-remote+host/workspace/example.txtjet"), true);

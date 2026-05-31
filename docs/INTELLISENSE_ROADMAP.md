@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, compiler-backed diagnostics through a configured external compiler, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, and local generated-output fallback suggestions for Java, Python, and C/C++. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
+TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, compiler-backed diagnostics through a configured external compiler, Quick Fixes, completions for TxtJet constructs, generated-output language modes, read-only generated previews, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, local generated-output fallback suggestions for Java, Python, and C/C++, and workspace-wide TxtJet indexing for templates, includes, skeletons, unresolved references, and generated targets. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -43,6 +43,7 @@ VSCode language servers generally operate on one coherent language document. A `
   - Parser-backed region classification distinguishes generated output, TxtJet markers, directives, and embedded template Java for editor decorations and fallback hover text.
 
 - Workspace resolution, formatting, and generation helpers
+  - The `TxtJet Workspace` Explorer view indexes root templates, `.jetinc` include fragments, `.skeleton` files, unresolved references, generated target entries, and include backlinks.
   - Include and skeleton references can resolve through configured workspace search paths and extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidates.
   - Document formatting and format selection normalize directive attributes, expressions, and template Java block indentation.
   - On-demand generation writes the generated-output approximation to disk and can diff the current output against the last generation snapshot.
@@ -60,6 +61,10 @@ VSCode language servers generally operate on one coherent language document. A `
 2. Compiler-backed diagnostics
    - Continue expanding real-world matcher examples for Eclipse JET, `javac`, and team-specific compiler wrappers as new compiler output formats appear.
    - Keep diagnostics conservative: if a compiler problem cannot be mapped deterministically, leave it in the output channel instead of attaching it to the wrong template range.
+
+3. Workspace Intelligence
+   - Use the workspace model as the shared source of truth for include/skeleton backlinks, unresolved-reference diagnostics, project validation, and future LSP migration work.
+   - Keep the model deterministic and file-based; do not infer hidden build-system state without explicit settings.
 
 ## Additional Eclipse-Inspired Feature Ideas
 

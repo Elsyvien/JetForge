@@ -19,6 +19,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - On-demand generated-output writing and previous-generation diffing.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
+- Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `TxtJet Workspace` Explorer view.
 - Find All References, Rename Symbol, and Signature Help for local template Java helper methods declared in `<%! ... %>` blocks.
 - Auto Detect support that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
@@ -83,6 +84,19 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 TxtJet files also show a clickable status bar item for selecting the target language.
 
 Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Detect checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
+
+## TxtJet Workspace Intelligence
+
+The `TxtJet Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, and generated output targets. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.jetinc`, and `.skeleton` files.
+
+Use these commands for project-level workflows:
+
+- `TxtJet: Refresh Workspace Model`
+- `TxtJet: Open Including Template`
+- `TxtJet: Open Generated Java For Template`
+- `TxtJet: Validate Workspace Templates`
+
+Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
 
 You can rerun detection manually with the command:
 

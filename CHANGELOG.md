@@ -3,6 +3,7 @@
 ## 0.0.14
 
 - Added `TxtJet: Toggle Region Background Coloring` so users can quickly turn parser-backed region background decorations on or off without opening settings.
+- Added TxtJet Workspace Intelligence with a `TxtJet Workspace` Explorer view, workspace-wide template/include/skeleton indexing, include backlinks, unresolved-reference grouping, generated target entries, and workspace validation commands.
 
 ## 0.0.13
 
