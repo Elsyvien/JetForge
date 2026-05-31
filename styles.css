@@ -248,7 +248,7 @@ main {
 }
 
 section {
-  scroll-margin-top: 92px;
+  scroll-margin-top: 104px;
 }
 
 .hero {
@@ -273,7 +273,7 @@ section {
   font-size: clamp(13rem, 27vw, 29rem);
   font-weight: 820;
   line-height: 0.75;
-  letter-spacing: -0.08em;
+  letter-spacing: 0;
   transform: rotate(-6deg) skewX(-3deg);
   pointer-events: none;
 }
@@ -332,7 +332,7 @@ h1 {
   font-size: clamp(3.45rem, 5.35vw, 7.2rem);
   line-height: 0.89;
   font-weight: 820;
-  letter-spacing: -0.04em;
+  letter-spacing: 0;
   text-shadow: 0 14px 36px rgba(212, 122, 82, 0.1);
 }
 
@@ -341,7 +341,7 @@ h2 {
   font-size: clamp(2.55rem, 4.7vw, 5rem);
   line-height: 0.93;
   font-weight: 780;
-  letter-spacing: -0.028em;
+  letter-spacing: 0;
 }
 
 h3 {
@@ -1293,11 +1293,20 @@ code {
   .topbar {
     position: absolute;
     grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "brand actions"
+      "links links";
+    row-gap: 6px;
     border-radius: var(--radius-panel);
     width: min(calc(100% - 24px), 1160px);
   }
 
+  .brand-mark {
+    grid-area: brand;
+  }
+
   .nav-actions {
+    grid-area: actions;
     gap: 6px;
   }
 
@@ -1307,12 +1316,13 @@ code {
   }
 
   .nav-links {
+    grid-area: links;
     grid-column: 1 / -1;
     justify-content: flex-start;
     gap: 16px;
     width: 100%;
     overflow-x: auto;
-    padding-top: 4px;
+    padding-top: 0;
     scrollbar-width: none;
   }
 
@@ -1326,15 +1336,15 @@ code {
 
   .hero {
     min-height: auto;
-    padding-top: 154px;
+    padding-top: 128px;
     padding-bottom: 52px;
     gap: 28px;
   }
 
   h1 {
-    max-width: 13ch;
+    max-width: 12.4ch;
     font-size: clamp(2.45rem, 9.8vw, 3.7rem);
-    line-height: 0.97;
+    line-height: 0.95;
   }
 
   h2 {
@@ -1454,12 +1464,12 @@ code {
   }
 
   .nav-links {
-    gap: 12px;
+    gap: 10px;
     font-size: 0.82rem;
   }
 
   .nav-action {
-    padding-inline: 9px;
+    padding-inline: 8px;
     font-size: 0.78rem;
   }
 
