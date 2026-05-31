@@ -124,6 +124,18 @@ const modeConsole = document.querySelector(".mode-console");
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let flowCycle = null;
 
+function replayClass(targets, className) {
+  if (reduceMotion) {
+    return;
+  }
+
+  targets.forEach(target => {
+    target?.classList.remove(className);
+    void target?.offsetWidth;
+    target?.classList.add(className);
+  });
+}
+
 function renderLines(target, lines) {
   if (!target) {
     return;
@@ -177,11 +189,7 @@ function animateModeSwap() {
     return;
   }
 
-  [sourceCode?.closest(".code-pane"), outputCode?.closest(".code-pane")].forEach(pane => {
-    pane?.classList.remove("is-swapping");
-    void pane?.offsetWidth;
-    pane?.classList.add("is-swapping");
-  });
+  replayClass([sourceCode?.closest(".code-pane"), outputCode?.closest(".code-pane")], "is-swapping");
 
   modeConsole?.classList.remove("is-changing");
   void modeConsole?.offsetWidth;
@@ -207,6 +215,8 @@ function highlightLine() {
   const outputHot = outputLines[activeLine % outputLines.length];
   sourceHot?.classList.add("is-hot");
   outputHot?.classList.add("is-hot");
+  replayClass([sourceCode?.closest(".code-pane"), outputCode?.closest(".code-pane")], "is-tracing");
+  replayClass([workbench], "is-mapping");
 
   const mode = modeOrder[activeIndex];
   const labels = [
