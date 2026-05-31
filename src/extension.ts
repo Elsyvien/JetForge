@@ -932,7 +932,6 @@ async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
     } catch {
       files.set(uri.fsPath, { fileName: uri.fsPath });
     }
-    }
   }
   for (const document of vscode.workspace.textDocuments) {
     if (workspaceEntryKind(document.fileName)) {

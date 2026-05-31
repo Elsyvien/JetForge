@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",

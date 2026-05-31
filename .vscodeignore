@@ -3,6 +3,7 @@
 .gitignore
 GOAL.md
 .playwright-cli/**
+.antigravitycli/**
 index.html
 styles.css
 script.js
