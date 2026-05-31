@@ -107,7 +107,7 @@ const samples = {
 const modeOrder = ["java", "html", "xml", "c", "python"];
 let activeIndex = 0;
 let activeLine = 0;
-let autoCycle = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : window.setInterval(nextMode, 4600);
+let autoCycle = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : window.setInterval(nextMode, 5800);
 
 const sourceCode = document.querySelector("#source-code");
 const outputCode = document.querySelector("#output-code");
@@ -180,7 +180,7 @@ function setMode(mode, manual = false) {
 
   if (manual && autoCycle) {
     window.clearInterval(autoCycle);
-    autoCycle = window.setInterval(nextMode, 7000);
+    autoCycle = window.setInterval(nextMode, 8200);
   }
 }
 
@@ -255,7 +255,7 @@ tabs.forEach(tab => {
 setMode("java");
 
 if (!reduceMotion) {
-  window.setInterval(highlightLine, 1200);
+  window.setInterval(highlightLine, 1700);
 }
 
 const flowObserver = new IntersectionObserver(
@@ -311,7 +311,7 @@ function startFlowCycle() {
     const current = [...flowCards].findIndex(card => card.classList.contains("is-active"));
     const next = (current + 1 + flowCards.length) % flowCards.length;
     flowCards.forEach((card, index) => card.classList.toggle("is-active", index === next));
-  }, 2600);
+  }, 3400);
 }
 
 function stopFlowCycle() {
@@ -379,8 +379,8 @@ function resizeCanvas() {
     nodes.push({
       x: Math.random() * width,
       y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.45,
-      vy: (Math.random() - 0.5) * 0.45,
+      vx: (Math.random() - 0.5) * 0.28,
+      vy: (Math.random() - 0.5) * 0.28,
       r: 1.2 + Math.random() * 2.4
     });
   }
@@ -409,7 +409,7 @@ function drawField() {
       const dy = first.y - second.y;
       const distance = Math.hypot(dx, dy);
       if (distance < 150) {
-        ctx.strokeStyle = `rgba(85, 230, 165, ${0.13 * (1 - distance / 150)})`;
+        ctx.strokeStyle = `rgba(128, 196, 166, ${0.08 * (1 - distance / 150)})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(first.x, first.y);
@@ -420,7 +420,7 @@ function drawField() {
   }
 
   nodes.forEach((node, index) => {
-    ctx.fillStyle = index % 5 === 0 ? "rgba(255, 122, 47, 0.8)" : "rgba(104, 167, 255, 0.62)";
+    ctx.fillStyle = index % 5 === 0 ? "rgba(212, 122, 82, 0.52)" : "rgba(122, 152, 204, 0.42)";
     ctx.beginPath();
     ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
     ctx.fill();
