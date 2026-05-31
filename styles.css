@@ -470,13 +470,13 @@ p {
   box-shadow: 0 34px 108px rgba(0, 0, 0, 0.5), 0 0 0 7px rgba(212, 122, 82, 0.025);
   overflow: hidden;
   animation: workbench-enter 900ms var(--ease) 180ms both;
-  will-change: transform;
   transform: rotate(-1.15deg);
   contain: paint;
 }
 
 .workbench.is-reacting {
   animation: workbench-nudge 420ms var(--ease-fast);
+  will-change: transform;
 }
 
 .workbench::before {
@@ -840,6 +840,8 @@ code {
 .modes,
 .install {
   padding: var(--space-section) 0;
+  content-visibility: auto;
+  contain-intrinsic-size: 720px;
 }
 
 .section-kicker {

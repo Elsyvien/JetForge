@@ -107,7 +107,10 @@ const samples = {
 const modeOrder = ["java", "html", "xml", "c", "python"];
 let activeIndex = 0;
 let activeLine = 0;
-let autoCycle = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : window.setInterval(nextMode, 5800);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let autoCycle = reduceMotion ? null : window.setInterval(nextMode, 5800);
+let highlightCycle = null;
+const replayFrames = new WeakMap();
 
 const sourceCode = document.querySelector("#source-code");
 const outputCode = document.querySelector("#output-code");
@@ -121,8 +124,8 @@ const flowSection = document.querySelector(".flow");
 const progressBar = document.querySelector("#scroll-progress");
 const workbench = document.querySelector(".workbench");
 const modeConsole = document.querySelector(".mode-console");
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 let flowCycle = null;
+let scrollProgressFrame = null;
 
 function replayClass(targets, className) {
   if (reduceMotion) {
@@ -130,9 +133,23 @@ function replayClass(targets, className) {
   }
 
   targets.forEach(target => {
-    target?.classList.remove(className);
-    void target?.offsetWidth;
-    target?.classList.add(className);
+    if (!target) {
+      return;
+    }
+
+    const pendingFrame = replayFrames.get(target);
+    if (pendingFrame) {
+      window.cancelAnimationFrame(pendingFrame);
+    }
+
+    target.classList.remove(className);
+    replayFrames.set(
+      target,
+      window.requestAnimationFrame(() => {
+        target.classList.add(className);
+        replayFrames.delete(target);
+      })
+    );
   });
 }
 
@@ -255,7 +272,7 @@ tabs.forEach(tab => {
 setMode("java");
 
 if (!reduceMotion) {
-  window.setInterval(highlightLine, 1700);
+  highlightCycle = window.setInterval(highlightLine, 1700);
 }
 
 const flowObserver = new IntersectionObserver(
@@ -325,12 +342,22 @@ function stopFlowCycle() {
 
 function updateScrollProgress() {
   if (!progressBar) {
+    scrollProgressFrame = null;
     return;
   }
 
   const scrollable = document.documentElement.scrollHeight - window.innerHeight;
   const progress = scrollable > 0 ? window.scrollY / scrollable : 0;
   progressBar.style.transform = `scaleX(${Math.min(1, Math.max(0, progress))})`;
+  scrollProgressFrame = null;
+}
+
+function requestScrollProgress() {
+  if (scrollProgressFrame) {
+    return;
+  }
+
+  scrollProgressFrame = window.requestAnimationFrame(updateScrollProgress);
 }
 
 function addRipple(event) {
@@ -352,19 +379,29 @@ document.querySelectorAll(".button, .mode-tab, .nav-action").forEach(control => 
   control.addEventListener("pointerdown", addRipple);
 });
 
-window.addEventListener("scroll", updateScrollProgress, { passive: true });
+window.addEventListener("scroll", requestScrollProgress, { passive: true });
 updateScrollProgress();
 
 const canvas = document.querySelector("#forge-field");
-const ctx = canvas.getContext("2d");
+const ctx = canvas?.getContext("2d");
 const nodes = [];
 let width = 0;
 let height = 0;
 let pointerX = 0.5;
 let pointerY = 0.5;
+let fieldFrame = null;
+let lastFieldDraw = 0;
+
+function pixelRatio() {
+  return Math.min(window.devicePixelRatio || 1, 1.5);
+}
 
 function resizeCanvas() {
-  const ratio = window.devicePixelRatio || 1;
+  if (!canvas || !ctx) {
+    return;
+  }
+
+  const ratio = pixelRatio();
   width = window.innerWidth;
   height = window.innerHeight;
   canvas.width = Math.floor(width * ratio);
@@ -374,7 +411,7 @@ function resizeCanvas() {
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
 
   nodes.length = 0;
-  const count = Math.min(72, Math.max(34, Math.floor(width / 22)));
+  const count = Math.min(48, Math.max(24, Math.floor(width / 32)));
   for (let index = 0; index < count; index += 1) {
     nodes.push({
       x: Math.random() * width,
@@ -386,7 +423,17 @@ function resizeCanvas() {
   }
 }
 
-function drawField() {
+function drawField(timestamp = 0) {
+  if (!ctx) {
+    return;
+  }
+
+  if (timestamp - lastFieldDraw < 33) {
+    fieldFrame = window.requestAnimationFrame(drawField);
+    return;
+  }
+
+  lastFieldDraw = timestamp;
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = "rgba(5, 7, 11, 0.18)";
   ctx.fillRect(0, 0, width, height);
@@ -401,15 +448,17 @@ function drawField() {
     if (node.y > height + 20) node.y = -20;
   });
 
+  const maxDistance = 140;
+  const maxDistanceSquared = maxDistance * maxDistance;
   for (let a = 0; a < nodes.length; a += 1) {
     for (let b = a + 1; b < nodes.length; b += 1) {
       const first = nodes[a];
       const second = nodes[b];
       const dx = first.x - second.x;
       const dy = first.y - second.y;
-      const distance = Math.hypot(dx, dy);
-      if (distance < 150) {
-        ctx.strokeStyle = `rgba(128, 196, 166, ${0.08 * (1 - distance / 150)})`;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < maxDistanceSquared) {
+        ctx.strokeStyle = `rgba(128, 196, 166, ${0.08 * (1 - distanceSquared / maxDistanceSquared)})`;
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(first.x, first.y);
@@ -426,7 +475,49 @@ function drawField() {
     ctx.fill();
   });
 
-  requestAnimationFrame(drawField);
+  fieldFrame = window.requestAnimationFrame(drawField);
+}
+
+function startField() {
+  if (reduceMotion || fieldFrame || !ctx || document.visibilityState === "hidden") {
+    return;
+  }
+
+  lastFieldDraw = 0;
+  fieldFrame = window.requestAnimationFrame(drawField);
+}
+
+function stopField() {
+  if (!fieldFrame) {
+    return;
+  }
+
+  window.cancelAnimationFrame(fieldFrame);
+  fieldFrame = null;
+}
+
+function syncRuntimeWork() {
+  if (document.visibilityState === "hidden") {
+    stopField();
+    stopFlowCycle();
+    if (autoCycle) {
+      window.clearInterval(autoCycle);
+      autoCycle = null;
+    }
+    if (highlightCycle) {
+      window.clearInterval(highlightCycle);
+      highlightCycle = null;
+    }
+    return;
+  }
+
+  startField();
+  if (!reduceMotion && !autoCycle) {
+    autoCycle = window.setInterval(nextMode, 5800);
+  }
+  if (!reduceMotion && !highlightCycle) {
+    highlightCycle = window.setInterval(highlightLine, 1700);
+  }
 }
 
 window.addEventListener("resize", resizeCanvas);
@@ -436,7 +527,5 @@ window.addEventListener("pointermove", event => {
 });
 
 resizeCanvas();
-
-if (!reduceMotion) {
-  drawField();
-}
+startField();
+document.addEventListener("visibilitychange", syncRuntimeWork);
