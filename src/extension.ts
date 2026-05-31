@@ -927,9 +927,11 @@ async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
   const uris = await vscode.workspace.findFiles(TXTJET_WORKSPACE_GLOB, TXTJET_WORKSPACE_EXCLUDE_GLOB);
   for (const uri of uris) {
     try {
-      files.set(uri.fsPath, { fileName: uri.fsPath, text: readFileSync(uri.fsPath, "utf8") });
+      const text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+      files.set(uri.fsPath, { fileName: uri.fsPath, text });
     } catch {
       files.set(uri.fsPath, { fileName: uri.fsPath });
+    }
     }
   }
   for (const document of vscode.workspace.textDocuments) {
