@@ -153,6 +153,8 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: 44px;
+  min-height: 44px;
   width: max-content;
   text-decoration: none;
   font-weight: 900;
@@ -174,8 +176,8 @@ a {
 .nav-links a {
   display: inline-flex;
   align-items: center;
-  min-height: 38px;
-  padding: 0 2px;
+  min-height: 44px;
+  padding: 0 8px;
 }
 
 .nav-links a,
@@ -221,7 +223,7 @@ a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 10px 15px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-panel);
@@ -1298,7 +1300,7 @@ code {
   }
 
   .nav-action {
-    min-height: 38px;
+    min-height: 44px;
     padding-inline: 11px;
   }
 
@@ -1322,7 +1324,7 @@ code {
 
   .hero {
     min-height: auto;
-    padding-top: 138px;
+    padding-top: 154px;
     padding-bottom: 52px;
     gap: 28px;
   }
@@ -1339,7 +1341,8 @@ code {
   }
 
   .hero-lede,
-  .modes-copy p:not(.eyebrow) {
+  .modes-copy p:not(.eyebrow),
+  .install-copy p:not(.eyebrow) {
     font-size: 1rem;
   }
 
