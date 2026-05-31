@@ -26,7 +26,10 @@
         <a href="#modes">Modes</a>
         <a href="#install">Install</a>
       </nav>
-      <a class="nav-action" href="https://github.com/Elsyvien/JetForge">GitHub</a>
+      <nav class="nav-actions" aria-label="Project links">
+        <a class="nav-action nav-action-primary" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Marketplace</a>
+        <a class="nav-action" href="https://github.com/Elsyvien/JetForge">GitHub</a>
+      </nav>
     </header>
 
     <main id="top">
@@ -39,8 +42,8 @@
             TxtJet and JET files without sending template code anywhere.
           </p>
           <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="#install">Install the VSIX</a>
-            <a class="button secondary" href="#flow">See how it maps</a>
+            <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install from Marketplace</a>
+            <a class="button secondary" href="#install">Build locally</a>
           </div>
           <div class="hero-proof" aria-label="JetForge capabilities">
             <span>Preview mapping</span>
@@ -182,9 +185,13 @@
       </section>
 
       <section class="install" id="install" aria-labelledby="install-title">
-        <div>
+        <div class="install-copy">
           <p class="eyebrow">Local install</p>
-          <h2 id="install-title">Build and install the extension locally.</h2>
+          <h2 id="install-title">Install from Marketplace or build locally.</h2>
+          <p>
+            Prefer the published extension for regular use. Keep the local VSIX flow for testing changes from this repo.
+          </p>
+          <a class="button secondary install-link" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Open Marketplace listing</a>
         </div>
         <div class="terminal">
           <p><span>$</span> npm run package</p>

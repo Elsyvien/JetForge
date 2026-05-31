@@ -142,7 +142,7 @@ a {
 
 .brand-mark,
 .nav-links,
-.nav-action,
+.nav-actions,
 .button,
 .mode-tab {
   font-family: var(--display);
@@ -187,15 +187,29 @@ a {
   color: var(--ink);
 }
 
+.nav-actions {
+  display: flex;
+  justify-self: end;
+  gap: 8px;
+}
+
 .nav-action {
   position: relative;
-  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
   padding: 10px 15px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-panel);
-  background: rgba(245, 234, 220, 0.04);
+  background: rgba(255, 241, 227, 0.045);
   font-size: 0.88rem;
   overflow: hidden;
+}
+
+.nav-action-primary {
+  border-color: rgba(239, 106, 50, 0.44);
+  background: rgba(239, 106, 50, 0.12);
 }
 
 main {
@@ -379,7 +393,7 @@ p {
 .button.secondary {
   border: 1px solid var(--line-strong);
   color: var(--ink);
-  background: rgba(245, 234, 220, 0.04);
+  background: rgba(255, 241, 227, 0.045);
 }
 
 .interaction-ripple {
@@ -387,7 +401,7 @@ p {
   width: 10px;
   height: 10px;
   border-radius: var(--radius-pill);
-  background: rgba(245, 234, 220, 0.22);
+  background: rgba(255, 241, 227, 0.22);
   pointer-events: none;
   transform: translate(-50%, -50%) scale(1);
   animation: ripple-out 480ms var(--ease) forwards;
@@ -806,9 +820,20 @@ code {
   align-items: center;
 }
 
-.modes-copy p:not(.eyebrow) {
+.modes-copy p:not(.eyebrow),
+.install-copy p:not(.eyebrow) {
   max-width: 58ch;
   font-size: 1.08rem;
+}
+
+.install-copy p:not(.eyebrow) {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.install-link {
+  margin-top: 22px;
 }
 
 .mode-console {
@@ -853,7 +878,7 @@ code {
 }
 
 .mode-tab[aria-selected="false"]:hover {
-  background: rgba(245, 234, 220, 0.055);
+  background: rgba(255, 241, 227, 0.055);
   color: var(--ink);
 }
 
@@ -1031,6 +1056,15 @@ code {
     width: min(calc(100% - 24px), 1160px);
   }
 
+  .nav-actions {
+    gap: 6px;
+  }
+
+  .nav-action {
+    min-height: 38px;
+    padding-inline: 11px;
+  }
+
   .nav-links {
     grid-column: 1 / -1;
     justify-content: flex-start;
@@ -1180,6 +1214,11 @@ code {
   .nav-links {
     gap: 12px;
     font-size: 0.82rem;
+  }
+
+  .nav-action {
+    padding-inline: 9px;
+    font-size: 0.78rem;
   }
 
   .hero-proof {
