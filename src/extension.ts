@@ -290,7 +290,9 @@ export function activate(context: vscode.ExtensionContext): void {
       void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
       updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       visualDifferentiator.refreshDocument(document);
-      void refreshWorkspaceModel(false);
+      if (workspaceEntryKind(document.fileName) && !activeWorkspaceModel?.entry(document.fileName)) {
+        void refreshWorkspaceModel(false);
+      }
     })
   );
   context.subscriptions.push(
