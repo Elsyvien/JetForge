@@ -227,14 +227,10 @@ Settings:
 - `txtjet.generation.outputDirectory`
 - `txtjet.compiler.command`
 
-Privacy and workplace use:
+Privacy:
 
 - The extension runs locally inside VSCode.
 - It does not send source files, template content, diagnostics, or usage data anywhere.
-- It does not connect to internal company systems.
-- Example files are artificial and sanitized; local/private examples are excluded from the package.
-
-Local-only development examples should stay untracked and out of the package.
 
 ## Example Files
 
