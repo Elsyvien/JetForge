@@ -42,7 +42,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.14.vsix
+code --install-extension txtjet-syntax-0.0.15.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -134,7 +134,7 @@ Additional directive diagnostics report duplicate `@jet` directives, missing or 
 
 Diagnostics, Quick Fixes, completions, Java IntelliSense forwarding, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
 
-Compiler-backed diagnostics are available through `TxtJet: Validate Template With External Compiler`. The command reuses `txtjet.compiler.command`, parses stdout/stderr with `txtjet.diagnostics.compiler.problemMatcher`, and maps diagnostics from the generated Java/output file back into the source template when the preview source map can do so deterministically. `txtjet.diagnostics.compiler.runOnSave` can run this validation after saves; it is disabled by default so slow compiler pipelines stay explicit.
+Compiler-backed diagnostics are available through `TxtJet: Validate Template With External Compiler`. The command reuses `txtjet.compiler.command`, parses stdout/stderr with `txtjet.diagnostics.compiler.problemMatcher`, and maps diagnostics from the generated Java/output file back into the source template when the preview source map can do so deterministically. External compiler commands are capped by `txtjet.compiler.timeoutMs`, which defaults to 60000 ms. `txtjet.diagnostics.compiler.runOnSave` can run this validation after saves; it is disabled by default so slow compiler pipelines stay explicit.
 
 Example compiler commands:
 
@@ -226,6 +226,7 @@ Settings:
 - `txtjet.visualDifferentiation.enabled`
 - `txtjet.generation.outputDirectory`
 - `txtjet.compiler.command`
+- `txtjet.compiler.timeoutMs`
 
 Privacy:
 

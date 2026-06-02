@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.15
+
+- Added a configurable timeout for external compiler commands so compile and compiler-diagnostic runs cannot hang indefinitely.
+- Fixed `.jetinc` Command Palette visibility for TxtJet preview, generation, and language-mode commands.
+- Updated QA/install documentation to reference the current `0.0.15` VSIX.
+
 ## 0.0.14
 
 - Added `TxtJet: Toggle Region Background Coloring` so users can quickly turn parser-backed region background decorations on or off without opening settings.

@@ -457,6 +457,14 @@
           "default": "",
           "markdownDescription": "Shell command used by **TxtJet: Compile Template With External Compiler**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
           "scope": "resource"
+        },
+        "txtjet.compiler.timeoutMs": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 1000,
+          "maximum": 600000,
+          "description": "Maximum runtime in milliseconds for external TxtJet compiler commands.",
+          "scope": "resource"
         }
       }
     },
@@ -464,63 +472,63 @@
       "commandPalette": [
         {
           "command": "txtjet.selectTargetLanguage",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.detectTargetLanguage",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.default",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.java",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.html",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.xml",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.c",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.python",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.clearLanguage.active",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.openGeneratedOutputPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.openGeneratedJavaPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.openPreviewBesideSource",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.openRegionInGeneratedPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.openRegionInJavaPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.revealPreviewFromSource",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.revealSourceFromPreview",
@@ -528,11 +536,11 @@
         },
         {
           "command": "txtjet.generateOutput",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.diffLastGeneratedOutput",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
         },
         {
           "command": "txtjet.clearLanguage.all"

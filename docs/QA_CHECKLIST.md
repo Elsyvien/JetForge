@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.14.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.14`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.15.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.15`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -97,6 +97,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
 - Configure `txtjet.compiler.command` with a sanitized local wrapper that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
 - Configure the wrapper-style matcher `^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$` and confirm `[txtjet] file:line:column: error: message` output is parsed.
+- Set `txtjet.compiler.timeoutMs` to a low value with a slow sanitized wrapper and confirm the external compiler command times out instead of hanging VSCode.
 - Confirm disabling `txtjet.previews.enabled` disables preview commands.
 - Confirm disabling `txtjet.previews.generatedJava.enabled` disables the generated Java preview command.
 - Confirm disabling `txtjet.navigation.includeDefinitions.enabled` removes include and skeleton Go to Definition.

@@ -2,6 +2,9 @@ import { TxtJetTargetLanguage } from "./detector";
 
 export const COMPLETION_TRIGGER_CHARACTERS = ["<"] as const;
 export const DIRECTIVE_VALUE_TRIGGER_CHARACTERS = ["\"", "'", "/", "\\", "."] as const;
+export const DEFAULT_COMPILER_TIMEOUT_MS = 60000;
+export const MIN_COMPILER_TIMEOUT_MS = 1000;
+export const MAX_COMPILER_TIMEOUT_MS = 600000;
 
 export interface TxtJetDirectiveValueContext {
   directiveName: string;
@@ -55,6 +58,13 @@ export function selectedTargetLanguageId(
 
 export function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+export function compilerTimeoutMs(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return DEFAULT_COMPILER_TIMEOUT_MS;
+  }
+  return Math.min(MAX_COMPILER_TIMEOUT_MS, Math.max(MIN_COMPILER_TIMEOUT_MS, Math.floor(value)));
 }
 
 export function directiveValueContextAt(text: string, offset: number): TxtJetDirectiveValueContext | undefined {

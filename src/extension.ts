@@ -12,6 +12,7 @@ import {
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
+  compilerTimeoutMs,
   DIRECTIVE_VALUE_TRIGGER_CHARACTERS,
   directiveValueContextAt,
   isTxtJetPath,
@@ -1125,13 +1126,14 @@ async function compileTemplateWithExternalTool(): Promise<void> {
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath ?? dirname(editor.document.fileName);
   const outputPath = generationOutputUri(editor.document).fsPath;
   mkdirSync(dirname(outputPath), { recursive: true });
+  const timeoutMs = compilerTimeoutMs(config.get<number>("compiler.timeoutMs"));
   const fullCommand = compileCommand
     .split("${file}").join(shellEscape(editor.document.fileName))
     .split("${workspaceFolder}").join(shellEscape(workspaceFolder))
     .split("${outputFile}").join(shellEscape(outputPath));
 
   try {
-    const { stdout, stderr } = await execAsync(fullCommand, { cwd: workspaceFolder, maxBuffer: 10 * 1024 * 1024 });
+    const { stdout, stderr } = await execAsync(fullCommand, { cwd: workspaceFolder, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs });
     if (stdout.trim().length > 0 || stderr.trim().length > 0) {
       void vscode.window.showInformationMessage("TxtJet compile finished. Open the TxtJet output channel for logs.");
     }
@@ -1198,8 +1200,9 @@ async function validateTemplateWithCompiler(
   const outputPath = generationOutputUri(document).fsPath;
   mkdirSync(dirname(outputPath), { recursive: true });
   const fullCommand = compilerCommandFor(compileCommand, document.fileName, workspaceFolder, outputPath);
+  const timeoutMs = compilerTimeoutMs(config.get<number>("compiler.timeoutMs"));
 
-  const result = await runCompilerCommand(fullCommand, workspaceFolder);
+  const result = await runCompilerCommand(fullCommand, workspaceFolder, timeoutMs);
   if (result.stdout.trim().length > 0) {
     appendOutputLog("stdout", result.stdout);
   }
@@ -1252,10 +1255,11 @@ async function validateTemplateWithCompiler(
 
 async function runCompilerCommand(
   command: string,
-  cwd: string
+  cwd: string,
+  timeoutMs: number
 ): Promise<{ stdout: string; stderr: string; error: string; failed: boolean }> {
   try {
-    const { stdout, stderr } = await execAsync(command, { cwd, maxBuffer: 10 * 1024 * 1024 });
+    const { stdout, stderr } = await execAsync(command, { cwd, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs });
     return { stdout, stderr, error: "", failed: false };
   } catch (error) {
     const failed = error as { stdout?: string; stderr?: string; message?: string };

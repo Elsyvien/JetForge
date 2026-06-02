@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
+  compilerTimeoutMs,
+  DEFAULT_COMPILER_TIMEOUT_MS,
   DIRECTIVE_VALUE_TRIGGER_CHARACTERS,
+  MAX_COMPILER_TIMEOUT_MS,
+  MIN_COMPILER_TIMEOUT_MS,
   directiveValueContextAt,
   isTxtJetPath,
   selectedTargetLanguageId,
@@ -37,6 +41,12 @@ assert.equal(selectedTargetLanguageId("plaintext", "txtjet-python"), "txtjet-pyt
 assert.equal(shellSingleQuote("/tmp/template.txtjet"), "'/tmp/template.txtjet'");
 assert.equal(shellSingleQuote("/tmp/with spaces/$HOME/`name`.txtjet"), "'/tmp/with spaces/$HOME/`name`.txtjet'");
 assert.equal(shellSingleQuote("/tmp/it's.txtjet"), "'/tmp/it'\\''s.txtjet'");
+
+assert.equal(compilerTimeoutMs(undefined), DEFAULT_COMPILER_TIMEOUT_MS);
+assert.equal(compilerTimeoutMs(Number.NaN), DEFAULT_COMPILER_TIMEOUT_MS);
+assert.equal(compilerTimeoutMs(500), MIN_COMPILER_TIMEOUT_MS);
+assert.equal(compilerTimeoutMs(12345.9), 12345);
+assert.equal(compilerTimeoutMs(900000), MAX_COMPILER_TIMEOUT_MS);
 
 const includeDirective = "<%@ include file=\"partials/head\" %>";
 assert.deepEqual(directiveValueContextAt(includeDirective, includeDirective.indexOf("head") + 4), {

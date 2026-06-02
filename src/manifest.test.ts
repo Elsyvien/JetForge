@@ -50,6 +50,7 @@ assert.ok(contributes.configuration.properties["txtjet.diagnostics.generatedJava
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.runOnSave"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.problemMatcher"]);
+assert.ok(contributes.configuration.properties["txtjet.compiler.timeoutMs"]);
 assert.ok(contributes.configuration.properties["txtjet.codeActions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.javaIntelliSense.enabled"]);
@@ -67,6 +68,12 @@ assert.ok(contributes.views.explorer.some((view: { id: string; name: string }) =
 assert.ok(contributedCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(commandPaletteCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(activationEvents.has("onCommand:txtjet.toggleVisualDifferentiation"));
+
+for (const item of contributes.menus.commandPalette as Array<{ command: string; when?: string }>) {
+  if (item.when?.includes("resourceExtname")) {
+    assert.ok(item.when.includes("jetinc"), `${item.command} palette entry omits .jetinc`);
+  }
+}
 
 for (const command of [
   "txtjet.openGeneratedOutputPreview",
