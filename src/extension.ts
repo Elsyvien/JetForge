@@ -57,6 +57,7 @@ import {
 } from "./templateModel";
 import {
   createTxtJetWorkspaceModel,
+  isExcludedTxtJetWorkspacePath,
   TXTJET_WORKSPACE_EXCLUDE_GLOB,
   TXTJET_WORKSPACE_GLOB,
   TxtJetWorkspaceEntry,
@@ -935,7 +936,7 @@ async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
     }
   }
   for (const document of vscode.workspace.textDocuments) {
-    if (workspaceEntryKind(document.fileName)) {
+    if (workspaceEntryKind(document.fileName) && !isExcludedTxtJetWorkspacePath(document.fileName)) {
       files.set(document.fileName, { fileName: document.fileName, text: document.getText() });
     }
   }
@@ -2541,6 +2542,9 @@ function referencePathCompletions(
 
   for (const root of roots) {
     const directory = join(root, directoryPrefix);
+    if (isExcludedTxtJetWorkspacePath(directory)) {
+      continue;
+    }
     let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
     try {
       entries = readdirSync(directory, { withFileTypes: true }) as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
@@ -2549,6 +2553,10 @@ function referencePathCompletions(
     }
 
     for (const entry of entries) {
+      const entryPath = join(directory, entry.name);
+      if (entry.isDirectory() && isExcludedTxtJetWorkspacePath(entryPath)) {
+        continue;
+      }
       const lower = entry.name.toLowerCase();
       const isAllowedFile = entry.isFile() && allowedSuffixes.some((suffix) => lower.endsWith(suffix));
       if (!entry.isDirectory() && !isAllowedFile) {

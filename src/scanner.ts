@@ -273,7 +273,10 @@ function areValidImports(value: string): boolean {
 }
 
 function isValidSkeletonPath(value: string): boolean {
-  return !value.startsWith("/") && !/^[A-Za-z]:[\\/]/.test(value) && value.endsWith(".skeleton");
+  if (value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value)) {
+    return false;
+  }
+  return !/\.[^/\\.]+$/.test(value) || value.toLowerCase().endsWith(".skeleton");
 }
 
 function findNextOpen(text: string, from: number): number {

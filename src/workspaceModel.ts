@@ -53,6 +53,15 @@ export interface TxtJetWorkspaceModelOptions {
 }
 
 export const TXTJET_WORKSPACE_GLOB = "**/*.{txtjet,jet,javajet,htmljet,xmljet,cjet,pythonjet,jetinc,skeleton}";
+const TXTJET_WORKSPACE_EXCLUDED_DIRECTORIES = new Set([
+  "node_modules",
+  "out",
+  ".git",
+  ".vscode-test",
+  ".playwright-cli",
+  ".antigravitycli",
+  "private-examples"
+]);
 export const TXTJET_WORKSPACE_EXCLUDE_GLOB =
   "{**/node_modules/**,**/out/**,**/.git/**,**/.vscode-test/**,**/.playwright-cli/**,**/.antigravitycli/**,**/private-examples/**}";
 
@@ -65,7 +74,7 @@ export function createTxtJetWorkspaceModel(
   for (const file of files) {
     const fileName = normalize(file.fileName);
     const kind = workspaceEntryKind(fileName);
-    if (!kind) {
+    if (!kind || isExcludedTxtJetWorkspacePath(fileName)) {
       continue;
     }
     entriesByFile.set(fileName, {
@@ -138,6 +147,12 @@ export function createTxtJetWorkspaceModel(
         .sort(compareEntry);
     }
   };
+}
+
+export function isExcludedTxtJetWorkspacePath(fileName: string): boolean {
+  return normalize(fileName)
+    .split(/[\\/]+/)
+    .some((part) => TXTJET_WORKSPACE_EXCLUDED_DIRECTORIES.has(part));
 }
 
 export function workspaceEntryKind(fileName: string): TxtJetWorkspaceEntryKind | undefined {

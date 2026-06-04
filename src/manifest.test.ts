@@ -46,11 +46,12 @@ for (const command of contributedCommands) {
 }
 
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.autoDetect.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.defaultTargetLanguage"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.generatedJava.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.runOnSave"]);
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.compiler.problemMatcher"]);
-assert.ok(contributes.configuration.properties["txtjet.compiler.timeoutMs"]);
 assert.ok(contributes.configuration.properties["txtjet.codeActions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.javaIntelliSense.enabled"]);
@@ -64,6 +65,8 @@ assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"
 assert.ok(contributes.configuration.properties["txtjet.formatting.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.visualDifferentiation.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.generation.outputDirectory"]);
+assert.ok(contributes.configuration.properties["txtjet.compiler.command"]);
+assert.ok(contributes.configuration.properties["txtjet.compiler.timeoutMs"]);
 assert.ok(contributes.views.explorer.some((view: { id: string; name: string }) => view.id === "txtjetWorkspace" && view.name === "TxtJet Workspace"));
 assert.ok(contributedCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(commandPaletteCommands.has("txtjet.toggleVisualDifferentiation"));

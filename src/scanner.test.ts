@@ -34,6 +34,10 @@ assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"missing.txtjet\" 
 ]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"\" %>").map((issue) => issue.code), ["missing-skeleton-file"]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"base.skeleton\" %>", { skeletonExists: () => true }).map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"base\" %>", { skeletonExists: () => true }).map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"templates/base\" %>", { skeletonExists: () => false }).map((issue) => issue.code), [
+  "unresolved-skeleton-file"
+]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet skeleton=\"missing.skeleton\" %>", { skeletonExists: () => false }).map((issue) => issue.code), [
   "unresolved-skeleton-file"
 ]);

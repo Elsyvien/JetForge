@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import {
   createTxtJetWorkspaceModel,
+  isExcludedTxtJetWorkspacePath,
   TXTJET_WORKSPACE_EXCLUDE_GLOB,
   workspaceEntryKind
 } from "./workspaceModel";
@@ -71,6 +72,20 @@ const circular = createTxtJetWorkspaceModel([
 ]);
 assert.deepEqual(circular.includingTemplates(join(root, "a.txtjet")).map((entry) => entry.fileName), [join(root, "b.txtjet")]);
 assert.deepEqual(circular.includingTemplates(join(root, "b.txtjet")).map((entry) => entry.fileName), [join(root, "a.txtjet")]);
+
+const privateTemplate = join(root, "private-examples", "secret.txtjet");
+const localToolTemplate = join(root, ".playwright-cli", "scratch.txtjet");
+const ignored = createTxtJetWorkspaceModel([
+  { fileName: privateTemplate, text: "secret" },
+  { fileName: localToolTemplate, text: "scratch" },
+  { fileName: join(root, "visible.txtjet"), text: "visible" }
+]);
+assert.equal(isExcludedTxtJetWorkspacePath(privateTemplate), true);
+assert.equal(isExcludedTxtJetWorkspacePath(localToolTemplate), true);
+assert.equal(isExcludedTxtJetWorkspacePath(join(root, "visible.txtjet")), false);
+assert.equal(ignored.entry(privateTemplate), undefined);
+assert.equal(ignored.entry(localToolTemplate), undefined);
+assert.equal(ignored.templates.length, 1);
 
 assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.playwright-cli/);
 assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.antigravitycli/);
