@@ -25,6 +25,11 @@ const forbidden = [
   /^out\/.*\.test\.js$/,
   /^example\.txt$/,
   /^example\.txtjet$/,
+  /^examples\/.*\.log$/,
+  /^examples\/.*\.map$/,
+  /^examples\/.*\.test\.js$/,
+  /^examples\/.*\.vsix$/,
+  /^examples\/private[-/]/,
   /^private-examples\//,
   /^.*\.vsix$/,
   /^.*\.log$/
@@ -38,7 +43,9 @@ const allowed = [
   /^CHANGELOG\.md$/,
   /^assets\/icon\.png$/,
   /^docs\/[A-Za-z0-9_-]+\.md$/,
-  /^examples\/.+$/,
+  /^examples\/[A-Za-z0-9_.-]+\.txtjet$/,
+  /^examples\/partials\/[A-Za-z0-9_.-]+\.txtjet$/,
+  /^examples\/templates\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_.-]+\.skeleton$/,
   /^out\/[A-Za-z0-9_-]+\.js$/,
   /^snippets\/txtjet\.code-snippets$/,
   /^syntaxes\/[A-Za-z0-9_.-]+\.json$/
