@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import {
   createTxtJetWorkspaceModel,
+  TXTJET_WORKSPACE_EXCLUDE_GLOB,
   workspaceEntryKind
 } from "./workspaceModel";
 
@@ -70,5 +71,9 @@ const circular = createTxtJetWorkspaceModel([
 ]);
 assert.deepEqual(circular.includingTemplates(join(root, "a.txtjet")).map((entry) => entry.fileName), [join(root, "b.txtjet")]);
 assert.deepEqual(circular.includingTemplates(join(root, "b.txtjet")).map((entry) => entry.fileName), [join(root, "a.txtjet")]);
+
+assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.playwright-cli/);
+assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.antigravitycli/);
+assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /private-examples/);
 
 console.log("workspace model tests ok");

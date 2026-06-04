@@ -53,7 +53,8 @@ export interface TxtJetWorkspaceModelOptions {
 }
 
 export const TXTJET_WORKSPACE_GLOB = "**/*.{txtjet,jet,javajet,htmljet,xmljet,cjet,pythonjet,jetinc,skeleton}";
-export const TXTJET_WORKSPACE_EXCLUDE_GLOB = "{**/node_modules/**,**/out/**,**/.git/**,**/.vscode-test/**}";
+export const TXTJET_WORKSPACE_EXCLUDE_GLOB =
+  "{**/node_modules/**,**/out/**,**/.git/**,**/.vscode-test/**,**/.playwright-cli/**,**/.antigravitycli/**,**/private-examples/**}";
 
 export function createTxtJetWorkspaceModel(
   files: TxtJetWorkspaceFile[],
