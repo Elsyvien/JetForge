@@ -48,6 +48,12 @@ assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"123\" class=\"123\
   "invalid-jet-class",
   "invalid-jet-imports"
 ]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet ipxact=\"true\" %>").map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet team=\"safe\" %>", {
+  directiveAttributes: {
+    jet: ["team"]
+  }
+}).map((issue) => issue.code), []);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"a.txtjet\" file=\"b.txtjet\" %>").map((issue) => issue.code), [
   "duplicate-directive-attribute"
 ]);

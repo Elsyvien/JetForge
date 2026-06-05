@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.16
+
+- Added opt-in IP-XACT workflows with matched-template preview, generation, diffing, external-command validation, mapped diagnostics, workspace indexing, node snippets, and generated-output completions.
+- Added synchronized source/preview reveal for visible generated previews where source maps are deterministic.
+- Added configurable project-specific directive metadata completions and diagnostics support.
+- Added `.propertiesjet` recognition as a generic TxtJet template suffix.
+- Updated roadmap, README, QA checklist, examples, manifest coverage, and package version references for the `0.0.16` VSIX.
+
 ## 0.0.15
 
 - Added a configurable timeout for external compiler commands so compile and compiler-diagnostic runs cannot hang indefinitely.

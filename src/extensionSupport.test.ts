@@ -29,6 +29,7 @@ assert.equal(isTxtJetPath("/workspace/example.htmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.xmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.cjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.pythonjet"), true);
+assert.equal(isTxtJetPath("/workspace/example.propertiesjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.jetinc"), true);
 assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
 assert.equal(isTxtJetPath("/workspace/example.txt"), false);

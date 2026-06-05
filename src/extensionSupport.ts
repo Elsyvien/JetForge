@@ -26,6 +26,7 @@ const TXTJET_PATH_SUFFIXES = [
   ".xmljet",
   ".cjet",
   ".pythonjet",
+  ".propertiesjet",
   ".jetinc"
 ];
 

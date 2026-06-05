@@ -36,6 +36,7 @@ assert.deepEqual(contributes.languages[0].extensions, [
   ".xmljet",
   ".cjet",
   ".pythonjet",
+  ".propertiesjet",
   ".jetinc"
 ]);
 
@@ -59,6 +60,7 @@ assert.ok(contributes.configuration.properties["txtjet.statusBar.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.openBeside"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.generatedJava.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.previews.synchronizedReveal.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.navigation.includeDefinitions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.resolution.includePaths"]);
 assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"]);
@@ -67,6 +69,15 @@ assert.ok(contributes.configuration.properties["txtjet.visualDifferentiation.ena
 assert.ok(contributes.configuration.properties["txtjet.generation.outputDirectory"]);
 assert.ok(contributes.configuration.properties["txtjet.compiler.command"]);
 assert.ok(contributes.configuration.properties["txtjet.compiler.timeoutMs"]);
+assert.ok(contributes.configuration.properties["txtjet.completions.directiveMetadata"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.templateGlobs"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.outputDirectory"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.generation.autoOpen"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.command"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.problemMatcher"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.runOnSave"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.timeoutMs"]);
 assert.ok(contributes.views.explorer.some((view: { id: string; name: string }) => view.id === "txtjetWorkspace" && view.name === "TxtJet Workspace"));
 assert.ok(contributedCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(commandPaletteCommands.has("txtjet.toggleVisualDifferentiation"));
@@ -75,6 +86,7 @@ assert.ok(activationEvents.has("onCommand:txtjet.toggleVisualDifferentiation"));
 for (const item of contributes.menus.commandPalette as Array<{ command: string; when?: string }>) {
   if (item.when?.includes("resourceExtname")) {
     assert.ok(item.when.includes("jetinc"), `${item.command} palette entry omits .jetinc`);
+    assert.ok(item.when.includes("propertiesjet"), `${item.command} palette entry omits .propertiesjet`);
   }
 }
 
@@ -93,11 +105,28 @@ for (const command of [
   "txtjet.refreshWorkspaceModel",
   "txtjet.openIncludingTemplate",
   "txtjet.openGeneratedJavaForTemplate",
-  "txtjet.validateWorkspaceTemplates"
+  "txtjet.validateWorkspaceTemplates",
+  "txtjet.openIpxactPreview",
+  "txtjet.generateIpxactOutput",
+  "txtjet.diffIpxactOutput",
+  "txtjet.validateIpxact",
+  "txtjet.openIpxactTemplate",
+  "txtjet.openSynchronizedPreview",
+  "txtjet.togglePreviewSynchronization"
 ]) {
   assert.ok(contributedCommands.has(command), `${command} command missing`);
   assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);
   assert.ok(activationEvents.has(`onCommand:${command}`), `${command} activation missing`);
+}
+for (const command of [
+  "txtjet.openIpxactPreview",
+  "txtjet.generateIpxactOutput",
+  "txtjet.diffIpxactOutput",
+  "txtjet.validateIpxact",
+  "txtjet.openIpxactTemplate"
+]) {
+  const paletteEntry = (contributes.menus.commandPalette as Array<{ command: string; when?: string }>).find((item) => item.command === command);
+  assert.ok(paletteEntry?.when?.includes("config.txtjet.ipxact.enabled"), `${command} must be hidden unless IP-XACT is enabled`);
 }
 assert.ok(activationEvents.has("onView:txtjetWorkspace"));
 

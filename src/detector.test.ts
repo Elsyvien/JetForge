@@ -26,6 +26,7 @@ assert.equal(detectTargetLanguageFromFileName("schema.xmljet"), "txtjet-xml");
 assert.equal(detectTargetLanguageFromFileName("page.html.jet"), "txtjet-html");
 assert.equal(detectTargetLanguageFromFileName("page.htmljet"), "txtjet-html");
 assert.equal(detectTargetLanguageFromFileName("packet.cjet"), "txtjet-c");
+assert.equal(detectTargetLanguageFromFileName("messages.propertiesjet"), "txtjet");
 assert.equal(detectTargetLanguageFromFileName("fragment.jetinc"), "txtjet");
 assert.equal(detectTargetLanguageFromFileName("unknown.txtjet"), "txtjet");
 

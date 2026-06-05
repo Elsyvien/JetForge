@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -52,6 +52,7 @@
           ".xmljet",
           ".cjet",
           ".pythonjet",
+          ".propertiesjet",
           ".jetinc"
         ],
         "configuration": "./language-configuration.json"
@@ -307,6 +308,41 @@
         "command": "txtjet.validateWorkspaceTemplates",
         "title": "TxtJet: Validate Workspace Templates",
         "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.openIpxactPreview",
+        "title": "TxtJet: Open IP-XACT Preview",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.generateIpxactOutput",
+        "title": "TxtJet: Generate IP-XACT Output",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.diffIpxactOutput",
+        "title": "TxtJet: Diff Current IP-XACT Output Against Last Generation",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.validateIpxact",
+        "title": "TxtJet: Validate IP-XACT Output",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.openIpxactTemplate",
+        "title": "TxtJet: Open IP-XACT Template",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.openSynchronizedPreview",
+        "title": "TxtJet: Open Synchronized Preview",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.togglePreviewSynchronization",
+        "title": "TxtJet: Toggle Preview Synchronization",
+        "category": "TxtJet"
       }
     ],
     "views": {
@@ -465,6 +501,72 @@
           "maximum": 600000,
           "description": "Maximum runtime in milliseconds for external TxtJet compiler commands.",
           "scope": "resource"
+        },
+        "txtjet.previews.synchronizedReveal.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Synchronize selections between visible TxtJet source templates and generated preview documents where source maps are deterministic."
+        },
+        "txtjet.completions.directiveMetadata": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "markdownDescription": "Project-specific TxtJet directive attributes offered as completions and accepted by diagnostics. Example: `{ \"jet\": [\"team\", \"owner\"] }`."
+        },
+        "txtjet.ipxact.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable optional IP-XACT workflows for matched TxtJet templates."
+        },
+        "txtjet.ipxact.templateGlobs": {
+          "type": "array",
+          "default": [
+            "**/*.ipxact.txtjet",
+            "ipxact/**/*.txtjet"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "description": "Workspace-relative template globs treated as IP-XACT when txtjet.ipxact.enabled is true. Templates can also opt in with @jet ipxact=\"true\"."
+        },
+        "txtjet.ipxact.outputDirectory": {
+          "type": "string",
+          "default": "${workspaceFolder}/generated-ipxact",
+          "description": "Directory used by TxtJet: Generate IP-XACT Output. Supports ${workspaceFolder}."
+        },
+        "txtjet.ipxact.generation.autoOpen": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the generated IP-XACT XML file after generation."
+        },
+        "txtjet.ipxact.validation.command": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "External command used by **TxtJet: Validate IP-XACT Output**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
+          "scope": "resource"
+        },
+        "txtjet.ipxact.validation.problemMatcher": {
+          "type": "string",
+          "default": "^(?<file>.*?):(?<line>\\d+):(?<column>\\d+):(?:\\s*(?<severity>error|warning|info|information|hint):)?\\s*(?<message>.+)$",
+          "markdownDescription": "Regex used to parse IP-XACT validator diagnostics from stdout and stderr. Capture groups match the compiler problem matcher: `file`, `line`, `column`, optional `severity`, and `message`."
+        },
+        "txtjet.ipxact.validation.runOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run IP-XACT validation when a matched TxtJet template is saved."
+        },
+        "txtjet.ipxact.validation.timeoutMs": {
+          "type": "number",
+          "default": 60000,
+          "minimum": 1000,
+          "maximum": 600000,
+          "description": "Maximum runtime in milliseconds for external IP-XACT validation commands.",
+          "scope": "resource"
         }
       }
     },
@@ -472,63 +574,63 @@
       "commandPalette": [
         {
           "command": "txtjet.selectTargetLanguage",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.detectTargetLanguage",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.default",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.java",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.html",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.xml",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.c",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.python",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.clearLanguage.active",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openGeneratedOutputPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openGeneratedJavaPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openPreviewBesideSource",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openRegionInGeneratedPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openRegionInJavaPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.revealPreviewFromSource",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.revealSourceFromPreview",
@@ -536,11 +638,11 @@
         },
         {
           "command": "txtjet.generateOutput",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.diffLastGeneratedOutput",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.clearLanguage.all"
@@ -570,6 +672,34 @@
         },
         {
           "command": "txtjet.validateWorkspaceTemplates"
+        },
+        {
+          "command": "txtjet.openIpxactPreview",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
+        },
+        {
+          "command": "txtjet.generateIpxactOutput",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
+        },
+        {
+          "command": "txtjet.diffIpxactOutput",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
+        },
+        {
+          "command": "txtjet.validateIpxact",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
+        },
+        {
+          "command": "txtjet.openIpxactTemplate",
+          "when": "config.txtjet.ipxact.enabled"
+        },
+        {
+          "command": "txtjet.openSynchronizedPreview",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.togglePreviewSynchronization",
+          "when": "resourceLangId =~ /^txtjet/"
         }
       ],
       "editor/context": [
@@ -597,6 +727,31 @@
           "command": "txtjet.openGeneratedJavaForTemplate",
           "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@33"
+        },
+        {
+          "command": "txtjet.openIpxactPreview",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "group": "navigation@34"
+        },
+        {
+          "command": "txtjet.generateIpxactOutput",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "group": "navigation@35"
+        },
+        {
+          "command": "txtjet.validateIpxact",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "group": "navigation@36"
+        },
+        {
+          "command": "txtjet.openSynchronizedPreview",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@37"
+        },
+        {
+          "command": "txtjet.togglePreviewSynchronization",
+          "when": "resourceLangId =~ /^txtjet/",
+          "group": "navigation@38"
         }
       ],
       "view/title": [
@@ -608,6 +763,11 @@
         {
           "command": "txtjet.validateWorkspaceTemplates",
           "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
+          "command": "txtjet.openIpxactTemplate",
+          "when": "view == txtjetWorkspace && config.txtjet.ipxact.enabled",
           "group": "navigation"
         }
       ],
@@ -652,11 +812,18 @@
     "onCommand:txtjet.openIncludingTemplate",
     "onCommand:txtjet.openGeneratedJavaForTemplate",
     "onCommand:txtjet.validateWorkspaceTemplates",
-    "onView:txtjetWorkspace"
+    "onView:txtjetWorkspace",
+    "onCommand:txtjet.openIpxactPreview",
+    "onCommand:txtjet.generateIpxactOutput",
+    "onCommand:txtjet.diffIpxactOutput",
+    "onCommand:txtjet.validateIpxact",
+    "onCommand:txtjet.openIpxactTemplate",
+    "onCommand:txtjet.openSynchronizedPreview",
+    "onCommand:txtjet.togglePreviewSynchronization"
   ],
   "scripts": {
     "compile": "tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/compilerDiagnostics.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/compilerDiagnostics.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
     "vscode:prepublish": "npm run compile",
