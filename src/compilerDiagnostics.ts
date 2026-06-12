@@ -70,7 +70,7 @@ export function mapCompilerProblemsToSource(
       }];
     }
 
-    if (!sameFile(resolvedProblemFile, generatedFileName) && basename(resolvedProblemFile) !== basename(generatedFileName)) {
+    if (!compilerProblemTargetsFile(problem.file, generatedFileName, workspaceFolder)) {
       return [];
     }
 
@@ -95,6 +95,20 @@ export function mapCompilerProblemsToSource(
 
     return [mappedOutputProblem];
   });
+}
+
+export function compilerProblemTargetsFile(
+  problemFile: string,
+  targetFile: string,
+  workspaceFolder: string
+): boolean {
+  const resolvedProblemFile = resolveProblemFile(problemFile, workspaceFolder);
+  if (sameFile(resolvedProblemFile, targetFile)) {
+    return true;
+  }
+
+  const normalizedProblemFile = problemFile.replace(/\\/g, "/");
+  return !normalizedProblemFile.includes("/") && basename(normalizedProblemFile) === basename(targetFile);
 }
 
 function mapProblemThroughPreview(

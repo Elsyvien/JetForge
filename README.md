@@ -44,7 +44,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.16.vsix
+code --install-extension txtjet-syntax-0.0.17.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -138,13 +138,15 @@ The extension reports lightweight TxtJet syntax diagnostics:
 Completions are available for template markers after typing `<`, plus directive names, common directive attributes, configured project metadata attributes, and directive values inside `<%@ ... %>` blocks. Directive value completions suggest local include files, skeleton files, common Java imports, reasonable `@jet` package/class values, and `ipxact` metadata values without scanning broadly outside the template directory and configured resolution paths. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Local helper methods declared in `<%! ... %>` blocks also support Find All References, conservative Rename Symbol, and Signature Help for direct helper calls and `this.helper(...)` calls. Generated-output regions get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches. Matched IP-XACT generated-output regions also offer local XML node snippets for common IP-XACT elements.
 Hover text identifies whether the current region is generated output, a TxtJet marker, directive syntax, or embedded template Java.
 
-Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
+Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings. Missing-reference file creation is limited to the current workspace or explicitly configured include/skeleton roots.
 
 Additional directive diagnostics report duplicate `@jet` directives, missing or unresolved include files, malformed directive attributes, and unknown core directive names.
 
 Diagnostics, Quick Fixes, completions, Java IntelliSense forwarding, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
 
 Compiler-backed diagnostics are available through `TxtJet: Validate Template With External Compiler`. The command reuses `txtjet.compiler.command`, parses stdout/stderr with `txtjet.diagnostics.compiler.problemMatcher`, and maps diagnostics from the generated Java/output file back into the source template when the preview source map can do so deterministically. External compiler commands are capped by `txtjet.compiler.timeoutMs`, which defaults to 60000 ms. `txtjet.diagnostics.compiler.runOnSave` can run this validation after saves; it is disabled by default so slow compiler pipelines stay explicit.
+
+External compiler and IP-XACT validator commands are disabled while VSCode is in Restricted Mode. Editing, highlighting, previews, local generation, and navigation remain available without Workspace Trust.
 
 Example compiler commands:
 
@@ -274,6 +276,7 @@ Privacy:
 
 - The extension runs locally inside VSCode.
 - It does not send source files, template content, diagnostics, or usage data anywhere.
+- Configured external compiler and validator commands run only in trusted workspaces.
 
 ## Example Files
 

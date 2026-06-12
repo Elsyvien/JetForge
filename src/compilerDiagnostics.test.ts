@@ -104,6 +104,40 @@ const unrelated = mapCompilerProblemsToSource(
 );
 assert.equal(unrelated.length, 0);
 
+const misleadingSameBasename = mapCompilerProblemsToSource(
+  [{
+    file: join("other-output", "sample.java"),
+    line: previewLine,
+    column: 1,
+    severity: "error",
+    message: "wrong generated file"
+  }],
+  sourceFile,
+  template,
+  preview,
+  outputPreview,
+  generatedFile,
+  resolve("workspace")
+);
+assert.equal(misleadingSameBasename.length, 0);
+
+const bareGeneratedBasename = mapCompilerProblemsToSource(
+  [{
+    file: "sample.java",
+    line: previewLine,
+    column: 1,
+    severity: "error",
+    message: "bare generated filename"
+  }],
+  sourceFile,
+  template,
+  preview,
+  outputPreview,
+  generatedFile,
+  resolve("workspace")
+);
+assert.equal(bareGeneratedBasename.length, 1);
+
 const outputLine = outputPreview.text.slice(0, outputPreview.text.indexOf("hello")).split("\n").length;
 const mappedOutput = mapCompilerProblemsToSource(
   [{

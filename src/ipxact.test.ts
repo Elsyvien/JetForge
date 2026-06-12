@@ -56,6 +56,34 @@ assert.equal(mapped.length, 1);
 assert.equal(mapped[0].mappedFrom, "generated-output");
 assert.match(template.slice(mapped[0].sourceRange.start, mapped[0].sourceRange.end), /vendor/);
 
+const misleadingSameBasename = mapIpxactProblemsToSource(
+  [{
+    file: join("other-output", "component.xml"),
+    line,
+    column: 3,
+    severity: "error",
+    message: "wrong generated file"
+  }],
+  preview,
+  generated,
+  workspace
+);
+assert.equal(misleadingSameBasename.length, 0);
+
+const bareGeneratedBasename = mapIpxactProblemsToSource(
+  [{
+    file: "component.xml",
+    line,
+    column: 3,
+    severity: "error",
+    message: "bare generated filename"
+  }],
+  preview,
+  generated,
+  workspace
+);
+assert.equal(bareGeneratedBasename.length, 1);
+
 const directiveLine = preview.text.slice(0, preview.text.indexOf("txtjet directive")).split("\n").length;
 const unmapped = mapIpxactProblemsToSource(
   [{

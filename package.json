@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -18,6 +18,18 @@
   "homepage": "https://github.com/Elsyvien/JetForge#readme",
   "engines": {
     "vscode": "^1.85.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "TxtJet editing and previews remain available, but external compiler and validator commands are disabled until the workspace is trusted.",
+      "restrictedConfigurations": [
+        "txtjet.compiler.command",
+        "txtjet.diagnostics.compiler.runOnSave",
+        "txtjet.ipxact.validation.command",
+        "txtjet.ipxact.validation.runOnSave"
+      ]
+    }
   },
   "categories": [
     "Programming Languages"
@@ -282,12 +294,14 @@
       {
         "command": "txtjet.compileTemplate",
         "title": "TxtJet: Compile Template With External Compiler",
-        "category": "TxtJet"
+        "category": "TxtJet",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.validateWithCompiler",
         "title": "TxtJet: Validate Template With External Compiler",
-        "category": "TxtJet"
+        "category": "TxtJet",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.refreshWorkspaceModel",
@@ -307,7 +321,8 @@
       {
         "command": "txtjet.validateWorkspaceTemplates",
         "title": "TxtJet: Validate Workspace Templates",
-        "category": "TxtJet"
+        "category": "TxtJet",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.openIpxactPreview",
@@ -327,7 +342,8 @@
       {
         "command": "txtjet.validateIpxact",
         "title": "TxtJet: Validate IP-XACT Output",
-        "category": "TxtJet"
+        "category": "TxtJet",
+        "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.openIpxactTemplate",
@@ -832,7 +848,7 @@
   "devDependencies": {
     "@types/node": "^20.12.12",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "3.6.1",
+    "@vscode/vsce": "3.9.2",
     "typescript": "^5.4.5"
   }
 }

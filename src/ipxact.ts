@@ -1,5 +1,4 @@
-import { basename, isAbsolute, normalize, resolve } from "node:path";
-import { TxtJetCompilerProblem } from "./compilerDiagnostics";
+import { compilerProblemTargetsFile, TxtJetCompilerProblem } from "./compilerDiagnostics";
 import { parseTxtJetTemplate, mapPreviewRangeToSource, TxtJetGeneratedPreview, TxtJetRange } from "./templateModel";
 
 export interface TxtJetIpxactMatchOptions {
@@ -50,8 +49,7 @@ export function mapIpxactProblemsToSource(
   workspaceFolder: string
 ): TxtJetMappedIpxactProblem[] {
   return problems.flatMap<TxtJetMappedIpxactProblem>((problem) => {
-    const resolvedProblemFile = resolveProblemFile(problem.file, workspaceFolder);
-    if (!sameFile(resolvedProblemFile, generatedFileName) && basename(resolvedProblemFile) !== basename(generatedFileName)) {
+    if (!compilerProblemTargetsFile(problem.file, generatedFileName, workspaceFolder)) {
       return [];
     }
 
@@ -126,14 +124,6 @@ function globToRegExp(pattern: string): RegExp {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[\\^$+?.()|[\]{}]/g, "\\$&");
-}
-
-function resolveProblemFile(fileName: string, workspaceFolder: string): string {
-  return normalize(isAbsolute(fileName) ? fileName : resolve(workspaceFolder, fileName));
-}
-
-function sameFile(left: string, right: string): boolean {
-  return normalize(left) === normalize(right);
 }
 
 function lineColumnOffset(text: string, line: number, column: number): number {

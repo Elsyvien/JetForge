@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.16.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.16`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.17.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.17`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -98,6 +98,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.
 - Add a temporary missing `skeleton="..."` reference and confirm a missing-skeleton diagnostic appears.
 - Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
+- Add a missing reference such as `../outside.txtjet` and confirm no file-creation Quick Fix can target a path outside the workspace or configured resolution roots.
 - Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
 - Configure `txtjet.compiler.command` with a sanitized local wrapper that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
 - Configure the wrapper-style matcher `^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$` and confirm `[txtjet] file:line:column: error: message` output is parsed.
@@ -129,10 +130,12 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 ## Settings And Privacy
 
+- Open the workspace in Restricted Mode and confirm compiler and IP-XACT validator commands do not execute while highlighting, previews, generation, and navigation remain available.
 - Toggle `txtjet.statusBar.enabled` and confirm the status bar item hides/shows.
 - Run `TxtJet: Toggle Region Background Coloring` and confirm mixed-language region decorations hide/show.
 - Set `txtjet.diagnostics.severity` to `error`, `warning`, `information`, and `hint`; confirm diagnostics update.
 - Set `txtjet.diagnostics.maxFileSizeKb` to a low value and confirm diagnostics are skipped for larger files.
 - Run `node node_modules/@vscode/vsce/vsce ls --no-dependencies` and inspect the package file list.
+- Run `npm audit` and confirm production and development dependencies have no known vulnerabilities.
 - Confirm the package contains no private templates, root-level local `example*` files, `src`, `test-fixtures`, `node_modules`, `.github`, `.playwright-cli`, static site files, logs, or local VSIX files.
 - Confirm the package contains only the manifest, README, changelog, license, language configuration, icon, docs, examples, snippets, syntaxes, and compiled `out/*.js` files.

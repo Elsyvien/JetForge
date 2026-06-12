@@ -9,6 +9,10 @@ const snippets = new Map(contributes.snippets.map((snippet: { language: string; 
 const activationEvents = new Set(manifest.activationEvents);
 const commandPaletteCommands = new Set(contributes.menus.commandPalette.map((item: { command: string }) => item.command));
 const contributedCommands = new Set(contributes.commands.map((command: { command: string }) => command.command));
+const commandContributions = new Map<string, { command: string; enablement?: string }>(
+  contributes.commands.map((command: { command: string; enablement?: string }) => [command.command, command])
+);
+const untrustedWorkspaces = manifest.capabilities?.untrustedWorkspaces;
 
 const expectedLanguages = [
   "txtjet",
@@ -20,6 +24,21 @@ const expectedLanguages = [
 ];
 
 assert.deepEqual(languages, expectedLanguages);
+assert.equal(untrustedWorkspaces?.supported, "limited");
+assert.deepEqual(untrustedWorkspaces?.restrictedConfigurations, [
+  "txtjet.compiler.command",
+  "txtjet.diagnostics.compiler.runOnSave",
+  "txtjet.ipxact.validation.command",
+  "txtjet.ipxact.validation.runOnSave"
+]);
+for (const command of [
+  "txtjet.compileTemplate",
+  "txtjet.validateWithCompiler",
+  "txtjet.validateWorkspaceTemplates",
+  "txtjet.validateIpxact"
+]) {
+  assert.equal(commandContributions.get(command)?.enablement, "isWorkspaceTrusted", `${command} must require Workspace Trust`);
+}
 
 for (const language of expectedLanguages) {
   assert.ok(grammars.has(language), `${language} grammar missing`);
