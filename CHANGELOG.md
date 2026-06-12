@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.0.17
+
+- Disabled external compiler and IP-XACT validator commands in VSCode Restricted Mode and declared limited untrusted-workspace support.
+- Tightened generated diagnostic mapping so unrelated files with the same basename cannot attach diagnostics to a template.
+- Prevented missing-reference Quick Fixes from creating files outside the workspace or configured reference roots.
+- Fixed workspace refresh races that could clear fresh compiler or IP-XACT diagnostics after saves and file changes.
+- Removed unused preview synchronizer state, disposed the output channel correctly, and made workspace validation report skipped templates accurately.
+- Updated the VSIX packaging toolchain to resolve its vulnerable temporary-file dependency and added full dependency audits to CI and publishing.
+
+## 0.0.16
+
+- Added opt-in IP-XACT workflows with matched-template preview, generation, diffing, external-command validation, mapped diagnostics, workspace indexing, node snippets, and generated-output completions.
+- Added synchronized source/preview reveal for visible generated previews where source maps are deterministic.
+- Added configurable project-specific directive metadata completions and diagnostics support.
+- Added `.propertiesjet` recognition as a generic TxtJet template suffix.
+- Updated roadmap, README, QA checklist, examples, manifest coverage, and package version references for the `0.0.16` VSIX.
+
 ## 0.0.15
 
 - Added a configurable timeout for external compiler commands so compile and compiler-diagnostic runs cannot hang indefinitely.

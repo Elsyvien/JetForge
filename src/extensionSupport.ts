@@ -1,3 +1,5 @@
+import { existsSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { TxtJetTargetLanguage } from "./detector";
 
 export const COMPLETION_TRIGGER_CHARACTERS = ["<"] as const;
@@ -26,6 +28,7 @@ const TXTJET_PATH_SUFFIXES = [
   ".xmljet",
   ".cjet",
   ".pythonjet",
+  ".propertiesjet",
   ".jetinc"
 ];
 
@@ -65,6 +68,39 @@ export function compilerTimeoutMs(value: number | undefined): number {
     return DEFAULT_COMPILER_TIMEOUT_MS;
   }
   return Math.min(MAX_COMPILER_TIMEOUT_MS, Math.max(MIN_COMPILER_TIMEOUT_MS, Math.floor(value)));
+}
+
+export function isPathInsideAnyRoot(candidate: string, roots: string[]): boolean {
+  const resolvedCandidate = canonicalPotentialPath(candidate);
+  if (!resolvedCandidate) {
+    return false;
+  }
+  return roots.some((root) => {
+    const resolvedRoot = canonicalPotentialPath(root);
+    if (!resolvedRoot) {
+      return false;
+    }
+    const relativePath = relative(resolvedRoot, resolvedCandidate);
+    return relativePath === "" || (relativePath !== ".." && !relativePath.startsWith(`..${sep}`) && !isAbsolute(relativePath));
+  });
+}
+
+function canonicalPotentialPath(pathLike: string): string | undefined {
+  const resolvedPath = resolve(pathLike);
+  let existingPath = resolvedPath;
+  while (!existsSync(existingPath)) {
+    const parent = dirname(existingPath);
+    if (parent === existingPath) {
+      return resolvedPath;
+    }
+    existingPath = parent;
+  }
+
+  try {
+    return resolve(realpathSync(existingPath), relative(existingPath, resolvedPath));
+  } catch {
+    return undefined;
+  }
 }
 
 export function directiveValueContextAt(text: string, offset: number): TxtJetDirectiveValueContext | undefined {

@@ -5,14 +5,15 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.15.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.15`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.17.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.17`.
 - Reload VSCode after install.
 
 ## Language Modes
 
 - Open each sanitized example in `examples/`.
 - Confirm `.txtjet` opens in `TxtJet` mode by default.
+- Confirm `.propertiesjet` opens in `TxtJet` mode by default.
 - Manually switch to each generated output mode:
   - `TxtJet Java Output`
   - `TxtJet HTML Output`
@@ -79,6 +80,9 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Place the cursor in a scriptlet, expression, or declaration and run `TxtJet: Open Region In Java Preview`; confirm the mapped generated Java preview region is selected.
 - Run `TxtJet: Reveal Generated Output Preview From Source` and confirm the matching preview region is selected.
 - Run `TxtJet: Reveal Source From Preview` from an open preview and confirm the matching template region is selected.
+- Run `TxtJet: Open Synchronized Preview`, move the cursor through deterministic generated-output regions, and confirm the visible preview selection follows.
+- Move the cursor inside the visible generated preview and confirm the source selection follows where mappings exist.
+- Run `TxtJet: Toggle Preview Synchronization` and confirm selection synchronization stops/starts without closing the preview.
 - Confirm changing the source template refreshes open preview documents.
 - Confirm the generated output preview language follows the selected generated-output mode.
 - Create a sanitized relative include and confirm Go to Definition from `file="..."` opens it.
@@ -94,6 +98,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.
 - Add a temporary missing `skeleton="..."` reference and confirm a missing-skeleton diagnostic appears.
 - Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
+- Add a missing reference such as `../outside.txtjet` and confirm no file-creation Quick Fix can target a path outside the workspace or configured resolution roots.
 - Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
 - Configure `txtjet.compiler.command` with a sanitized local wrapper that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
 - Configure the wrapper-style matcher `^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$` and confirm `[txtjet] file:line:column: error: message` output is parsed.
@@ -112,12 +117,25 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Create the referenced file and confirm the unresolved tree entry and diagnostic disappear after refresh/save.
 - Run `TxtJet: Validate Workspace Templates` with a sanitized compiler wrapper and confirm root templates are validated without forcing unmappable diagnostics into source ranges.
 
+## IP-XACT
+
+- Set `txtjet.ipxact.enabled` to true.
+- Open `examples/ipxact-component.txtjet` and confirm the `TxtJet Workspace` Explorer shows it under IP-XACT Templates.
+- In generated-output XML text, type `<` and confirm IP-XACT node completions appear for `component`, `busInterface`, `memoryMap`, `addressBlock`, `register`, and `field`.
+- Run `TxtJet: Open IP-XACT Preview` and confirm a read-only XML preview opens beside the template.
+- Run `TxtJet: Generate IP-XACT Output` and confirm output is written under `txtjet.ipxact.outputDirectory`.
+- Run `TxtJet: Diff Current IP-XACT Output Against Last Generation` after changing the template and confirm the diff opens.
+- Configure `txtjet.ipxact.validation.command` with a sanitized wrapper that emits `${outputFile}:line:column: error: message`, run `TxtJet: Validate IP-XACT Output`, and confirm deterministic generated-output diagnostics map back to the template.
+- Disable `txtjet.ipxact.enabled` and confirm IP-XACT commands are hidden/guarded.
+
 ## Settings And Privacy
 
+- Open the workspace in Restricted Mode and confirm compiler and IP-XACT validator commands do not execute while highlighting, previews, generation, and navigation remain available.
 - Toggle `txtjet.statusBar.enabled` and confirm the status bar item hides/shows.
 - Run `TxtJet: Toggle Region Background Coloring` and confirm mixed-language region decorations hide/show.
 - Set `txtjet.diagnostics.severity` to `error`, `warning`, `information`, and `hint`; confirm diagnostics update.
 - Set `txtjet.diagnostics.maxFileSizeKb` to a low value and confirm diagnostics are skipped for larger files.
 - Run `node node_modules/@vscode/vsce/vsce ls --no-dependencies` and inspect the package file list.
+- Run `npm audit` and confirm production and development dependencies have no known vulnerabilities.
 - Confirm the package contains no private templates, root-level local `example*` files, `src`, `test-fixtures`, `node_modules`, `.github`, `.playwright-cli`, static site files, logs, or local VSIX files.
 - Confirm the package contains only the manifest, README, changelog, license, language configuration, icon, docs, examples, snippets, syntaxes, and compiled `out/*.js` files.

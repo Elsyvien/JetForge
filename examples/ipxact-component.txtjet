@@ -1,0 +1,17 @@
+<%@ jet ipxact="true" package="examples.ipxact" class="ComponentTemplate" %>
+<component>
+  <vendor><%= vendor %></vendor>
+  <library>example</library>
+  <name><%= componentName %></name>
+  <version>1.0</version>
+  <memoryMap>
+    <addressBlock>
+      <register>
+        <name>STATUS</name>
+        <field>
+          <name>ready</name>
+        </field>
+      </register>
+    </addressBlock>
+  </memoryMap>
+</component>

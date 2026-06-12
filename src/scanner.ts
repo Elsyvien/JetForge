@@ -30,11 +30,12 @@ export interface TxtJetIssue {
 export interface TxtJetReferenceChecks {
   includeExists?: (includeFile: string) => boolean;
   skeletonExists?: (skeletonFile: string) => boolean;
+  directiveAttributes?: Record<string, string[]>;
 }
 
 const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
 const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
-  jet: new Set(["package", "class", "imports", "skeleton"]),
+  jet: new Set(["package", "class", "imports", "skeleton", "ipxact"]),
   include: new Set(["file"])
 };
 
@@ -150,7 +151,7 @@ export function scanTxtJetDirectiveIssues(
       });
     }
 
-    const knownAttributes = KNOWN_DIRECTIVE_ATTRIBUTES[directive.name];
+    const knownAttributes = knownDirectiveAttributes(directive.name, referenceChecks?.directiveAttributes);
     if (knownAttributes) {
       for (const [name, range] of Object.entries(directive.attributeRanges)) {
         if (!knownAttributes.has(name)) {
@@ -217,6 +218,18 @@ export function scanTxtJetDirectiveIssues(
   }
 
   return issues;
+}
+
+function knownDirectiveAttributes(
+  directiveName: string,
+  configuredAttributes: Record<string, string[]> | undefined
+): Set<string> | undefined {
+  const base = KNOWN_DIRECTIVE_ATTRIBUTES[directiveName];
+  const configured = configuredAttributes?.[directiveName];
+  if (!base && !configured) {
+    return undefined;
+  }
+  return new Set([...(base ? Array.from(base) : []), ...(configured ?? [])]);
 }
 
 function scanJetAttributeValues(directive: NonNullable<ReturnType<typeof parseTxtJetTemplate>["jetDirective"]>): TxtJetIssue[] {

@@ -55,6 +55,66 @@
       "<% } %>"
     ],
     "description": "Insert a for-each template block."
+  },
+  "IP-XACT component": {
+    "prefix": "ipxact-component",
+    "body": [
+      "<component>",
+      "    $0",
+      "</component>"
+    ],
+    "description": "Insert an IP-XACT component node."
+  },
+  "IP-XACT bus interface": {
+    "prefix": "ipxact-busInterface",
+    "body": [
+      "<busInterface>",
+      "    $0",
+      "</busInterface>"
+    ],
+    "description": "Insert an IP-XACT busInterface node."
+  },
+  "IP-XACT memory map": {
+    "prefix": "ipxact-memoryMap",
+    "body": [
+      "<memoryMap>",
+      "    $0",
+      "</memoryMap>"
+    ],
+    "description": "Insert an IP-XACT memoryMap node."
+  },
+  "IP-XACT address block": {
+    "prefix": "ipxact-addressBlock",
+    "body": [
+      "<addressBlock>",
+      "    $0",
+      "</addressBlock>"
+    ],
+    "description": "Insert an IP-XACT addressBlock node."
+  },
+  "IP-XACT register": {
+    "prefix": "ipxact-register",
+    "body": [
+      "<register>",
+      "    $0",
+      "</register>"
+    ],
+    "description": "Insert an IP-XACT register node."
+  },
+  "IP-XACT field": {
+    "prefix": "ipxact-field",
+    "body": [
+      "<field>",
+      "    $0",
+      "</field>"
+    ],
+    "description": "Insert an IP-XACT field node."
+  },
+  "TxtJet IP-XACT metadata": {
+    "prefix": "ipxact",
+    "body": [
+      "<%@ jet ipxact=\"true\" %>"
+    ],
+    "description": "Mark the current template as an IP-XACT template when IP-XACT support is enabled."
   }
 }
-

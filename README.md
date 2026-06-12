@@ -5,7 +5,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 ## Features
 
 - Default `txtjet` language mode for `.txtjet` files.
-- Also recognizes `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, and `.pythonjet` files.
+- Also recognizes `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, and `.jetinc` files.
 - Manual target modes for `txtjet-java`, `txtjet-html`, `txtjet-xml`, `txtjet-c`, and `txtjet-python`.
 - TextMate highlighting for JET/JSP-style blocks:
   - `<% ... %>`
@@ -16,7 +16,9 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Subtle visual differentiation for template markers, directives, embedded Java, and generated-output regions.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Read-only generated output and generated Java template previews.
+- Optional synchronized reveal between visible templates and generated previews where source maps are deterministic.
 - On-demand generated-output writing and previous-generation diffing.
+- Optional IP-XACT preview, generation, diff, validation, snippets, completions, and workspace indexing behind `txtjet.ipxact.enabled`.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
 - Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `TxtJet Workspace` Explorer view.
@@ -42,7 +44,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.15.vsix
+code --install-extension txtjet-syntax-0.0.17.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -87,7 +89,7 @@ Manual selections are remembered for the file in the current workspace. Auto-det
 
 ## TxtJet Workspace Intelligence
 
-The `TxtJet Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, and generated output targets. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.jetinc`, and `.skeleton` files.
+The `TxtJet Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, generated output targets, and opt-in IP-XACT templates. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, `.jetinc`, and `.skeleton` files.
 
 Use these commands for project-level workflows:
 
@@ -95,6 +97,7 @@ Use these commands for project-level workflows:
 - `TxtJet: Open Including Template`
 - `TxtJet: Open Generated Java For Template`
 - `TxtJet: Validate Workspace Templates`
+- `TxtJet: Open IP-XACT Template`
 
 Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
 
@@ -115,6 +118,13 @@ Snippets are available in all TxtJet modes:
 - `include`
 - `if`
 - `for`
+- `ipxact`
+- `ipxact-component`
+- `ipxact-busInterface`
+- `ipxact-memoryMap`
+- `ipxact-addressBlock`
+- `ipxact-register`
+- `ipxact-field`
 
 ## Diagnostics And Completions
 
@@ -125,16 +135,18 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - malformed or empty directives
 - unterminated quoted strings inside directives
 
-Completions are available for template markers after typing `<`, plus directive names, common directive attributes, and directive values inside `<%@ ... %>` blocks. Directive value completions suggest local include files, skeleton files, common Java imports, and reasonable `@jet` package/class values without scanning broadly outside the template directory and configured resolution paths. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Local helper methods declared in `<%! ... %>` blocks also support Find All References, conservative Rename Symbol, and Signature Help for direct helper calls and `this.helper(...)` calls. Generated-output regions get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches.
+Completions are available for template markers after typing `<`, plus directive names, common directive attributes, configured project metadata attributes, and directive values inside `<%@ ... %>` blocks. Directive value completions suggest local include files, skeleton files, common Java imports, reasonable `@jet` package/class values, and `ipxact` metadata values without scanning broadly outside the template directory and configured resolution paths. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Local helper methods declared in `<%! ... %>` blocks also support Find All References, conservative Rename Symbol, and Signature Help for direct helper calls and `this.helper(...)` calls. Generated-output regions get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches. Matched IP-XACT generated-output regions also offer local XML node snippets for common IP-XACT elements.
 Hover text identifies whether the current region is generated output, a TxtJet marker, directive syntax, or embedded template Java.
 
-Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings.
+Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings. Missing-reference file creation is limited to the current workspace or explicitly configured include/skeleton roots.
 
 Additional directive diagnostics report duplicate `@jet` directives, missing or unresolved include files, malformed directive attributes, and unknown core directive names.
 
 Diagnostics, Quick Fixes, completions, Java IntelliSense forwarding, and the status bar selector can be disabled from VSCode settings if a workspace needs a quieter editor.
 
 Compiler-backed diagnostics are available through `TxtJet: Validate Template With External Compiler`. The command reuses `txtjet.compiler.command`, parses stdout/stderr with `txtjet.diagnostics.compiler.problemMatcher`, and maps diagnostics from the generated Java/output file back into the source template when the preview source map can do so deterministically. External compiler commands are capped by `txtjet.compiler.timeoutMs`, which defaults to 60000 ms. `txtjet.diagnostics.compiler.runOnSave` can run this validation after saves; it is disabled by default so slow compiler pipelines stay explicit.
+
+External compiler and IP-XACT validator commands are disabled while VSCode is in Restricted Mode. Editing, highlighting, previews, local generation, and navigation remain available without Workspace Trust.
 
 Example compiler commands:
 
@@ -152,6 +164,26 @@ Example compiler commands:
 }
 ```
 
+Plain `javac` and Eclipse JET-style output such as `generated/Sample.java:12:5: error: message` works with the default matcher. If a tool emits the severity on a following line, wrap it with a small local script that prints one diagnostic per line in the default format.
+
+## IP-XACT Workflows
+
+IP-XACT support is disabled by default. Enable `txtjet.ipxact.enabled`, then match templates with `txtjet.ipxact.templateGlobs` or add `ipxact="true"` to the first `@jet` directive:
+
+```jsp
+<%@ jet ipxact="true" package="demo.ipxact" class="ComponentTemplate" %>
+```
+
+When enabled, these commands become available:
+
+- `TxtJet: Open IP-XACT Preview`
+- `TxtJet: Generate IP-XACT Output`
+- `TxtJet: Diff Current IP-XACT Output Against Last Generation`
+- `TxtJet: Validate IP-XACT Output`
+- `TxtJet: Open IP-XACT Template`
+
+IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`, and validation runs `txtjet.ipxact.validation.command` after writing the generated XML. The validation command supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic.
+
 ## Preview And Navigation
 
 TxtJet can open local, read-only preview documents for the active template:
@@ -163,6 +195,8 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Open Region In Java Preview`
 - `TxtJet: Reveal Generated Output Preview From Source`
 - `TxtJet: Reveal Source From Preview`
+- `TxtJet: Open Synchronized Preview`
+- `TxtJet: Toggle Preview Synchronization`
 - `TxtJet: Generate Output File`
 - `TxtJet: Diff Current Output Against Last Generation`
 - `TxtJet: Compile Template With External Compiler`
@@ -180,7 +214,7 @@ Region preview commands use the cursor position to choose the mapped source rang
 
 `TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. `TxtJet: Diff Current Output Against Last Generation` compares the current generated output with the last generated snapshot for that template.
 `TxtJet: Compile Template With External Compiler` runs a user-configured shell command (`txtjet.compiler.command`) so teams can invoke Eclipse JET (or another real template compiler) and inspect the true generated output beside the template.
-`TxtJet: Validate Template With External Compiler` runs the same command without requiring a preview to be open, parses compiler problems, and reports mapped diagnostics in the `.txtjet` editor. The default matcher supports `file:line:column: severity: message` and `file:line:column: message`; customize `txtjet.diagnostics.compiler.problemMatcher` for compiler-specific output.
+`TxtJet: Validate Template With External Compiler` runs the same command without requiring a preview to be open, parses compiler problems, and reports mapped diagnostics in the `.txtjet` editor. The default matcher supports `file:line:column: severity: message` and `file:line:column: message`; customize `txtjet.diagnostics.compiler.problemMatcher` for compiler-specific output. `TxtJet: Open Synchronized Preview` opens the generated output preview beside the template and enables `txtjet.previews.synchronizedReveal.enabled`, which synchronizes visible source and preview selections only where mappings are known.
 
 ## Formatting Helpers
 
@@ -214,11 +248,13 @@ Settings:
 - `txtjet.diagnostics.compiler.problemMatcher`
 - `txtjet.codeActions.enabled`
 - `txtjet.completions.enabled`
+- `txtjet.completions.directiveMetadata`
 - `txtjet.javaIntelliSense.enabled`
 - `txtjet.statusBar.enabled`
 - `txtjet.previews.enabled`
 - `txtjet.previews.openBeside`
 - `txtjet.previews.generatedJava.enabled`
+- `txtjet.previews.synchronizedReveal.enabled`
 - `txtjet.navigation.includeDefinitions.enabled`
 - `txtjet.resolution.includePaths`
 - `txtjet.resolution.skeletonPaths`
@@ -227,11 +263,20 @@ Settings:
 - `txtjet.generation.outputDirectory`
 - `txtjet.compiler.command`
 - `txtjet.compiler.timeoutMs`
+- `txtjet.ipxact.enabled`
+- `txtjet.ipxact.templateGlobs`
+- `txtjet.ipxact.outputDirectory`
+- `txtjet.ipxact.generation.autoOpen`
+- `txtjet.ipxact.validation.command`
+- `txtjet.ipxact.validation.problemMatcher`
+- `txtjet.ipxact.validation.runOnSave`
+- `txtjet.ipxact.validation.timeoutMs`
 
 Privacy:
 
 - The extension runs locally inside VSCode.
 - It does not send source files, template content, diagnostics, or usage data anywhere.
+- Configured external compiler and validator commands run only in trusted workspaces.
 
 ## Example Files
 
@@ -243,6 +288,7 @@ The `examples/` folder contains sanitized templates for manual testing:
 - `java-declaration-heavy.txtjet` stresses generated Java preview declarations and imports.
 - `diagnostics-directives.txtjet` intentionally triggers directive diagnostics.
 - `fallback-java-preview.txtjet` tests fallback generated Java metadata.
+- `ipxact-component.txtjet` tests opt-in IP-XACT preview, snippets, generation, and validator mapping.
 
 ## License
 

@@ -12,6 +12,7 @@ const main = join(root, "templates", "main.javajet");
 const fragment = join(root, "templates", "partials", "header.jetinc");
 const shared = join(root, "shared", "footer.txtjet");
 const skeleton = join(root, "templates", "base.skeleton");
+const ipxact = join(root, "ipxact", "component.propertiesjet");
 const model = createTxtJetWorkspaceModel(
   [
     {
@@ -34,6 +35,10 @@ const model = createTxtJetWorkspaceModel(
     {
       fileName: skeleton,
       text: "${packageDeclaration}\npublic class ${class} {\n${generateMethod}\n}"
+    },
+    {
+      fileName: ipxact,
+      text: '<%@ jet ipxact="true" %>\ncomponent.name=value'
     }
   ],
   {
@@ -42,16 +47,19 @@ const model = createTxtJetWorkspaceModel(
     },
     skeletonPathsForFile(fileName) {
       return fileName === main ? [join(root, "templates")] : [];
-    }
+    },
+    ipxactEnabled: true
   }
 );
 
 assert.equal(workspaceEntryKind("example.txtjet"), "template");
+assert.equal(workspaceEntryKind("component.propertiesjet"), "template");
 assert.equal(workspaceEntryKind("partial.jetinc"), "include");
 assert.equal(workspaceEntryKind("base.skeleton"), "skeleton");
-assert.equal(model.templates.length, 2);
+assert.equal(model.templates.length, 3);
 assert.equal(model.includes.length, 1);
 assert.equal(model.skeletons.length, 1);
+assert.deepEqual(model.ipxactTemplates.map((entry) => entry.fileName), [ipxact]);
 assert.equal(model.entry(main)?.targetLanguage, "txtjet-java");
 
 const includeReferences = model.referencesFrom(main, "include");
@@ -86,6 +94,7 @@ assert.equal(isExcludedTxtJetWorkspacePath(join(root, "visible.txtjet")), false)
 assert.equal(ignored.entry(privateTemplate), undefined);
 assert.equal(ignored.entry(localToolTemplate), undefined);
 assert.equal(ignored.templates.length, 1);
+assert.equal(ignored.ipxactTemplates.length, 0);
 
 assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.playwright-cli/);
 assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.antigravitycli/);

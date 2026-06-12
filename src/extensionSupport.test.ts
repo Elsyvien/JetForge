@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
   compilerTimeoutMs,
@@ -7,6 +10,7 @@ import {
   MAX_COMPILER_TIMEOUT_MS,
   MIN_COMPILER_TIMEOUT_MS,
   directiveValueContextAt,
+  isPathInsideAnyRoot,
   isTxtJetPath,
   selectedTargetLanguageId,
   shellSingleQuote,
@@ -29,10 +33,25 @@ assert.equal(isTxtJetPath("/workspace/example.htmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.xmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.cjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.pythonjet"), true);
+assert.equal(isTxtJetPath("/workspace/example.propertiesjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.jetinc"), true);
 assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
 assert.equal(isTxtJetPath("/workspace/example.txt"), false);
 assert.equal(isTxtJetPath("vscode-remote://ssh-remote+host/workspace/example.txtjet"), true);
+
+assert.equal(isPathInsideAnyRoot("/workspace/templates/partial.txtjet", ["/workspace"]), true);
+assert.equal(isPathInsideAnyRoot("/workspace-shared/partial.txtjet", ["/workspace"]), false);
+assert.equal(isPathInsideAnyRoot("/outside/partial.txtjet", ["/workspace/templates"]), false);
+if (process.platform !== "win32") {
+  const pathSafetyRoot = mkdtempSync(join(tmpdir(), "txtjet-path-safety-"));
+  const workspaceRoot = join(pathSafetyRoot, "workspace");
+  const outsideRoot = join(pathSafetyRoot, "outside");
+  mkdirSync(workspaceRoot);
+  mkdirSync(outsideRoot);
+  symlinkSync(outsideRoot, join(workspaceRoot, "linked"));
+  assert.equal(isPathInsideAnyRoot(join(workspaceRoot, "linked", "partial.txtjet"), [workspaceRoot]), false);
+  rmSync(pathSafetyRoot, { recursive: true, force: true });
+}
 
 assert.equal(selectedTargetLanguageId("txtjet-html", "txtjet-java"), "txtjet-html");
 assert.equal(selectedTargetLanguageId("txtjet", "txtjet-python"), "txtjet");
