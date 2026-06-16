@@ -46,6 +46,11 @@ export function isTxtJetPath(pathLike: string): boolean {
   return TXTJET_PATH_SUFFIXES.some((suffix) => lower.endsWith(suffix));
 }
 
+export function stripTxtJetSuffix(fileName: string): string {
+  const matchingSuffix = TXTJET_PATH_SUFFIXES.find((suffix) => fileName.toLowerCase().endsWith(suffix));
+  return matchingSuffix ? fileName.slice(0, -matchingSuffix.length) : fileName;
+}
+
 export function shouldOfferMarkerCompletions(linePrefix: string): boolean {
   return linePrefix.endsWith("<");
 }

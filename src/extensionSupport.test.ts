@@ -14,7 +14,8 @@ import {
   isTxtJetPath,
   selectedTargetLanguageId,
   shellSingleQuote,
-  shouldOfferMarkerCompletions
+  shouldOfferMarkerCompletions,
+  stripTxtJetSuffix
 } from "./extensionSupport";
 
 assert.deepEqual(COMPLETION_TRIGGER_CHARACTERS, ["<"]);
@@ -38,6 +39,13 @@ assert.equal(isTxtJetPath("/workspace/example.jetinc"), true);
 assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
 assert.equal(isTxtJetPath("/workspace/example.txt"), false);
 assert.equal(isTxtJetPath("vscode-remote://ssh-remote+host/workspace/example.txtjet"), true);
+
+assert.equal(stripTxtJetSuffix("component.txtjet"), "component");
+assert.equal(stripTxtJetSuffix("component.javajet"), "component");
+assert.equal(stripTxtJetSuffix("component.propertiesjet"), "component");
+assert.equal(stripTxtJetSuffix("component.jetinc"), "component");
+assert.equal(stripTxtJetSuffix("component.TXTJET"), "component");
+assert.equal(stripTxtJetSuffix("component.txt"), "component.txt");
 
 assert.equal(isPathInsideAnyRoot("/workspace/templates/partial.txtjet", ["/workspace"]), true);
 assert.equal(isPathInsideAnyRoot("/workspace-shared/partial.txtjet", ["/workspace"]), false);

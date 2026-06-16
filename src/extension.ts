@@ -19,7 +19,8 @@ import {
   isTxtJetPath,
   selectedTargetLanguageId,
   shellSingleQuote,
-  shouldOfferMarkerCompletions
+  shouldOfferMarkerCompletions,
+  stripTxtJetSuffix
 } from "./extensionSupport";
 import { formatTxtJetBlock } from "./formatter";
 import {
@@ -3189,10 +3190,6 @@ function classNameCandidates(document: vscode.TextDocument): string[] {
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join("");
   return [className ? `${className}Template` : "", "GeneratedTxtJetTemplate"].filter((entry) => /^[A-Za-z_$][\w$]*$/.test(entry));
-}
-
-function stripTxtJetSuffix(fileName: string): string {
-  return fileName.replace(/\.(?:txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet)$/i, "");
 }
 
 function uniqueStrings(values: string[]): string[] {
