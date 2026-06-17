@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { readdirSync } from "node:fs";
+import { basename, join } from "node:path";
 
 const vsceBin = join("node_modules", "@vscode", "vsce", "vsce");
 const packageText = execFileSync(process.execPath, [vsceBin, "ls", "--no-dependencies"], {
@@ -8,6 +9,10 @@ const packageText = execFileSync(process.execPath, [vsceBin, "ls", "--no-depende
   stdio: ["ignore", "pipe", "pipe"]
 });
 const files = packageText.trim().split(/\r?\n/).filter(Boolean);
+const expectedRuntimeModules = readdirSync("src")
+  .filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))
+  .map((file) => `out/${basename(file, ".ts")}.js`)
+  .sort();
 
 const forbidden = [
   /^\.DS_Store$/,
@@ -58,6 +63,12 @@ for (const pattern of forbidden) {
 for (const file of files) {
   assert.ok(allowed.some((pattern) => pattern.test(file)), `unexpected package path ${file}`);
 }
+
+assert.deepEqual(
+  files.filter((file) => /^out\/[A-Za-z0-9_-]+\.js$/.test(file)).sort(),
+  expectedRuntimeModules,
+  "packaged runtime output must match current source modules"
+);
 
 assert.ok(files.includes("package.json"));
 assert.ok(files.includes("README.md"));

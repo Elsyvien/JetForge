@@ -63,6 +63,7 @@ for (const command of contributedCommands) {
   if (command !== "txtjet.clearLanguage.all") {
     assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);
   }
+  assert.ok(activationEvents.has(`onCommand:${command}`), `${command} activation missing`);
 }
 
 assert.ok(contributes.configuration.properties["txtjet.diagnostics.enabled"]);

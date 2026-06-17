@@ -109,7 +109,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(outputChannel);
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
-  context.subscriptions.push(statusBar);
+  context.subscriptions.push(statusBar, outputChannel);
   const diagnostics = vscode.languages.createDiagnosticCollection("txtjet");
   context.subscriptions.push(diagnostics);
   const compilerDiagnosticsBySource = new Map<string, vscode.Diagnostic[]>();
@@ -1505,10 +1505,7 @@ async function compileTemplateWithExternalTool(): Promise<void> {
   const outputPath = generationOutputUri(editor.document).fsPath;
   mkdirSync(dirname(outputPath), { recursive: true });
   const timeoutMs = compilerTimeoutMs(config.get<number>("compiler.timeoutMs"));
-  const fullCommand = compileCommand
-    .split("${file}").join(shellEscape(editor.document.fileName))
-    .split("${workspaceFolder}").join(shellEscape(workspaceFolder))
-    .split("${outputFile}").join(shellEscape(outputPath));
+  const fullCommand = compilerCommandFor(compileCommand, editor.document.fileName, workspaceFolder, outputPath);
 
   try {
     const { stdout, stderr } = await execAsync(fullCommand, { cwd: workspaceFolder, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs });

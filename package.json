@@ -810,6 +810,12 @@
     "onLanguage:txtjet-python",
     "onCommand:txtjet.selectTargetLanguage",
     "onCommand:txtjet.detectTargetLanguage",
+    "onCommand:txtjet.setLanguage.default",
+    "onCommand:txtjet.setLanguage.java",
+    "onCommand:txtjet.setLanguage.html",
+    "onCommand:txtjet.setLanguage.xml",
+    "onCommand:txtjet.setLanguage.c",
+    "onCommand:txtjet.setLanguage.python",
     "onCommand:txtjet.clearLanguage.active",
     "onCommand:txtjet.clearLanguage.all",
     "onCommand:txtjet.toggleVisualDifferentiation",
@@ -838,7 +844,8 @@
     "onCommand:txtjet.togglePreviewSynchronization"
   ],
   "scripts": {
-    "compile": "tsc -p ./",
+    "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
+    "compile": "npm run clean && tsc -p ./",
     "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/compilerDiagnostics.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
