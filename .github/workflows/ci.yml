@@ -1,15 +1,24 @@
-name: CI
+name: Extension Tests
 
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: extension-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
+  test-extension:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      NODE_VERSION: 20
 
     steps:
       - name: Checkout
@@ -18,7 +27,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
       - name: Install dependencies
@@ -27,8 +36,23 @@ jobs:
       - name: Audit dependencies
         run: npm audit
 
-      - name: Verify and package
-        run: npm run verify
+      - name: Run extension tests
+        run: npm test
+
+      - name: Validate extension JSON assets
+        run: npm run validate:json
+
+      - name: Package extension
+        run: npm run package
+
+      - name: Check package output
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          VSIX="txtjet-syntax-${VERSION}.vsix"
+          test -s "$VSIX"
+          test -s out/extension.js
+          echo "vsix=$VSIX" >> "$GITHUB_ENV"
 
       - name: Inspect package contents
         run: node node_modules/@vscode/vsce/vsce ls --no-dependencies
@@ -37,4 +61,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: txtjet-syntax-vsix
-          path: "*.vsix"
+          path: ${{ env.vsix }}
+          if-no-files-found: error
