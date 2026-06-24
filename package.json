@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
   "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -323,6 +323,21 @@
         "title": "TxtJet: Validate Workspace Templates",
         "category": "TxtJet",
         "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "txtjet.showImpactGraph",
+        "title": "TxtJet: Show Impact Graph",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.extractSelectionToInclude",
+        "title": "TxtJet: Extract Selection to Include",
+        "category": "TxtJet"
+      },
+      {
+        "command": "txtjet.renameWorkspaceReference",
+        "title": "TxtJet: Rename or Move Include/Skeleton",
+        "category": "TxtJet"
       },
       {
         "command": "txtjet.openIpxactPreview",
@@ -690,6 +705,16 @@
           "command": "txtjet.validateWorkspaceTemplates"
         },
         {
+          "command": "txtjet.showImpactGraph"
+        },
+        {
+          "command": "txtjet.extractSelectionToInclude",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.renameWorkspaceReference"
+        },
+        {
           "command": "txtjet.openIpxactPreview",
           "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
         },
@@ -735,39 +760,49 @@
           "group": "navigation@31"
         },
         {
-          "command": "txtjet.openIncludingTemplate",
+          "command": "txtjet.showImpactGraph",
           "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@32"
         },
         {
-          "command": "txtjet.openGeneratedJavaForTemplate",
+          "command": "txtjet.extractSelectionToInclude",
           "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@33"
         },
         {
-          "command": "txtjet.openIpxactPreview",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "command": "txtjet.openIncludingTemplate",
+          "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@34"
         },
         {
-          "command": "txtjet.generateIpxactOutput",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "command": "txtjet.openGeneratedJavaForTemplate",
+          "when": "resourceLangId =~ /^txtjet/",
           "group": "navigation@35"
         },
         {
-          "command": "txtjet.validateIpxact",
+          "command": "txtjet.openIpxactPreview",
           "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
           "group": "navigation@36"
         },
         {
+          "command": "txtjet.generateIpxactOutput",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "group": "navigation@37"
+        },
+        {
+          "command": "txtjet.validateIpxact",
+          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
+          "group": "navigation@38"
+        },
+        {
           "command": "txtjet.openSynchronizedPreview",
           "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@37"
+          "group": "navigation@39"
         },
         {
           "command": "txtjet.togglePreviewSynchronization",
           "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@38"
+          "group": "navigation@40"
         }
       ],
       "view/title": [
@@ -782,6 +817,11 @@
           "group": "navigation"
         },
         {
+          "command": "txtjet.showImpactGraph",
+          "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
           "command": "txtjet.openIpxactTemplate",
           "when": "view == txtjetWorkspace && config.txtjet.ipxact.enabled",
           "group": "navigation"
@@ -791,6 +831,16 @@
         {
           "command": "txtjet.openIncludingTemplate",
           "when": "view == txtjetWorkspace && viewItem =~ /txtjetWorkspace\\.(include|template)/",
+          "group": "inline"
+        },
+        {
+          "command": "txtjet.showImpactGraph",
+          "when": "view == txtjetWorkspace && viewItem =~ /txtjetWorkspace\\.(include|template|skeleton|generated)/",
+          "group": "inline"
+        },
+        {
+          "command": "txtjet.renameWorkspaceReference",
+          "when": "view == txtjetWorkspace && viewItem =~ /txtjetWorkspace\\.(include|skeleton)/",
           "group": "inline"
         },
         {
@@ -834,6 +884,9 @@
     "onCommand:txtjet.openIncludingTemplate",
     "onCommand:txtjet.openGeneratedJavaForTemplate",
     "onCommand:txtjet.validateWorkspaceTemplates",
+    "onCommand:txtjet.showImpactGraph",
+    "onCommand:txtjet.extractSelectionToInclude",
+    "onCommand:txtjet.renameWorkspaceReference",
     "onView:txtjetWorkspace",
     "onCommand:txtjet.openIpxactPreview",
     "onCommand:txtjet.generateIpxactOutput",

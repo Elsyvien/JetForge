@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.18
+
+- Added TxtJet impact graph reports that trace direct and transitive include/skeleton dependencies to affected templates and generated-output targets.
+- Added safe refactor commands for extracting selected template text into `.jetinc` includes and renaming or moving include/skeleton files while updating resolved references.
+- Documented the new workspace impact and refactor workflows.
+
 ## 0.0.17
 
 - Disabled external compiler and IP-XACT validator commands in VSCode Restricted Mode and declared limited untrusted-workspace support.
