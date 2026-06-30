@@ -8,6 +8,7 @@ import {
   parseTxtJetTemplate,
   resolveReferenceCandidates,
   resolveIncludePath,
+  resolveTemplateReferencePath,
   targetPreviewLanguage
 } from "./templateModel";
 
@@ -152,6 +153,9 @@ assert.equal(targetPreviewLanguage("txtjet"), "plaintext");
 assert.equal(resolveIncludePath(workspaceTemplatesMain, "parts/header.txtjet"), join(workspaceRoot, "templates", "parts", "header.txtjet"));
 assert.equal(resolveIncludePath(workspaceTemplatesMain, resolve("tmp", "header.txtjet")), undefined);
 assert.equal(resolveIncludePath(workspaceTemplatesMain, ""), undefined);
+assert.equal(resolveTemplateReferencePath(workspaceTemplatesMain, "shared/header", {
+  searchPaths: [join(workspaceRoot, "includes")]
+}), join(workspaceRoot, "templates", "shared", "header"));
 assert.deepEqual(resolveReferenceCandidates(workspaceTemplatesMain, "shared/header", {
   searchPaths: [join(workspaceRoot, "includes")]
 }), [

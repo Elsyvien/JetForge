@@ -246,11 +246,7 @@ export function resolveTemplateReferencePath(
   referenceFile: string,
   options: TxtJetReferenceResolutionOptions = {}
 ): string | undefined {
-  if (!referenceFile || isAbsolute(referenceFile)) {
-    return undefined;
-  }
-  const candidates = [dirname(templateFileName), ...(options.searchPaths ?? [])];
-  return normalize(resolve(candidates[0], referenceFile));
+  return resolveReferenceCandidates(templateFileName, referenceFile, options)[0];
 }
 
 export const resolveSkeletonPath = resolveIncludePath;
@@ -880,18 +876,22 @@ function mapRange(
   from: "source" | "preview",
   to: "source" | "preview"
 ): TxtJetRange | undefined {
-  const matches = mappings.filter((mapping) => rangesIntersectOrTouch(mapping[from], range));
-  if (matches.length === 0) {
-    return undefined;
+  let mappedRange: TxtJetRange | undefined;
+  for (const mapping of mappings) {
+    if (!rangesIntersectOrTouch(mapping[from], range)) {
+      continue;
+    }
+
+    if (!mappedRange) {
+      mappedRange = { start: mapping[to].start, end: mapping[to].end };
+      continue;
+    }
+
+    mappedRange.start = Math.min(mappedRange.start, mapping[to].start);
+    mappedRange.end = Math.max(mappedRange.end, mapping[to].end);
   }
 
-  return matches.reduce<TxtJetRange>(
-    (result, mapping) => ({
-      start: Math.min(result.start, mapping[to].start),
-      end: Math.max(result.end, mapping[to].end)
-    }),
-    { start: matches[0][to].start, end: matches[0][to].end }
-  );
+  return mappedRange;
 }
 
 function rangesIntersectOrTouch(left: TxtJetRange, right: TxtJetRange): boolean {
