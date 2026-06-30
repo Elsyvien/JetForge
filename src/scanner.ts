@@ -282,7 +282,7 @@ function areValidImports(value: string): boolean {
     .split(/[;,]/)
     .map((entry) => entry.trim())
     .filter(Boolean)
-    .every((entry) => /^[A-Za-z_][\w]*(?:\.[A-Za-z_*][\w*]*)*$/.test(entry));
+    .every((entry) => /^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*(?:\.\*)?$/.test(entry));
 }
 
 function isValidSkeletonPath(value: string): boolean {

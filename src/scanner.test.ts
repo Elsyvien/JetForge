@@ -59,6 +59,8 @@ assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=\"a.txtjet\" file=\
 ]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ unknown value=\"x\" %>").map((issue) => issue.code), ["unknown-directive"]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>").map((issue) => issue.code), ["invalid-jet-package"]);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet imports=\"java.util.List; java.util.*\" %>").map((issue) => issue.code), []);
+assert.deepEqual(scanTxtJetDirectiveIssues("<%@ jet imports=\"java.u*til.List\" %>").map((issue) => issue.code), ["invalid-jet-imports"]);
 assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=missing.txtjet %>").map((issue) => issue.code), [
   "malformed-directive-attribute",
   "missing-include-file"
