@@ -1270,6 +1270,9 @@ async function extractSelectionToInclude(): Promise<void> {
     vscode.window.showErrorMessage(`TxtJet include already exists: ${workspaceRelativeLabel(targetFileName)}`);
     return;
   }
+  if (!await createRefactorParentDirectory(targetFileName)) {
+    return;
+  }
 
   const selectionText = document.getText(editor.selection);
   const includeDirective = `<%@ include file="${normalizeReferenceForDirective(includeReference)}" %>`;
@@ -1283,7 +1286,6 @@ async function extractSelectionToInclude(): Promise<void> {
     vscode.window.showErrorMessage("TxtJet could not apply the extract include refactor.");
     return;
   }
-  await vscode.workspace.saveAll(false);
   await vscode.window.showTextDocument(targetUri, { preview: false, viewColumn: vscode.ViewColumn.Beside });
 }
 
@@ -1331,6 +1333,9 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
   if (action !== "Apply Refactor") {
     return;
   }
+  if (!await createRefactorParentDirectory(newFileName)) {
+    return;
+  }
 
   const edit = new vscode.WorkspaceEdit();
   edit.renameFile(vscode.Uri.file(entry.fileName), vscode.Uri.file(newFileName), { overwrite: false, ignoreIfExists: false });
@@ -1351,7 +1356,6 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
     vscode.window.showErrorMessage("TxtJet could not apply the reference rename.");
     return;
   }
-  await vscode.workspace.saveAll(false);
   vscode.window.showInformationMessage(`TxtJet updated ${references.length} reference${references.length === 1 ? "" : "s"}.`);
 }
 
@@ -1469,14 +1473,21 @@ function markdownEscaped(value: string): string {
 }
 
 function validateReferenceInput(value: string, kind: TxtJetWorkspaceReferenceKind): string | undefined {
-  if (!value.trim()) {
+  const trimmed = value.trim();
+  if (!trimmed) {
     return "Enter a path.";
   }
-  if (value.includes("\0")) {
-    return "Path cannot contain null bytes.";
+  if (isAbsolutePath(trimmed)) {
+    return "Enter a relative path.";
+  }
+  if (/[\0\r\n"']/.test(trimmed)) {
+    return "Path cannot contain quotes, line breaks, or null bytes.";
+  }
+  if (/[\\/]$/.test(trimmed)) {
+    return "Enter a file name, not a directory.";
   }
   const required = kind === "skeleton" ? ".skeleton" : ".jetinc";
-  const extension = extname(value);
+  const extension = extname(trimmed);
   if (extension && extension !== required) {
     return `TxtJet ${kind} files must use ${required}.`;
   }
@@ -1515,6 +1526,16 @@ function resolveRefactorTargetFileName(
 function isSafeWorkspaceRefactorPath(fileName: string, resource: vscode.Uri): boolean {
   const workspaceRoot = vscode.workspace.getWorkspaceFolder(resource)?.uri.fsPath;
   return isPathInsideAnyRoot(fileName, workspaceRoot ? [workspaceRoot] : [dirname(resource.fsPath)]);
+}
+
+async function createRefactorParentDirectory(fileName: string): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(dirname(fileName)));
+    return true;
+  } catch (error) {
+    vscode.window.showErrorMessage(`TxtJet could not create the target folder: ${String(error)}`);
+    return false;
+  }
 }
 
 function directiveReferenceValueRange(
