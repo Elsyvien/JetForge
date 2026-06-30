@@ -22,6 +22,8 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
 - Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `TxtJet Workspace` Explorer view.
+- Impact graph reports for templates, includes, and skeletons so project-level generated-output blast radius is visible before edits.
+- Safe refactor commands to extract selected template text into `.jetinc` files and rename or move includes/skeletons while updating references.
 - Find All References, Rename Symbol, and Signature Help for local template Java helper methods declared in `<%! ... %>` blocks.
 - Auto Detect support that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
@@ -44,7 +46,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.17.vsix
+code --install-extension txtjet-syntax-0.0.18.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -98,8 +100,13 @@ Use these commands for project-level workflows:
 - `TxtJet: Open Generated Java For Template`
 - `TxtJet: Validate Workspace Templates`
 - `TxtJet: Open IP-XACT Template`
+- `TxtJet: Show Impact Graph`
+- `TxtJet: Extract Selection to Include`
+- `TxtJet: Rename or Move Include/Skeleton`
 
 Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
+
+Impact graph reports open as Markdown and show direct and transitive edges from a changed include, skeleton, or template to affected templates and generated-output targets. The refactor commands keep edits conservative: extraction creates a new workspace-local `.jetinc`, and include/skeleton rename or move uses a previewed WorkspaceEdit that updates only resolved references in the current workspace model.
 
 You can rerun detection manually with the command:
 

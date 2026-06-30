@@ -45,8 +45,18 @@ export interface TxtJetWorkspaceModel {
   unresolvedReferences: TxtJetWorkspaceReference[];
   entry(fileName: string): TxtJetWorkspaceEntry | undefined;
   referencesFrom(fileName: string, kind?: TxtJetWorkspaceReferenceKind): TxtJetWorkspaceReference[];
+  referencesTo(fileName: string, kind?: TxtJetWorkspaceReferenceKind): TxtJetWorkspaceReference[];
   referenceExists(fileName: string, referenceFile: string, kind: TxtJetWorkspaceReferenceKind): boolean;
   includingTemplates(fileName: string): TxtJetWorkspaceEntry[];
+  impactedBy(fileName: string): TxtJetWorkspaceImpact;
+}
+
+export interface TxtJetWorkspaceImpact {
+  source?: TxtJetWorkspaceEntry;
+  affectedEntries: TxtJetWorkspaceEntry[];
+  affectedTemplates: TxtJetWorkspaceEntry[];
+  generatedTargets: TxtJetWorkspaceEntry[];
+  references: TxtJetWorkspaceReference[];
 }
 
 export interface TxtJetWorkspaceModelOptions {
@@ -142,6 +152,12 @@ export function createTxtJetWorkspaceModel(
       const references = entriesByFile.get(normalize(fileName))?.references ?? [];
       return kind ? references.filter((reference) => reference.kind === kind) : references;
     },
+    referencesTo(fileName, kind) {
+      const targetFileName = normalize(fileName);
+      const references = entries.flatMap((entry) => entry.references)
+        .filter((reference) => reference.resolvedFileName === targetFileName);
+      return (kind ? references.filter((reference) => reference.kind === kind) : references).sort(compareReference);
+    },
     referenceExists(fileName, referenceFile, kind) {
       return referencesForFileName(normalize(fileName), referenceFile, kind, entriesByFile, options).some((candidate) =>
         entriesByFile.has(candidate)
@@ -156,6 +172,9 @@ export function createTxtJetWorkspaceModel(
         .map((includingFile) => entriesByFile.get(includingFile))
         .filter((includingEntry): includingEntry is TxtJetWorkspaceEntry => Boolean(includingEntry))
         .sort(compareEntry);
+    },
+    impactedBy(fileName) {
+      return workspaceImpactForFile(normalize(fileName), entriesByFile);
     }
   };
 }
@@ -239,6 +258,50 @@ function compareReference(left: TxtJetWorkspaceReference, right: TxtJetWorkspace
   return left.sourceFileName.localeCompare(right.sourceFileName)
     || left.kind.localeCompare(right.kind)
     || left.referenceFile.localeCompare(right.referenceFile);
+}
+
+function workspaceImpactForFile(
+  fileName: string,
+  entriesByFile: Map<string, TxtJetWorkspaceEntry>
+): TxtJetWorkspaceImpact {
+  const affectedFileNames = new Set<string>();
+  const references: TxtJetWorkspaceReference[] = [];
+  const queue = [fileName];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (affectedFileNames.has(current)) {
+      continue;
+    }
+    affectedFileNames.add(current);
+
+    for (const entry of entriesByFile.values()) {
+      for (const reference of entry.references) {
+        if (reference.resolvedFileName !== current) {
+          continue;
+        }
+        references.push(reference);
+        if (!affectedFileNames.has(entry.fileName)) {
+          queue.push(entry.fileName);
+        }
+      }
+    }
+  }
+
+  const affectedEntries = Array.from(affectedFileNames)
+    .map((affectedFileName) => entriesByFile.get(affectedFileName))
+    .filter((entry): entry is TxtJetWorkspaceEntry => Boolean(entry))
+    .sort(compareEntry);
+  const affectedTemplates = affectedEntries
+    .filter((entry) => entry.kind === "template")
+    .sort(compareEntry);
+  return {
+    source: entriesByFile.get(fileName),
+    affectedEntries,
+    affectedTemplates,
+    generatedTargets: affectedTemplates,
+    references: references.sort(compareReference)
+  };
 }
 
 function sortedUnique(values: string[]): string[] {

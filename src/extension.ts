@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, isAbsolute as isAbsolutePath, join, relative } from "node:path";
+import { basename, dirname, extname, isAbsolute as isAbsolutePath, join, relative } from "node:path";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
@@ -71,6 +71,7 @@ import {
   TxtJetWorkspaceEntry,
   TxtJetWorkspaceModel,
   TxtJetWorkspaceReference,
+  TxtJetWorkspaceReferenceKind,
   workspaceEntryKind
 } from "./workspaceModel";
 
@@ -300,6 +301,21 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.validateWorkspaceTemplates", async () => {
       await validateWorkspaceTemplates(diagnostics, compilerDiagnosticsBySource);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.showImpactGraph", async (item?: TxtJetWorkspaceTreeNode) => {
+      await showImpactGraph(item);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.extractSelectionToInclude", async () => {
+      await extractSelectionToInclude();
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.renameWorkspaceReference", async (item?: TxtJetWorkspaceTreeNode) => {
+      await renameWorkspaceReference(item);
     })
   );
   context.subscriptions.push(
@@ -1198,6 +1214,357 @@ async function validateWorkspaceTemplates(
   const skipped = templates.length - completed;
   const skippedSuffix = skipped > 0 ? ` ${skipped} skipped.` : "";
   vscode.window.showInformationMessage(`TxtJet validated ${completed} workspace template${completed === 1 ? "" : "s"}.${skippedSuffix}`);
+}
+
+async function showImpactGraph(item?: TxtJetWorkspaceTreeNode): Promise<void> {
+  const model = await ensureWorkspaceModel();
+  const fileName = await workspaceFileNameForImpact(model, item);
+  if (!fileName) {
+    return;
+  }
+
+  const impact = model.impactedBy(fileName);
+  if (!impact.source) {
+    vscode.window.showInformationMessage("TxtJet did not find that file in the workspace model.");
+    return;
+  }
+
+  const document = await vscode.workspace.openTextDocument({
+    language: "markdown",
+    content: impactGraphMarkdown(model, fileName)
+  });
+  await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+}
+
+async function extractSelectionToInclude(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || !isTxtJetFile(editor.document)) {
+    return;
+  }
+  if (editor.selection.isEmpty) {
+    vscode.window.showInformationMessage("Select template text before extracting it to a TxtJet include.");
+    return;
+  }
+
+  const document = editor.document;
+  const defaultReference = `partials/${stripTxtJetSuffix(basename(document.fileName))}.jetinc`;
+  const referenceFile = await vscode.window.showInputBox({
+    title: "Extract selection to TxtJet include",
+    prompt: "Include path to create, relative to the current template.",
+    value: defaultReference,
+    validateInput(value) {
+      return validateReferenceInput(value, "include");
+    }
+  });
+  if (!referenceFile) {
+    return;
+  }
+
+  const includeReference = withRequiredReferenceExtension(referenceFile, "include");
+  const targetFileName = resolveReferenceCandidates(document.fileName, includeReference, { searchPaths: [] })[0];
+  if (!targetFileName || !isSafeWorkspaceRefactorPath(targetFileName, document.uri)) {
+    vscode.window.showErrorMessage("TxtJet can only extract includes inside the current workspace or template directory.");
+    return;
+  }
+  if (existsSync(targetFileName)) {
+    vscode.window.showErrorMessage(`TxtJet include already exists: ${workspaceRelativeLabel(targetFileName)}`);
+    return;
+  }
+  if (!await createRefactorParentDirectory(targetFileName)) {
+    return;
+  }
+
+  const selectionText = document.getText(editor.selection);
+  const includeDirective = `<%@ include file="${normalizeReferenceForDirective(includeReference)}" %>`;
+  const edit = new vscode.WorkspaceEdit();
+  const targetUri = vscode.Uri.file(targetFileName);
+  edit.createFile(targetUri, { ignoreIfExists: false });
+  edit.insert(targetUri, new vscode.Position(0, 0), selectionText);
+  edit.replace(document.uri, editor.selection, includeDirective);
+
+  if (!await vscode.workspace.applyEdit(edit)) {
+    vscode.window.showErrorMessage("TxtJet could not apply the extract include refactor.");
+    return;
+  }
+  await vscode.window.showTextDocument(targetUri, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+}
+
+async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise<void> {
+  const model = await ensureWorkspaceModel();
+  const entry = await workspaceReferenceEntryForRefactor(model, item);
+  if (!entry || (entry.kind !== "include" && entry.kind !== "skeleton")) {
+    vscode.window.showInformationMessage("Select a TxtJet include or skeleton file to rename or move.");
+    return;
+  }
+
+  const referenceKind: TxtJetWorkspaceReferenceKind = entry.kind === "skeleton" ? "skeleton" : "include";
+  const defaultPath = workspaceRelativeLabel(entry.fileName);
+  const input = await vscode.window.showInputBox({
+    title: `Rename or move TxtJet ${referenceKind}`,
+    prompt: "New path. A bare name stays in the same folder; a path is workspace-relative.",
+    value: defaultPath,
+    validateInput(value) {
+      return validateReferenceInput(value, referenceKind);
+    }
+  });
+  if (!input) {
+    return;
+  }
+
+  const newFileName = resolveRefactorTargetFileName(entry.fileName, input, referenceKind);
+  if (newFileName === entry.fileName) {
+    return;
+  }
+  if (!isSafeWorkspaceRefactorPath(newFileName, vscode.Uri.file(entry.fileName))) {
+    vscode.window.showErrorMessage("TxtJet can only rename references inside the current workspace or template directory.");
+    return;
+  }
+  if (existsSync(newFileName)) {
+    vscode.window.showErrorMessage(`Target already exists: ${workspaceRelativeLabel(newFileName)}`);
+    return;
+  }
+
+  const references = model.referencesTo(entry.fileName, referenceKind);
+  const action = await vscode.window.showWarningMessage(
+    `Rename ${workspaceRelativeLabel(entry.fileName)} and update ${references.length} TxtJet reference${references.length === 1 ? "" : "s"}?`,
+    { modal: true },
+    "Apply Refactor"
+  );
+  if (action !== "Apply Refactor") {
+    return;
+  }
+  if (!await createRefactorParentDirectory(newFileName)) {
+    return;
+  }
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.renameFile(vscode.Uri.file(entry.fileName), vscode.Uri.file(newFileName), { overwrite: false, ignoreIfExists: false });
+  for (const reference of references) {
+    const sourceDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(reference.sourceFileName));
+    const valueRange = directiveReferenceValueRange(sourceDocument, reference);
+    if (!valueRange) {
+      continue;
+    }
+    edit.replace(
+      sourceDocument.uri,
+      valueRange,
+      relativeReferenceFromSource(reference.sourceFileName, newFileName)
+    );
+  }
+
+  if (!await vscode.workspace.applyEdit(edit)) {
+    vscode.window.showErrorMessage("TxtJet could not apply the reference rename.");
+    return;
+  }
+  vscode.window.showInformationMessage(`TxtJet updated ${references.length} reference${references.length === 1 ? "" : "s"}.`);
+}
+
+async function ensureWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
+  if (!activeWorkspaceModel) {
+    activeWorkspaceModel = await buildTxtJetWorkspaceModel();
+  }
+  return activeWorkspaceModel;
+}
+
+async function workspaceFileNameForImpact(
+  model: TxtJetWorkspaceModel,
+  item?: TxtJetWorkspaceTreeNode
+): Promise<string | undefined> {
+  const fileName = workspaceFileNameFromNode(item) ?? vscode.window.activeTextEditor?.document.fileName;
+  if (fileName && model.entry(fileName)) {
+    return fileName;
+  }
+  const picked = await pickWorkspaceEntry(model.entries, "Show TxtJet impact graph");
+  return picked?.fileName;
+}
+
+async function workspaceReferenceEntryForRefactor(
+  model: TxtJetWorkspaceModel,
+  item?: TxtJetWorkspaceTreeNode
+): Promise<TxtJetWorkspaceEntry | undefined> {
+  const fileName = workspaceFileNameFromNode(item) ?? activeReferenceTargetFileName(model);
+  const entry = fileName ? model.entry(fileName) : undefined;
+  if (entry?.kind === "include" || entry?.kind === "skeleton") {
+    return entry;
+  }
+  return pickWorkspaceEntry([...model.includes, ...model.skeletons], "Rename or move TxtJet include/skeleton");
+}
+
+function activeReferenceTargetFileName(model: TxtJetWorkspaceModel): string | undefined {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || !isTxtJetFile(editor.document)) {
+    return undefined;
+  }
+  const reference = referenceDirectiveAtOffset(
+    parseTxtJetTemplate(editor.document.getText()),
+    editor.document.offsetAt(editor.selection.active)
+  );
+  if (!reference) {
+    return undefined;
+  }
+  return model.referencesFrom(editor.document.fileName, reference.kind)
+    .find((candidate) => candidate.referenceFile === reference.file)
+    ?.resolvedFileName;
+}
+
+function impactGraphMarkdown(model: TxtJetWorkspaceModel, fileName: string): string {
+  const impact = model.impactedBy(fileName);
+  const sourceLabel = workspaceRelativeLabel(fileName);
+  const lines = [
+    "# TxtJet Impact Graph",
+    "",
+    `Source: \`${sourceLabel}\``,
+    "",
+    "## Summary",
+    "",
+    `- Affected workspace files: ${impact.affectedEntries.length}`,
+    `- Affected templates: ${impact.affectedTemplates.length}`,
+    `- Generated output targets to recheck: ${impact.generatedTargets.length}`,
+    `- Dependency edges: ${impact.references.length}`,
+    "",
+    "## Graph",
+    "",
+    "```mermaid",
+    "flowchart LR",
+    ...impactGraphMermaidLines(model, fileName),
+    "```",
+    "",
+    "## Affected Templates",
+    "",
+    ...markdownList(impact.affectedTemplates.map((entry) => workspaceRelativeLabel(entry.fileName))),
+    "",
+    "## Direct And Transitive Reference Edges",
+    "",
+    ...markdownList(impact.references.map((reference) =>
+      `${workspaceRelativeLabel(reference.resolvedFileName ?? "")} -> ${workspaceRelativeLabel(reference.sourceFileName)} (${reference.kind}: \`${reference.referenceFile}\`)`
+    )),
+    ""
+  ];
+  return lines.join("\n");
+}
+
+function impactGraphMermaidLines(model: TxtJetWorkspaceModel, fileName: string): string[] {
+  const impact = model.impactedBy(fileName);
+  const fileNames = new Set(impact.affectedEntries.map((entry) => entry.fileName));
+  fileNames.add(fileName);
+  const ids = new Map(Array.from(fileNames).sort().map((entryFileName, index) => [entryFileName, `n${index}`]));
+  const lines = Array.from(fileNames).sort().map((entryFileName) => {
+    const label = markdownEscaped(workspaceRelativeLabel(entryFileName));
+    return `  ${ids.get(entryFileName)}["${label}"]`;
+  });
+  for (const reference of impact.references) {
+    if (!reference.resolvedFileName || !ids.has(reference.resolvedFileName) || !ids.has(reference.sourceFileName)) {
+      continue;
+    }
+    lines.push(`  ${ids.get(reference.resolvedFileName)} -->|${reference.kind}| ${ids.get(reference.sourceFileName)}`);
+  }
+  if (lines.length === 1) {
+    lines.push(`  ${ids.get(fileName)} --> ${ids.get(fileName)}`);
+  }
+  return lines;
+}
+
+function markdownList(values: string[]): string[] {
+  return values.length > 0 ? values.map((value) => `- ${value}`) : ["- None"];
+}
+
+function markdownEscaped(value: string): string {
+  return value.replace(/["<>]/g, "_");
+}
+
+function validateReferenceInput(value: string, kind: TxtJetWorkspaceReferenceKind): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "Enter a path.";
+  }
+  if (isAbsolutePath(trimmed)) {
+    return "Enter a relative path.";
+  }
+  if (/[\0\r\n"']/.test(trimmed)) {
+    return "Path cannot contain quotes, line breaks, or null bytes.";
+  }
+  if (/[\\/]$/.test(trimmed)) {
+    return "Enter a file name, not a directory.";
+  }
+  const required = kind === "skeleton" ? ".skeleton" : ".jetinc";
+  const extension = extname(trimmed);
+  if (extension && extension !== required) {
+    return `TxtJet ${kind} files must use ${required}.`;
+  }
+  return undefined;
+}
+
+function withRequiredReferenceExtension(value: string, kind: TxtJetWorkspaceReferenceKind): string {
+  const trimmed = value.trim();
+  if (extname(trimmed)) {
+    return trimmed;
+  }
+  return `${trimmed}${kind === "skeleton" ? ".skeleton" : ".jetinc"}`;
+}
+
+function normalizeReferenceForDirective(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function resolveRefactorTargetFileName(
+  currentFileName: string,
+  input: string,
+  kind: TxtJetWorkspaceReferenceKind
+): string {
+  const target = withRequiredReferenceExtension(input, kind);
+  if (isAbsolutePath(target)) {
+    return target;
+  }
+  const normalizedTarget = normalizeReferenceForDirective(target);
+  if (!normalizedTarget.includes("/")) {
+    return join(dirname(currentFileName), normalizedTarget);
+  }
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(currentFileName));
+  return join(workspaceFolder?.uri.fsPath ?? dirname(currentFileName), normalizedTarget);
+}
+
+function isSafeWorkspaceRefactorPath(fileName: string, resource: vscode.Uri): boolean {
+  const workspaceRoot = vscode.workspace.getWorkspaceFolder(resource)?.uri.fsPath;
+  return isPathInsideAnyRoot(fileName, workspaceRoot ? [workspaceRoot] : [dirname(resource.fsPath)]);
+}
+
+async function createRefactorParentDirectory(fileName: string): Promise<boolean> {
+  try {
+    await vscode.workspace.fs.createDirectory(vscode.Uri.file(dirname(fileName)));
+    return true;
+  } catch (error) {
+    vscode.window.showErrorMessage(`TxtJet could not create the target folder: ${String(error)}`);
+    return false;
+  }
+}
+
+function directiveReferenceValueRange(
+  document: vscode.TextDocument,
+  reference: TxtJetWorkspaceReference
+): vscode.Range | undefined {
+  const attributeRange = vscodeRangeFor(document, reference.range);
+  const attributeText = document.getText(attributeRange);
+  const equalsIndex = attributeText.indexOf("=");
+  if (equalsIndex === -1) {
+    return undefined;
+  }
+  for (let index = equalsIndex + 1; index < attributeText.length; index += 1) {
+    const quote = attributeText[index];
+    if (quote !== "\"" && quote !== "'") {
+      continue;
+    }
+    const start = reference.range.start + index + 1;
+    for (let endIndex = index + 1; endIndex < attributeText.length; endIndex += 1) {
+      if (attributeText[endIndex] === quote && attributeText[endIndex - 1] !== "\\") {
+        return new vscode.Range(document.positionAt(start), document.positionAt(reference.range.start + endIndex));
+      }
+    }
+  }
+  return undefined;
+}
+
+function relativeReferenceFromSource(sourceFileName: string, targetFileName: string): string {
+  return normalizeReferenceForDirective(relative(dirname(sourceFileName), targetFileName));
 }
 
 function workspaceFileNameFromNode(item?: TxtJetWorkspaceTreeNode): string | undefined {

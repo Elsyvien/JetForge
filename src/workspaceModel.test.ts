@@ -73,6 +73,11 @@ assert.equal(model.referenceExists(main, "partials/header", "include"), true);
 assert.equal(model.referenceExists(main, "missing", "include"), false);
 assert.deepEqual(model.includingTemplates(fragment).map((entry) => entry.fileName), [main]);
 assert.deepEqual(model.entry(skeleton)?.skeletonUsedBy, [main]);
+assert.deepEqual(model.referencesTo(fragment, "include").map((reference) => reference.sourceFileName), [main]);
+assert.deepEqual(model.impactedBy(fragment).affectedEntries.map((entry) => entry.fileName), [main, fragment]);
+assert.deepEqual(model.impactedBy(fragment).affectedTemplates.map((entry) => entry.fileName), [main]);
+assert.deepEqual(model.impactedBy(skeleton).references.map((reference) => reference.sourceFileName), [main]);
+assert.deepEqual(model.impactedBy(main).generatedTargets.map((entry) => entry.fileName), [main]);
 
 const circular = createTxtJetWorkspaceModel([
   { fileName: join(root, "a.txtjet"), text: '<%@ include file="b.txtjet" %>' },
@@ -80,6 +85,10 @@ const circular = createTxtJetWorkspaceModel([
 ]);
 assert.deepEqual(circular.includingTemplates(join(root, "a.txtjet")).map((entry) => entry.fileName), [join(root, "b.txtjet")]);
 assert.deepEqual(circular.includingTemplates(join(root, "b.txtjet")).map((entry) => entry.fileName), [join(root, "a.txtjet")]);
+assert.deepEqual(circular.impactedBy(join(root, "a.txtjet")).affectedEntries.map((entry) => entry.fileName), [
+  join(root, "a.txtjet"),
+  join(root, "b.txtjet")
+]);
 
 const privateTemplate = join(root, "private-examples", "secret.txtjet");
 const localToolTemplate = join(root, ".playwright-cli", "scratch.txtjet");
