@@ -45,6 +45,9 @@ VSCode language servers generally operate on one coherent language document. A `
 - Workspace resolution, formatting, and generation helpers
   - The `TxtJet Workspace` Explorer view indexes root templates, `.jetinc` include fragments, `.skeleton` files, opt-in IP-XACT templates, unresolved references, generated target entries, and include backlinks.
   - Include and skeleton references can resolve through configured workspace search paths and extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidates.
+  - Rendered impact reports trace direct and transitive reverse dependencies to affected templates and generated targets.
+  - Conservative include/skeleton refactors rebuild from open buffers, reject unsafe paths, and update only deterministically mapped references.
+  - Generated output and Java previews prefer unsaved open include/skeleton buffers over stale on-disk content.
   - Document formatting and format selection normalize directive attributes, expressions, and template Java block indentation.
   - On-demand generation writes the generated-output approximation to disk and can diff the current output against the last generation snapshot.
 

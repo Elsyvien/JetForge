@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, isAbsolute as isAbsolutePath, join, relative } from "node:path";
+import { basename, dirname, extname, isAbsolute as isAbsolutePath, join, normalize, relative } from "node:path";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
@@ -1087,6 +1087,10 @@ function outputPreviewOptions(document: vscode.TextDocument) {
     expandIncludes: true,
     includePaths: configuredReferencePaths(document, "resolution.includePaths"),
     readInclude(path: string): string | undefined {
+      const openText = openDocumentText(path);
+      if (openText !== undefined) {
+        return openText;
+      }
       try {
         return readFileSync(path, "utf8");
       } catch {
@@ -1101,6 +1105,10 @@ function javaPreviewOptions(document: vscode.TextDocument) {
     sourceFileName: document.fileName,
     skeletonPaths: configuredReferencePaths(document, "resolution.skeletonPaths"),
     readSkeleton(path: string): string | undefined {
+      const openText = openDocumentText(path);
+      if (openText !== undefined) {
+        return openText;
+      }
       try {
         return readFileSync(path, "utf8");
       } catch {
@@ -1108,6 +1116,13 @@ function javaPreviewOptions(document: vscode.TextDocument) {
       }
     }
   };
+}
+
+function openDocumentText(fileName: string): string | undefined {
+  const normalizedFileName = normalize(fileName);
+  return vscode.workspace.textDocuments
+    .find((document) => normalize(document.fileName) === normalizedFileName)
+    ?.getText();
 }
 
 function configuredReferencePaths(document: vscode.TextDocument, setting: string): string[] {
@@ -1233,7 +1248,11 @@ async function showImpactGraph(item?: TxtJetWorkspaceTreeNode): Promise<void> {
     language: "markdown",
     content: impactGraphMarkdown(model, fileName)
   });
-  await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+  try {
+    await vscode.commands.executeCommand("markdown.showPreview", document.uri);
+  } catch {
+    await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Beside });
+  }
 }
 
 async function extractSelectionToInclude(): Promise<void> {
@@ -1325,6 +1344,22 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
   }
 
   const references = model.referencesTo(entry.fileName, referenceKind);
+  const referenceEdits: Array<{ document: vscode.TextDocument; range: vscode.Range; newText: string }> = [];
+  for (const reference of references) {
+    const sourceDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(reference.sourceFileName));
+    const valueRange = directiveReferenceValueRange(sourceDocument, reference);
+    if (!valueRange) {
+      vscode.window.showErrorMessage(
+        `TxtJet could not map a ${referenceKind} reference in ${workspaceRelativeLabel(reference.sourceFileName)}. No files were changed.`
+      );
+      return;
+    }
+    referenceEdits.push({
+      document: sourceDocument,
+      range: valueRange,
+      newText: relativeReferenceFromSource(reference.sourceFileName, newFileName)
+    });
+  }
   const action = await vscode.window.showWarningMessage(
     `Rename ${workspaceRelativeLabel(entry.fileName)} and update ${references.length} TxtJet reference${references.length === 1 ? "" : "s"}?`,
     { modal: true },
@@ -1338,19 +1373,10 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
   }
 
   const edit = new vscode.WorkspaceEdit();
-  edit.renameFile(vscode.Uri.file(entry.fileName), vscode.Uri.file(newFileName), { overwrite: false, ignoreIfExists: false });
-  for (const reference of references) {
-    const sourceDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(reference.sourceFileName));
-    const valueRange = directiveReferenceValueRange(sourceDocument, reference);
-    if (!valueRange) {
-      continue;
-    }
-    edit.replace(
-      sourceDocument.uri,
-      valueRange,
-      relativeReferenceFromSource(reference.sourceFileName, newFileName)
-    );
+  for (const referenceEdit of referenceEdits) {
+    edit.replace(referenceEdit.document.uri, referenceEdit.range, referenceEdit.newText);
   }
+  edit.renameFile(vscode.Uri.file(entry.fileName), vscode.Uri.file(newFileName), { overwrite: false, ignoreIfExists: false });
 
   if (!await vscode.workspace.applyEdit(edit)) {
     vscode.window.showErrorMessage("TxtJet could not apply the reference rename.");
@@ -1360,9 +1386,7 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
 }
 
 async function ensureWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
-  if (!activeWorkspaceModel) {
-    activeWorkspaceModel = await buildTxtJetWorkspaceModel();
-  }
+  activeWorkspaceModel = await buildTxtJetWorkspaceModel();
   return activeWorkspaceModel;
 }
 

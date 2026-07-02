@@ -46,7 +46,7 @@ npm run verify
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.18.vsix
+code --install-extension txtjet-syntax-0.0.19.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -106,7 +106,7 @@ Use these commands for project-level workflows:
 
 Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
 
-Impact graph reports open as Markdown and show direct and transitive edges from a changed include, skeleton, or template to affected templates and generated-output targets. The refactor commands keep edits conservative: extraction creates a new workspace-local `.jetinc`, and include/skeleton rename or move uses a previewed WorkspaceEdit that updates only resolved references in the current workspace model.
+Impact graph reports open in the rendered Markdown preview and show direct and transitive Mermaid edges from a changed include, skeleton, or template to affected templates and generated-output targets. The refactor commands rebuild the workspace model from current open buffers before editing and fail closed if any resolved reference cannot be mapped. Extraction creates a new workspace-local `.jetinc`; include/skeleton rename or move uses a confirmed WorkspaceEdit that updates only resolved references in the current workspace model.
 
 You can rerun detection manually with the command:
 
@@ -209,9 +209,9 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Compile Template With External Compiler`
 - `TxtJet: Validate Template With External Compiler`
 
-The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. The preview language follows the selected or detected generated-output mode.
+The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. Open unsaved include buffers take precedence over their on-disk contents so the preview reflects the current editor state. The preview language follows the selected or detected generated-output mode.
 
-The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
+The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`; open unsaved skeleton buffers take precedence over disk. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
 
 Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Template Java calls such as `helper(...)` and `this.helper(...)` can Go to Definition or Peek Definition to matching helper methods declared in `<%! ... %>` blocks, including multiple overload locations when present. Those local helpers also support Find All References, Rename Symbol, and Signature Help where source/edit mappings stay deterministic. Hover shows resolved/unresolved reference status, local helper signatures when Java tooling has no answer, and region context for template syntax. Missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 

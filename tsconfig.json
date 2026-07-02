@@ -8,6 +8,12 @@
     "outDir": "out",
     "rootDir": "src",
     "strict": true,
+    "noEmitOnError": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true
@@ -16,4 +22,3 @@
     "src"
   ]
 }
-

@@ -5,8 +5,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## Install And Version
 
 - Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.17.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.17`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.19.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.19`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -74,6 +74,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 - Run `TxtJet: Open Generated Output Preview` for each sanitized example and confirm the preview preserves outer generated text.
 - Confirm `examples/include-main.txtjet` expands `partials/header.txtjet` and `partials/nav.txtjet` in the generated output preview.
+- Edit an included file without saving and confirm the generated output preview reflects the open buffer instead of stale disk content.
 - Run `TxtJet: Open Generated Java Template Preview` and confirm the preview uses `@jet package`, `class`, and `imports` metadata.
 - Run `TxtJet: Open Preview Beside Source` and confirm the preview opens beside the template.
 - Place the cursor in generated XML/HTML/Python/C/Java output and run `TxtJet: Open Region In Generated Preview`; confirm the mapped generated-output preview region is selected.
@@ -95,6 +96,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Trigger Signature Help inside a local helper call and confirm overloads appear with the active parameter moving after commas and ignoring nested-call commas.
 - Hover over include and skeleton references and confirm the resolved path/status is shown.
 - Open the generated Java preview for `examples/skeleton-directive.txtjet` and confirm the `.skeleton` token layout is used.
+- Edit the referenced `.skeleton` without saving and confirm the generated Java preview reflects the open buffer.
 - Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.
 - Add a temporary missing `skeleton="..."` reference and confirm a missing-skeleton diagnostic appears.
 - Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
@@ -116,6 +118,12 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Add a temporary unresolved include or skeleton reference and confirm it appears in the workspace tree and editor diagnostics.
 - Create the referenced file and confirm the unresolved tree entry and diagnostic disappear after refresh/save.
 - Run `TxtJet: Validate Workspace Templates` with a sanitized compiler wrapper and confirm root templates are validated without forcing unmappable diagnostics into source ranges.
+- Run `TxtJet: Show Impact Graph` for a template, include, and skeleton; confirm a rendered Mermaid preview opens with direct/transitive edges and affected-template counts.
+- With an unsaved include-reference edit, run the impact graph and confirm it reflects the current open buffer rather than the last saved model.
+- Extract a selection to the default `partials/*.jetinc` path when `partials/` does not exist; confirm the directory and include are created and no unrelated dirty editor is saved.
+- Rename or move an include/skeleton into a new workspace directory and confirm every resolved reference is updated before the file move, including a self-reference if present.
+- Confirm refactors reject absolute paths, directory-only paths, quotes, line breaks, and targets outside the workspace.
+- Confirm rename/move aborts without changing files if any reference range cannot be mapped.
 
 ## IP-XACT
 

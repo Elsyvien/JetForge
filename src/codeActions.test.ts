@@ -38,6 +38,12 @@ assert.deepEqual(fix("<%@ jet package='example %>", "unterminated-directive-stri
   newText: "'"
 });
 
+assert.equal(buildTxtJetCodeActionEdit("", {
+  code: "missing-include-file",
+  start: 0,
+  end: 0
+}), undefined);
+
 console.log("code action tests ok");
 
 function fix(text: string, code: ReturnType<typeof scanTxtJetIssues>[number]["code"]) {

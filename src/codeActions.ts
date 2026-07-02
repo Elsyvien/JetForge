@@ -62,6 +62,7 @@ export function buildTxtJetCodeActionEdit(text: string, issue: TxtJetCodeActionI
         }
       };
   }
+  return undefined;
 }
 
 function malformedDirectiveFix(text: string, issue: TxtJetCodeActionIssue): TxtJetCodeActionEdit | undefined {

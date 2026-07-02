@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.19
+
+- Rendered impact graphs directly in VSCode's Markdown preview instead of opening only the raw Mermaid source.
+- Rebuilt model-backed refactors from current open buffers, aborted safely on unmappable references, and applied reference edits before file moves so self-references remain valid.
+- Updated generated output and Java previews to include unsaved include and skeleton edits.
+- Strengthened TypeScript release checks, pinned VSCode API types to the declared minimum version, and refreshed QA, roadmap, website, and install documentation.
+
 ## 0.0.18
 
 - Added TxtJet impact graph reports that trace direct and transitive include/skeleton dependencies to affected templates and generated-output targets.
