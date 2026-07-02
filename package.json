@@ -1,7 +1,7 @@
 {
   "name": "txtjet-syntax",
   "displayName": "TxtJet Syntax",
-  "description": "Syntax highlighting and editor support for .txtjet Java emitter templates.",
+  "description": "Local-first TxtJet and Eclipse JET tooling for VS Code: highlighting, previews, diagnostics, navigation, and generation.",
   "version": "0.0.19",
   "publisher": "elsyvien",
   "author": "Max Staneker",
@@ -15,7 +15,7 @@
   "bugs": {
     "url": "https://github.com/Elsyvien/JetForge/issues"
   },
-  "homepage": "https://github.com/Elsyvien/JetForge#readme",
+  "homepage": "https://elsyvien.github.io/JetForge/",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -41,7 +41,12 @@
   "keywords": [
     "txtjet",
     "jet",
+    "eclipse-jet",
+    "vscode",
     "template",
+    "template-tooling",
+    "code-generation",
+    "source-maps",
     "java",
     "jsp",
     "emitter",

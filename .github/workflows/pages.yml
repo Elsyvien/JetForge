@@ -9,6 +9,8 @@ on:
       - "styles.css"
       - "script.js"
       - "assets/**"
+      - "robots.txt"
+      - "sitemap.xml"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -35,8 +37,8 @@ jobs:
       - name: Build static artifact
         run: |
           mkdir -p site/assets
-          cp index.html styles.css script.js site/
-          cp assets/icon.png site/assets/
+          cp index.html styles.css script.js robots.txt sitemap.xml site/
+          cp -R assets/. site/assets/
           touch site/.nojekyll
 
       - name: Setup Pages

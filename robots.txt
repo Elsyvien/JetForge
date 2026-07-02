@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://elsyvien.github.io/JetForge/sitemap.xml
