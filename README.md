@@ -1,5 +1,8 @@
 # TxtJet Syntax
 
+<img width="1200" height="630" alt="image" src="https://github.com/user-attachments/assets/18ec225a-4bbc-4edc-8807-a6535476e3a9" />
+
+
 VSCode extension for `.txtjet` Java emitter template files.
 
 ## Features
