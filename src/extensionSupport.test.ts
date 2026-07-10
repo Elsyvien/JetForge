@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
   compilerTimeoutMs,
@@ -12,8 +12,13 @@ import {
   directiveValueContextAt,
   isPathInsideAnyRoot,
   isTxtJetPath,
+  resolveContainedWorkspacePath,
+  resolveWorkspaceConfiguredPath,
   selectedTargetLanguageId,
+  shellArgumentQuote,
   shellSingleQuote,
+  stripTxtJetSuffix,
+  windowsCmdDoubleQuote,
   shouldOfferMarkerCompletions
 } from "./extensionSupport";
 
@@ -39,6 +44,23 @@ assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
 assert.equal(isTxtJetPath("/workspace/example.txt"), false);
 assert.equal(isTxtJetPath("vscode-remote://ssh-remote+host/workspace/example.txtjet"), true);
 
+for (const suffix of [
+  ".txtjet",
+  ".jet",
+  ".javajet",
+  ".htmljet",
+  ".xmljet",
+  ".cjet",
+  ".pythonjet",
+  ".propertiesjet",
+  ".jetinc"
+]) {
+  assert.equal(stripTxtJetSuffix(`example${suffix}`), "example");
+  assert.equal(stripTxtJetSuffix(`EXAMPLE${suffix.toUpperCase()}`), "EXAMPLE");
+}
+assert.equal(stripTxtJetSuffix("example.txt"), "example.txt");
+assert.equal(stripTxtJetSuffix("directory.jet/example.txtjet"), "directory.jet/example");
+
 assert.equal(isPathInsideAnyRoot("/workspace/templates/partial.txtjet", ["/workspace"]), true);
 assert.equal(isPathInsideAnyRoot("/workspace-shared/partial.txtjet", ["/workspace"]), false);
 assert.equal(isPathInsideAnyRoot("/outside/partial.txtjet", ["/workspace/templates"]), false);
@@ -50,6 +72,7 @@ if (process.platform !== "win32") {
   mkdirSync(outsideRoot);
   symlinkSync(outsideRoot, join(workspaceRoot, "linked"));
   assert.equal(isPathInsideAnyRoot(join(workspaceRoot, "linked", "partial.txtjet"), [workspaceRoot]), false);
+  assert.equal(resolveContainedWorkspacePath("linked/generated", workspaceRoot), undefined);
   rmSync(pathSafetyRoot, { recursive: true, force: true });
 }
 
@@ -60,6 +83,37 @@ assert.equal(selectedTargetLanguageId("plaintext", "txtjet-python"), "txtjet-pyt
 assert.equal(shellSingleQuote("/tmp/template.txtjet"), "'/tmp/template.txtjet'");
 assert.equal(shellSingleQuote("/tmp/with spaces/$HOME/`name`.txtjet"), "'/tmp/with spaces/$HOME/`name`.txtjet'");
 assert.equal(shellSingleQuote("/tmp/it's.txtjet"), "'/tmp/it'\\''s.txtjet'");
+assert.equal(shellArgumentQuote("", "linux"), "''");
+assert.equal(shellArgumentQuote("/tmp/it's.txtjet", "linux"), "'/tmp/it'\\''s.txtjet'");
+assert.equal(shellArgumentQuote("/tmp/$HOME/`name`.txtjet", "darwin"), "'/tmp/$HOME/`name`.txtjet'");
+
+assert.equal(windowsCmdDoubleQuote(""), '""');
+assert.equal(windowsCmdDoubleQuote("C:\\Workspace\\template.txtjet"), '"C:\\Workspace\\template.txtjet"');
+assert.equal(
+  windowsCmdDoubleQuote("C:\\Workspace & Tools\\template (draft)^copy|one<two>three.txtjet"),
+  '"C:\\Workspace & Tools\\template (draft)^copy|one<two>three.txtjet"'
+);
+assert.equal(windowsCmdDoubleQuote("C:\\Workspace\\"), '"C:\\Workspace\\\\"');
+assert.equal(shellArgumentQuote("C:\\Workspace|Tools\\template.txtjet", "win32"), '"C:\\Workspace|Tools\\template.txtjet"');
+assert.throws(() => windowsCmdDoubleQuote("C:\\%TEMP%\\template.txtjet"), /Windows shell arguments/);
+assert.throws(() => windowsCmdDoubleQuote("C:\\Workspace!\\template.txtjet"), /Windows shell arguments/);
+assert.throws(() => windowsCmdDoubleQuote("C:\\Workspace\\\"template.txtjet"), /Windows shell arguments/);
+assert.throws(() => windowsCmdDoubleQuote("C:\\Workspace\\template.txtjet\nnext"), /Windows shell arguments/);
+
+const configuredWorkspaceRoot = resolve("workspace-root");
+assert.equal(
+  resolveWorkspaceConfiguredPath("${workspaceFolder}/generated", configuredWorkspaceRoot),
+  join(configuredWorkspaceRoot, "generated")
+);
+assert.equal(
+  resolveWorkspaceConfiguredPath("generated-ipxact", configuredWorkspaceRoot),
+  join(configuredWorkspaceRoot, "generated-ipxact")
+);
+assert.equal(
+  resolveContainedWorkspacePath("generated", configuredWorkspaceRoot),
+  join(configuredWorkspaceRoot, "generated")
+);
+assert.equal(resolveContainedWorkspacePath("../outside", configuredWorkspaceRoot), undefined);
 
 assert.equal(compilerTimeoutMs(undefined), DEFAULT_COMPILER_TIMEOUT_MS);
 assert.equal(compilerTimeoutMs(Number.NaN), DEFAULT_COMPILER_TIMEOUT_MS);

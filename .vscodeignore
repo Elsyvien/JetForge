@@ -8,6 +8,7 @@ design-qa.md
 index.html
 styles.css
 script.js
+scripts/**
 assets/og-image.png
 robots.txt
 sitemap.xml

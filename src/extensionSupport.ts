@@ -46,6 +46,12 @@ export function isTxtJetPath(pathLike: string): boolean {
   return TXTJET_PATH_SUFFIXES.some((suffix) => lower.endsWith(suffix));
 }
 
+export function stripTxtJetSuffix(pathLike: string): string {
+  const lower = pathLike.toLowerCase();
+  const suffix = TXTJET_PATH_SUFFIXES.find((candidate) => lower.endsWith(candidate));
+  return suffix ? pathLike.slice(0, -suffix.length) : pathLike;
+}
+
 export function shouldOfferMarkerCompletions(linePrefix: string): boolean {
   return linePrefix.endsWith("<");
 }
@@ -61,6 +67,31 @@ export function selectedTargetLanguageId(
 
 export function shellSingleQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+export function windowsCmdDoubleQuote(value: string): string {
+  if (/[\0\r\n"%!]/.test(value)) {
+    throw new Error(
+      "Windows shell arguments cannot contain NUL, line breaks, double quotes, percent signs, or exclamation marks."
+    );
+  }
+
+  const escapedTrailingBackslashes = value.replace(/\\+$/, (slashes) => `${slashes}${slashes}`);
+  return `"${escapedTrailingBackslashes}"`;
+}
+
+export function shellArgumentQuote(value: string, platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? windowsCmdDoubleQuote(value) : shellSingleQuote(value);
+}
+
+export function resolveWorkspaceConfiguredPath(configuredPath: string, workspaceRoot: string): string {
+  const expanded = configuredPath.split("${workspaceFolder}").join(workspaceRoot);
+  return resolve(workspaceRoot, expanded);
+}
+
+export function resolveContainedWorkspacePath(configuredPath: string, workspaceRoot: string): string | undefined {
+  const candidate = resolveWorkspaceConfiguredPath(configuredPath, workspaceRoot);
+  return isPathInsideAnyRoot(candidate, [workspaceRoot]) ? candidate : undefined;
 }
 
 export function compilerTimeoutMs(value: number | undefined): number {

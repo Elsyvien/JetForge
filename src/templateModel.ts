@@ -67,6 +67,24 @@ interface JavaPreviewSection {
   mappings: TxtJetMapping[];
 }
 
+class PreviewTextBuilder {
+  private readonly chunks: string[] = [];
+  private totalLength = 0;
+
+  get length(): number {
+    return this.totalLength;
+  }
+
+  append(text: string): void {
+    this.chunks.push(text);
+    this.totalLength += text.length;
+  }
+
+  toString(): string {
+    return this.chunks.join("");
+  }
+}
+
 type ExpressionContextKind =
   | "identifier"
   | "string"
@@ -141,20 +159,20 @@ export function buildGeneratedOutputPreview(
   options: TxtJetOutputPreviewOptions = {}
 ): TxtJetGeneratedPreview {
   const model = parseTxtJetTemplate(text);
-  const chunks: string[] = [];
+  const output = new PreviewTextBuilder();
   const mappings: TxtJetMapping[] = [];
 
   for (let index = 0; index < model.blocks.length; index += 1) {
     const block = model.blocks[index];
-    const start = lengthOf(chunks);
+    const start = output.length;
     if (block.kind === "outer") {
-      chunks.push(block.content);
+      output.append(block.content);
       mappings.push({ source: block.range, preview: { start, end: start + block.content.length }, kind: "outer" });
       continue;
     }
 
     const replacement = outputPlaceholder(block, targetLanguage, options, expressionContextFor(model.blocks, index));
-    chunks.push(replacement);
+    output.append(replacement);
     mappings.push({
       source: block.range,
       preview: { start, end: start + replacement.length },
@@ -162,7 +180,7 @@ export function buildGeneratedOutputPreview(
     });
   }
 
-  return { text: chunks.join(""), mappings };
+  return { text: output.toString(), mappings };
 }
 
 export function buildGeneratedJavaPreview(
@@ -188,27 +206,27 @@ export function buildGeneratedJavaPreview(
     });
   }
 
-  const chunks: string[] = [];
+  const output = new PreviewTextBuilder();
   const mappings: TxtJetMapping[] = [];
 
-  chunks.push(`// TxtJet generated Java template preview for ${sourceName}\n`);
-  chunks.push("// This is an editor approximation, not compiler output.\n\n");
+  output.append(`// TxtJet generated Java template preview for ${sourceName}\n`);
+  output.append("// This is an editor approximation, not compiler output.\n\n");
   if (model.jetDirective?.attributes.skeleton) {
-    appendSkeletonReference(chunks, mappings, model.jetDirective, skeleton?.status ?? "unavailable");
+    appendSkeletonReference(output, mappings, model.jetDirective, skeleton?.status ?? "unavailable");
   }
-  chunks.push(`package ${packageName};\n\n`);
+  output.append(`package ${packageName};\n\n`);
   for (const importName of imports) {
-    chunks.push(`import ${importName};\n`);
+    output.append(`import ${importName};\n`);
   }
   if (imports.length > 0) {
-    chunks.push("\n");
+    output.append("\n");
   }
-  chunks.push(`public class ${className} {\n`);
-  appendSection(chunks, mappings, sections.members);
-  appendSection(chunks, mappings, sections.generateMethod);
-  chunks.push("}\n");
+  output.append(`public class ${className} {\n`);
+  appendSection(output, mappings, sections.members);
+  appendSection(output, mappings, sections.generateMethod);
+  output.append("}\n");
 
-  return { text: chunks.join(""), mappings };
+  return { text: output.toString(), mappings };
 }
 
 export function targetPreviewLanguage(languageId: TxtJetTargetLanguage): string {
@@ -392,9 +410,9 @@ function appendToSection(
   section.mappings.push({ source: block.range, preview: { start, end: start + text.length }, kind });
 }
 
-function appendSection(chunks: string[], mappings: TxtJetMapping[], section: JavaPreviewSection): void {
-  const start = lengthOf(chunks);
-  chunks.push(section.text);
+function appendSection(output: PreviewTextBuilder, mappings: TxtJetMapping[], section: JavaPreviewSection): void {
+  const start = output.length;
+  output.append(section.text);
   for (const mapping of section.mappings) {
     mappings.push({
       ...mapping,
@@ -449,12 +467,12 @@ function buildSkeletonJavaPreview(
     generateMethod: JavaPreviewSection;
   }
 ): TxtJetGeneratedPreview {
-  const chunks: string[] = [];
+  const output = new PreviewTextBuilder();
   const mappings: TxtJetMapping[] = [];
-  chunks.push(`// TxtJet generated Java template preview for ${data.sourceName}\n`);
-  chunks.push("// This is an editor approximation rendered through the referenced skeleton.\n\n");
+  output.append(`// TxtJet generated Java template preview for ${data.sourceName}\n`);
+  output.append("// This is an editor approximation rendered through the referenced skeleton.\n\n");
   if (data.model.jetDirective?.attributes.skeleton) {
-    appendSkeletonReference(chunks, mappings, data.model.jetDirective, "loaded");
+    appendSkeletonReference(output, mappings, data.model.jetDirective, "loaded");
   }
 
   const replacements: Record<string, string | JavaPreviewSection> = {
@@ -470,33 +488,33 @@ function buildSkeletonJavaPreview(
   let offset = 0;
   let match: RegExpExecArray | null;
   while ((match = tokenPattern.exec(skeletonText))) {
-    chunks.push(skeletonText.slice(offset, match.index));
+    output.append(skeletonText.slice(offset, match.index));
     const replacement = replacements[match[1]];
     if (typeof replacement === "string") {
-      chunks.push(replacement);
+      output.append(replacement);
     } else {
-      appendSection(chunks, mappings, replacement);
+      appendSection(output, mappings, replacement);
     }
     offset = match.index + match[0].length;
   }
-  chunks.push(skeletonText.slice(offset));
+  output.append(skeletonText.slice(offset));
   if (!skeletonText.endsWith("\n")) {
-    chunks.push("\n");
+    output.append("\n");
   }
 
-  return { text: chunks.join(""), mappings };
+  return { text: output.toString(), mappings };
 }
 
 function appendSkeletonReference(
-  chunks: string[],
+  output: PreviewTextBuilder,
   mappings: TxtJetMapping[],
   directive: TxtJetDirective,
   status: string
 ): void {
   const skeletonRange = directive.attributeRanges.skeleton ?? directive.nameRange;
   const text = `// TxtJet skeleton reference (${status}): ${directive.attributes.skeleton}\n\n`;
-  const start = lengthOf(chunks);
-  chunks.push(text);
+  const start = output.length;
+  output.append(text);
   mappings.push({ source: skeletonRange, preview: { start, end: start + text.length }, kind: "directive" });
 }
 
@@ -856,14 +874,7 @@ function kindForMarker(marker: string): TxtJetBlockKind {
 }
 
 function findNextOpen(text: string, from: number): number {
-  let next = -1;
-  for (const marker of OPEN_MARKERS) {
-    const index = text.indexOf(marker, from);
-    if (index !== -1 && (next === -1 || index < next)) {
-      next = index;
-    }
-  }
-  return next;
+  return text.indexOf("<%", from);
 }
 
 function markerAt(text: string, offset: number): string | undefined {
@@ -902,10 +913,6 @@ function rangesIntersectOrTouch(left: TxtJetRange, right: TxtJetRange): boolean 
     return right.start <= left.start && left.start <= right.end;
   }
   return left.start < right.end && right.start < left.end;
-}
-
-function lengthOf(chunks: string[]): number {
-  return chunks.reduce((sum, chunk) => sum + chunk.length, 0);
 }
 
 function readFirstReference(

@@ -18,7 +18,8 @@ import {
   isPathInsideAnyRoot,
   isTxtJetPath,
   selectedTargetLanguageId,
-  shellSingleQuote,
+  shellArgumentQuote,
+  stripTxtJetSuffix,
   shouldOfferMarkerCompletions
 } from "./extensionSupport";
 import { formatTxtJetBlock } from "./formatter";
@@ -74,6 +75,7 @@ import {
   TxtJetWorkspaceReferenceKind,
   workspaceEntryKind
 } from "./workspaceModel";
+import { ValidationRunCoordinator } from "./validationRuns";
 
 const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet",
@@ -110,11 +112,14 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(outputChannel);
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
-  context.subscriptions.push(statusBar, outputChannel);
+  context.subscriptions.push(statusBar);
   const diagnostics = vscode.languages.createDiagnosticCollection("txtjet");
   context.subscriptions.push(diagnostics);
   const compilerDiagnosticsBySource = new Map<string, vscode.Diagnostic[]>();
   const ipxactDiagnosticsBySource = new Map<string, vscode.Diagnostic[]>();
+  const compilerValidationRuns = new ValidationRunCoordinator();
+  const ipxactValidationRuns = new ValidationRunCoordinator();
+  context.subscriptions.push(compilerValidationRuns, ipxactValidationRuns);
   const previewProvider = new TxtJetPreviewProvider();
   const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
   const visualDifferentiator = new TxtJetVisualDifferentiator();
@@ -129,15 +134,29 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.registerTextDocumentContentProvider(IPXACT_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(GENERATED_DIFF_SCHEME, generatedDiffProvider)
   );
-  const refreshWorkspaceModel = async (invalidateCompilerDiagnostics: boolean): Promise<void> => {
-    activeWorkspaceModel = await buildTxtJetWorkspaceModel();
-    workspaceTreeProvider.setModel(activeWorkspaceModel);
-    if (invalidateCompilerDiagnostics) {
-      compilerDiagnosticsBySource.clear();
-      ipxactDiagnosticsBySource.clear();
-    }
-    for (const document of vscode.workspace.textDocuments) {
-      updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+  let workspaceRefreshGeneration = 0;
+  const refreshWorkspaceModel = async (invalidateCompilerDiagnostics: boolean): Promise<boolean> => {
+    const refreshGeneration = ++workspaceRefreshGeneration;
+    try {
+      const model = await buildTxtJetWorkspaceModel();
+      if (refreshGeneration !== workspaceRefreshGeneration) {
+        return false;
+      }
+      activeWorkspaceModel = model;
+      workspaceTreeProvider.setModel(model);
+      if (invalidateCompilerDiagnostics) {
+        compilerDiagnosticsBySource.clear();
+        ipxactDiagnosticsBySource.clear();
+        compilerValidationRuns.dispose();
+        ipxactValidationRuns.dispose();
+      }
+      for (const document of vscode.workspace.textDocuments) {
+        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+      }
+      return true;
+    } catch (error) {
+      appendOutputLog("error", `Workspace model refresh failed: ${String(error)}`);
+      return false;
     }
   };
 
@@ -279,13 +298,23 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!editor || !isTxtJetFile(editor.document)) {
         return;
       }
-      await validateTemplateWithCompiler(editor.document, diagnostics, compilerDiagnosticsBySource, true, ipxactDiagnosticsBySource);
+      await validateTemplateWithCompiler(
+        editor.document,
+        diagnostics,
+        compilerDiagnosticsBySource,
+        true,
+        ipxactDiagnosticsBySource,
+        compilerValidationRuns
+      );
     })
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.refreshWorkspaceModel", async () => {
-      await refreshWorkspaceModel(false);
-      vscode.window.setStatusBarMessage("TxtJet workspace model refreshed.", 4000);
+      if (await refreshWorkspaceModel(false)) {
+        vscode.window.setStatusBarMessage("TxtJet workspace model refreshed.", 4000);
+      } else {
+        vscode.window.showErrorMessage("TxtJet could not refresh the workspace model. Open the TxtJet output channel for details.");
+      }
     })
   );
   context.subscriptions.push(
@@ -300,7 +329,12 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.validateWorkspaceTemplates", async () => {
-      await validateWorkspaceTemplates(diagnostics, compilerDiagnosticsBySource);
+      await validateWorkspaceTemplates(
+        diagnostics,
+        compilerDiagnosticsBySource,
+        ipxactDiagnosticsBySource,
+        compilerValidationRuns
+      );
     })
   );
   context.subscriptions.push(
@@ -339,7 +373,14 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!editor || !isTxtJetFile(editor.document)) {
         return;
       }
-      await validateIpxactTemplate(editor.document, diagnostics, ipxactDiagnosticsBySource, true, compilerDiagnosticsBySource);
+      await validateIpxactTemplate(
+        editor.document,
+        diagnostics,
+        ipxactDiagnosticsBySource,
+        true,
+        compilerDiagnosticsBySource,
+        ipxactValidationRuns
+      );
     })
   );
   context.subscriptions.push(
@@ -375,10 +416,17 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
-      compilerDiagnosticsBySource.delete(event.document.uri.toString());
-      ipxactDiagnosticsBySource.delete(event.document.uri.toString());
-      updateDiagnostics(diagnostics, event.document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-      previewProvider.refresh(event.document.uri);
+      const affectedDocuments = invalidateAffectedExternalDiagnostics(
+        event.document,
+        compilerDiagnosticsBySource,
+        ipxactDiagnosticsBySource,
+        compilerValidationRuns,
+        ipxactValidationRuns
+      );
+      for (const document of affectedDocuments) {
+        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+      }
+      previewProvider.refreshAffected(event.document.uri, activeWorkspaceModel);
       visualDifferentiator.refreshDocument(event.document);
     })
   );
@@ -390,14 +438,28 @@ export function activate(context: vscode.ExtensionContext): void {
         && config.get<boolean>("diagnostics.compiler.enabled", true)
         && config.get<boolean>("diagnostics.compiler.runOnSave", false)
       ) {
-        void validateTemplateWithCompiler(document, diagnostics, compilerDiagnosticsBySource, false, ipxactDiagnosticsBySource);
+        void validateTemplateWithCompiler(
+          document,
+          diagnostics,
+          compilerDiagnosticsBySource,
+          false,
+          ipxactDiagnosticsBySource,
+          compilerValidationRuns
+        );
       }
       if (
         isTxtJetFile(document)
         && config.get<boolean>("ipxact.enabled", false)
         && config.get<boolean>("ipxact.validation.runOnSave", false)
       ) {
-        void validateIpxactTemplate(document, diagnostics, ipxactDiagnosticsBySource, false, compilerDiagnosticsBySource);
+        void validateIpxactTemplate(
+          document,
+          diagnostics,
+          ipxactDiagnosticsBySource,
+          false,
+          compilerDiagnosticsBySource,
+          ipxactValidationRuns
+        );
       }
       void refreshWorkspaceModel(false);
     })
@@ -443,6 +505,8 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidCloseTextDocument((document) => {
       compilerDiagnosticsBySource.delete(document.uri.toString());
       ipxactDiagnosticsBySource.delete(document.uri.toString());
+      compilerValidationRuns.invalidate(document.uri.toString());
+      ipxactValidationRuns.invalidate(document.uri.toString());
       diagnostics.delete(document.uri);
       previewProvider.forget(document.uri);
       visualDifferentiator.clearDocument(document);
@@ -537,6 +601,16 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider {
     }
   }
 
+  refreshAffected(changed: vscode.Uri, model: TxtJetWorkspaceModel | undefined): void {
+    this.refresh(changed);
+    if (!model || changed.scheme !== "file") {
+      return;
+    }
+    for (const entry of model.impactedBy(changed.fsPath).affectedEntries) {
+      this.refresh(vscode.Uri.file(entry.fileName));
+    }
+  }
+
   forget(closed: vscode.Uri): void {
     this.previewsBySource.delete(closed.toString());
 
@@ -554,6 +628,33 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider {
     previews.add(preview.toString());
     this.previewsBySource.set(key, previews);
   }
+}
+
+function invalidateAffectedExternalDiagnostics(
+  changedDocument: vscode.TextDocument,
+  compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
+  ipxactDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
+  compilerValidationRuns: ValidationRunCoordinator,
+  ipxactValidationRuns: ValidationRunCoordinator
+): vscode.TextDocument[] {
+  const affectedFileNames = new Set<string>([normalize(changedDocument.fileName)]);
+  if (activeWorkspaceModel) {
+    for (const entry of activeWorkspaceModel.impactedBy(changedDocument.fileName).affectedEntries) {
+      affectedFileNames.add(normalize(entry.fileName));
+    }
+  }
+
+  const affectedDocuments = vscode.workspace.textDocuments.filter((document) =>
+    affectedFileNames.has(normalize(document.fileName))
+  );
+  for (const document of affectedDocuments) {
+    const source = document.uri.toString();
+    compilerDiagnosticsBySource.delete(source);
+    ipxactDiagnosticsBySource.delete(source);
+    compilerValidationRuns.invalidate(source);
+    ipxactValidationRuns.invalidate(source);
+  }
+  return affectedDocuments;
 }
 
 class TxtJetGeneratedDiffProvider implements vscode.TextDocumentContentProvider {

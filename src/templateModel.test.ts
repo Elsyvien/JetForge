@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
+import { performance } from "node:perf_hooks";
 import {
   buildGeneratedJavaPreview,
   buildGeneratedOutputPreview,
@@ -183,5 +184,16 @@ assert.ok(includeMappedPreview.text.includes("<li>${item}</li>"));
 const includeMappedRange = mapSourceRangeToPreview(includeMappedPreview.mappings, { start: 4, end: 11 });
 assert.ok(includeMappedRange, "expanded include directive should map to preview region");
 assert.ok(includeMappedPreview.text.slice(includeMappedRange.start, includeMappedRange.end).includes("txtjet include begin"));
+
+const performanceBlockCount = 20000;
+const performanceTemplate = "<%= value %>\n".repeat(performanceBlockCount);
+const performanceStart = performance.now();
+const performancePreview = buildGeneratedOutputPreview(performanceTemplate, "txtjet-java");
+const performanceElapsedMs = performance.now() - performanceStart;
+assert.equal(performancePreview.mappings.length, performanceBlockCount * 2);
+assert.ok(
+  performanceElapsedMs < 1500,
+  `large preview generation took ${performanceElapsedMs.toFixed(1)} ms; expected the linear path to stay below 1500 ms`
+);
 
 console.log("template model tests ok");
