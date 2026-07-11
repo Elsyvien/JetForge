@@ -43,13 +43,15 @@ npm run package
 Run the full local release check:
 
 ```bash
-npm run verify
+npm run verify:release
 ```
+
+This runs the unit/package gate plus a real VS Code Extension Host smoke test. Set `VSCODE_TEST_VERSION=1.85.2` when you want to run the smoke test against the declared minimum VS Code release instead of a locally installed VS Code.
 
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.19.vsix
+code --install-extension txtjet-syntax-0.0.20.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -156,7 +158,7 @@ Diagnostics, Quick Fixes, completions, Java IntelliSense forwarding, and the sta
 
 Compiler-backed diagnostics are available through `TxtJet: Validate Template With External Compiler`. The command reuses `txtjet.compiler.command`, parses stdout/stderr with `txtjet.diagnostics.compiler.problemMatcher`, and maps diagnostics from the generated Java/output file back into the source template when the preview source map can do so deterministically. External compiler commands are capped by `txtjet.compiler.timeoutMs`, which defaults to 60000 ms. `txtjet.diagnostics.compiler.runOnSave` can run this validation after saves; it is disabled by default so slow compiler pipelines stay explicit.
 
-External compiler and IP-XACT validator commands are disabled while VSCode is in Restricted Mode. Editing, highlighting, previews, local generation, and navigation remain available without Workspace Trust.
+External compiler and IP-XACT validator commands are disabled while VSCode is in Restricted Mode. Editing, highlighting, workspace-local previews, local generation, and navigation remain available without Workspace Trust. Workspace settings cannot redirect include/skeleton reads or generated writes outside the workspace until it is trusted.
 
 Example compiler commands:
 
@@ -192,7 +194,7 @@ When enabled, these commands become available:
 - `TxtJet: Validate IP-XACT Output`
 - `TxtJet: Open IP-XACT Template`
 
-IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`, and validation runs `txtjet.ipxact.validation.command` after writing the generated XML. The validation command supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic.
+IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`; validation runs `txtjet.ipxact.validation.command` against an isolated temporary XML output so overlapping runs cannot overwrite the canonical generated file. The validation command supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic.
 
 ## Preview And Navigation
 
@@ -209,22 +211,23 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Toggle Preview Synchronization`
 - `TxtJet: Generate Output File`
 - `TxtJet: Diff Current Output Against Last Generation`
+- `TxtJet: Clear Generated Output Snapshots`
 - `TxtJet: Compile Template With External Compiler`
 - `TxtJet: Validate Template With External Compiler`
 
-The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments, and renders expressions as readable or syntax-friendly placeholders. Open unsaved include buffers take precedence over their on-disk contents so the preview reflects the current editor state. The preview language follows the selected or detected generated-output mode.
+The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments/placeholders, and renders expressions as readable or syntax-friendly placeholders. Open unsaved include buffers take precedence over their on-disk contents, and already-open root previews refresh when an included file changes. The preview language follows the selected or detected generated-output mode.
 
-The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`; open unsaved skeleton buffers take precedence over disk. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
+The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`; open unsaved skeleton buffers take precedence over disk and refresh dependent previews immediately. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
 
 Relative include references can be opened through Go to Definition from `file="..."` attributes, and `@jet skeleton="..."` references resolve the same way. Template Java calls such as `helper(...)` and `this.helper(...)` can Go to Definition or Peek Definition to matching helper methods declared in `<%! ... %>` blocks, including multiple overload locations when present. Those local helpers also support Find All References, Rename Symbol, and Signature Help where source/edit mappings stay deterministic. Hover shows resolved/unresolved reference status, local helper signatures when Java tooling has no answer, and region context for template syntax. Missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 
-Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates.
+Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Reads are canonically contained to the workspace or explicitly configured roots, including protection against `..` and symlink escapes. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates.
 
 Region preview commands use the cursor position to choose the mapped source range: generated-output regions open in the generated output preview, while scriptlet, expression, and declaration regions open in the generated Java preview.
 
-`TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. `TxtJet: Diff Current Output Against Last Generation` compares the current generated output with the last generated snapshot for that template.
+`TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. Workspace-relative source directories and the original template filename are preserved, so sources in different directories or sibling files such as `component.txtjet` and `component.javajet` always produce distinct targets instead of overwriting each other. `TxtJet: Diff Current Output Against Last Generation` compares the current output with a bounded local snapshot; use `TxtJet: Clear Generated Output Snapshots` to remove all retained snapshots.
 `TxtJet: Compile Template With External Compiler` runs a user-configured shell command (`txtjet.compiler.command`) so teams can invoke Eclipse JET (or another real template compiler) and inspect the true generated output beside the template.
-`TxtJet: Validate Template With External Compiler` runs the same command without requiring a preview to be open, parses compiler problems, and reports mapped diagnostics in the `.txtjet` editor. The default matcher supports `file:line:column: severity: message` and `file:line:column: message`; customize `txtjet.diagnostics.compiler.problemMatcher` for compiler-specific output. `TxtJet: Open Synchronized Preview` opens the generated output preview beside the template and enables `txtjet.previews.synchronizedReveal.enabled`, which synchronizes visible source and preview selections only where mappings are known.
+`TxtJet: Validate Template With External Compiler` runs the same command without requiring a preview to be open, parses compiler problems, and reports mapped diagnostics in the `.txtjet` editor. Superseded validation processes are aborted and their results are discarded, so an older slow run cannot restore stale diagnostics after a newer edit or save. The default matcher supports `file:line:column: severity: message` and `file:line:column: message`; customize `txtjet.diagnostics.compiler.problemMatcher` for compiler-specific output. `TxtJet: Open Synchronized Preview` opens the generated output preview beside the template and enables `txtjet.previews.synchronizedReveal.enabled`, which synchronizes visible source and preview selections only where mappings are known.
 
 ## Formatting Helpers
 
@@ -287,6 +290,7 @@ Privacy:
 - The extension runs locally inside VSCode.
 - It does not send source files, template content, diagnostics, or usage data anywhere.
 - Configured external compiler and validator commands run only in trusted workspaces.
+- Previous-generation diffs retain at most 20 local workspace snapshots per workflow, with a 1 MB limit per snapshot; `TxtJet: Clear Generated Output Snapshots` removes them immediately.
 
 ## Example Files
 

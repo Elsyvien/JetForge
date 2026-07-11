@@ -30,6 +30,17 @@ jobs:
       - name: Verify and package
         run: npm run verify
 
+      - name: Cache VS Code 1.85 test runtime
+        uses: actions/cache@v4
+        with:
+          path: .vscode-test
+          key: vscode-test-${{ runner.os }}-${{ runner.arch }}-1.85.2
+
+      - name: Run Extension Host smoke test
+        env:
+          VSCODE_TEST_VERSION: "1.85.2"
+        run: xvfb-run -a npm run test:extension
+
       - name: Inspect package contents
         run: node node_modules/@vscode/vsce/vsce ls --no-dependencies
 
@@ -38,3 +49,4 @@ jobs:
         with:
           name: txtjet-syntax-vsix
           path: "*.vsix"
+          if-no-files-found: error

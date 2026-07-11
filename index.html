@@ -38,7 +38,7 @@
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Visual Studio Code Extension",
         "operatingSystem": "Windows, macOS, Linux",
-        "softwareVersion": "0.0.19",
+        "softwareVersion": "0.0.20",
         "isAccessibleForFree": true,
         "downloadUrl": "https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax",
         "codeRepository": "https://github.com/Elsyvien/JetForge",
@@ -191,7 +191,7 @@
           <h2 id="privacy-title">Your templates stay in your editor.</h2>
         </div>
         <div class="privacy-detail reveal">
-          <p>JetForge has no runtime network access, no telemetry, and no proprietary template upload path. External compilers and validators run only when you configure them, and they remain disabled in Restricted Mode.</p>
+          <p>JetForge has no runtime network access, no telemetry, and no proprietary template upload path. External compilers, validators, and workspace-configured paths outside the workspace remain blocked in Restricted Mode.</p>
           <dl><div><dt>Runtime network</dt><dd>None</dd></div><div><dt>Telemetry</dt><dd>None</dd></div><div><dt>Workspace Trust</dt><dd>Respected</dd></div></dl>
         </div>
       </section>
@@ -205,8 +205,8 @@
         </div>
         <div class="command-list reveal" aria-label="Local installation commands">
           <div><span>01</span><code>npm run package</code><button type="button" data-copy="npm run package" aria-label="Copy npm run package">Copy</button></div>
-          <div><span>02</span><code>npm run verify</code><button type="button" data-copy="npm run verify" aria-label="Copy npm run verify">Copy</button></div>
-          <div><span>03</span><code>code --install-extension txtjet-syntax-0.0.19.vsix</code><button type="button" data-copy="code --install-extension txtjet-syntax-0.0.19.vsix" aria-label="Copy install command">Copy</button></div>
+          <div><span>02</span><code>npm run verify:release</code><button type="button" data-copy="npm run verify:release" aria-label="Copy npm run verify release">Copy</button></div>
+          <div><span>03</span><code>code --install-extension txtjet-syntax-0.0.20.vsix</code><button type="button" data-copy="code --install-extension txtjet-syntax-0.0.20.vsix" aria-label="Copy install command">Copy</button></div>
         </div>
       </section>
     </main>

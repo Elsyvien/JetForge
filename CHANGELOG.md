@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.20
+
+- Made generated-output and Java preview construction linear for large templates and added performance regression coverage.
+- Refreshed dependent previews after unsaved include or skeleton changes and cancelled superseded compiler/IP-XACT validations so stale diagnostics cannot win races.
+- Contained reference reads and generated writes to allowed roots, blocked workspace-configured external paths in Restricted Mode, and failed closed on unsafe Windows command arguments and malformed preview URIs.
+- Centralized recognized TxtJet suffix handling (including `.jetinc`), preserved workspace-relative generated paths and source filenames, and prevented same-stem templates from overwriting each other.
+- Bounded generation snapshots to 20 entries per workflow and 1 MB per snapshot, added a clear command, repaired provider/channel disposal, and added a VS Code 1.85.2 Extension Host smoke gate to CI and publishing.
+
 ## 0.0.19
 
 - Rendered impact graphs directly in VSCode's Markdown preview instead of opening only the raw Mermaid source.

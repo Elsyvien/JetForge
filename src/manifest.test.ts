@@ -28,8 +28,12 @@ assert.equal(untrustedWorkspaces?.supported, "limited");
 assert.deepEqual(untrustedWorkspaces?.restrictedConfigurations, [
   "txtjet.compiler.command",
   "txtjet.diagnostics.compiler.runOnSave",
+  "txtjet.resolution.includePaths",
+  "txtjet.resolution.skeletonPaths",
+  "txtjet.generation.outputDirectory",
   "txtjet.ipxact.validation.command",
-  "txtjet.ipxact.validation.runOnSave"
+  "txtjet.ipxact.validation.runOnSave",
+  "txtjet.ipxact.outputDirectory"
 ]);
 for (const command of [
   "txtjet.compileTemplate",

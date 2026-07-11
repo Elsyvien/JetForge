@@ -3,6 +3,8 @@ node_modules/
 .vscode-test/
 .playwright-cli/
 out/
+generated/
+generated-ipxact/
 
 # Local packaging output and reference files
 *.vsix

@@ -21,6 +21,8 @@ const forbidden = [
   /^test-fixtures\//,
   /^node_modules\//,
   /^\.github\//,
+  /^generated\//,
+  /^generated-ipxact\//,
   /^index\.html$/,
   /^styles\.css$/,
   /^script\.js$/,

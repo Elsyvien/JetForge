@@ -62,9 +62,7 @@ function findVSCodeExecutable() {
     return pathExecutable;
   }
 
-  throw new Error(
-    "Visual Studio Code was not found. Set VSCODE_TEST_EXECUTABLE_PATH to the Code CLI or executable."
-  );
+  return undefined;
 }
 
 function testTimeoutMs() {
@@ -113,16 +111,15 @@ async function main() {
     throw new Error(`Compiled extension-host test not found: ${extensionTestsPath}`);
   }
 
-  const executablePath = findVSCodeExecutable();
+  const requestedVersion = process.env.VSCODE_TEST_VERSION;
+  const executablePath = requestedVersion ? undefined : findVSCodeExecutable();
   const temporaryRoot = mkdtempSync(join(tmpdir(), "txtjet-vscode-test-"));
   const userDataDir = join(temporaryRoot, "user-data");
   const extensionsDir = join(temporaryRoot, "extensions");
   mkdirSync(userDataDir);
   mkdirSync(extensionsDir);
 
-  const args = [
-    `--extensionDevelopmentPath=${extensionDevelopmentPath}`,
-    `--extensionTestsPath=${extensionTestsPath}`,
+  const launchArgs = [
     `--user-data-dir=${userDataDir}`,
     `--extensions-dir=${extensionsDir}`,
     "--disable-extensions",
@@ -131,13 +128,29 @@ async function main() {
     "--disable-telemetry",
     "--skip-welcome",
     "--skip-release-notes",
-    "--wait",
     resolve(extensionDevelopmentPath, "examples")
   ];
 
-  console.log(`Running VS Code extension-host smoke test with: ${executablePath}`);
   try {
-    await runExtensionTests(executablePath, args, testTimeoutMs());
+    if (executablePath) {
+      console.log(`Running VS Code extension-host smoke test with: ${executablePath}`);
+      await runExtensionTests(executablePath, [
+        `--extensionDevelopmentPath=${extensionDevelopmentPath}`,
+        `--extensionTestsPath=${extensionTestsPath}`,
+        ...launchArgs,
+        "--wait"
+      ], testTimeoutMs());
+    } else {
+      const { runTests } = require("@vscode/test-electron");
+      const version = requestedVersion || "1.85.2";
+      console.log(`Running VS Code extension-host smoke test with downloaded VS Code ${version}.`);
+      await runTests({
+        version,
+        extensionDevelopmentPath,
+        extensionTestsPath,
+        launchArgs
+      });
+    }
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

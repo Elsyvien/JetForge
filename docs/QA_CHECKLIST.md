@@ -4,9 +4,10 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 ## Install And Version
 
-- Run `npm run verify`.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.19.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.19`.
+- Run `npm ci` to reproduce the locked dependency tree.
+- Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate plus real Extension Host smoke test passes at the declared VS Code floor.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.20.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.20`.
 - Reload VSCode after install.
 
 ## Language Modes
@@ -74,7 +75,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 - Run `TxtJet: Open Generated Output Preview` for each sanitized example and confirm the preview preserves outer generated text.
 - Confirm `examples/include-main.txtjet` expands `partials/header.txtjet` and `partials/nav.txtjet` in the generated output preview.
-- Edit an included file without saving and confirm the generated output preview reflects the open buffer instead of stale disk content.
+- Keep the root generated-output preview open, edit an included file without saving, and confirm the existing preview refreshes immediately from the open buffer instead of stale disk content.
 - Run `TxtJet: Open Generated Java Template Preview` and confirm the preview uses `@jet package`, `class`, and `imports` metadata.
 - Run `TxtJet: Open Preview Beside Source` and confirm the preview opens beside the template.
 - Place the cursor in generated XML/HTML/Python/C/Java output and run `TxtJet: Open Region In Generated Preview`; confirm the mapped generated-output preview region is selected.
@@ -96,7 +97,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Trigger Signature Help inside a local helper call and confirm overloads appear with the active parameter moving after commas and ignoring nested-call commas.
 - Hover over include and skeleton references and confirm the resolved path/status is shown.
 - Open the generated Java preview for `examples/skeleton-directive.txtjet` and confirm the `.skeleton` token layout is used.
-- Edit the referenced `.skeleton` without saving and confirm the generated Java preview reflects the open buffer.
+- Keep the generated Java preview open, edit the referenced `.skeleton` without saving, and confirm the existing preview refreshes immediately from the open buffer.
 - Open `examples/skeleton-nested.txtjet` and confirm nested skeleton resolution works.
 - Add a temporary missing `skeleton="..."` reference and confirm a missing-skeleton diagnostic appears.
 - Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
@@ -105,6 +106,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Configure `txtjet.compiler.command` with a sanitized local wrapper that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
 - Configure the wrapper-style matcher `^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$` and confirm `[txtjet] file:line:column: error: message` output is parsed.
 - Set `txtjet.compiler.timeoutMs` to a low value with a slow sanitized wrapper and confirm the external compiler command times out instead of hanging VSCode.
+- Start a slow compiler validation, edit/save the template, and start another validation; confirm the superseded process is aborted and cannot restore stale diagnostics.
 - Confirm disabling `txtjet.previews.enabled` disables preview commands.
 - Confirm disabling `txtjet.previews.generatedJava.enabled` disables the generated Java preview command.
 - Confirm disabling `txtjet.navigation.includeDefinitions.enabled` removes include and skeleton Go to Definition.
@@ -124,6 +126,9 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Rename or move an include/skeleton into a new workspace directory and confirm every resolved reference is updated before the file move, including a self-reference if present.
 - Confirm refactors reject absolute paths, directory-only paths, quotes, line breaks, and targets outside the workspace.
 - Confirm rename/move aborts without changing files if any reference range cannot be mapped.
+- Create `a/component.txtjet` and `b/component.txtjet`, generate both, and confirm distinct workspace-relative targets are written without either output overwriting the other.
+- Create sibling `component.txtjet`, `component.jet`, and `component.javajet` files, generate each, and confirm the original template filename keeps every output collision-free.
+- Extract a selection from a `.jetinc` file and confirm the suggested include name strips the source suffix instead of producing `.jetinc.jetinc`.
 
 ## IP-XACT
 
@@ -134,16 +139,23 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `TxtJet: Generate IP-XACT Output` and confirm output is written under `txtjet.ipxact.outputDirectory`.
 - Run `TxtJet: Diff Current IP-XACT Output Against Last Generation` after changing the template and confirm the diff opens.
 - Configure `txtjet.ipxact.validation.command` with a sanitized wrapper that emits `${outputFile}:line:column: error: message`, run `TxtJet: Validate IP-XACT Output`, and confirm deterministic generated-output diagnostics map back to the template.
+- Start a slow IP-XACT validation, edit/save the template, and start another validation; confirm the superseded process is aborted and cannot restore stale diagnostics.
+- Confirm overlapping IP-XACT validations use isolated temporary output files and clean them after completion instead of overwriting the canonical generated XML.
 - Disable `txtjet.ipxact.enabled` and confirm IP-XACT commands are hidden/guarded.
 
 ## Settings And Privacy
 
-- Open the workspace in Restricted Mode and confirm compiler and IP-XACT validator commands do not execute while highlighting, previews, generation, and navigation remain available.
+- Open the workspace in Restricted Mode and confirm compiler and IP-XACT validator commands do not execute while highlighting, workspace-local previews, generation, and navigation remain available.
+- Add `../` and symlink-escape include/skeleton references and confirm previews never read outside the workspace or explicitly configured trusted roots.
+- Configure external include/skeleton or output directories from workspace settings and confirm Restricted Mode blocks them until the workspace is trusted.
+- Point an output subdirectory through a symlink outside the workspace and confirm generation fails closed; then confirm an explicit external output root works only after the workspace is trusted.
 - Toggle `txtjet.statusBar.enabled` and confirm the status bar item hides/shows.
 - Run `TxtJet: Toggle Region Background Coloring` and confirm mixed-language region decorations hide/show.
 - Set `txtjet.diagnostics.severity` to `error`, `warning`, `information`, and `hint`; confirm diagnostics update.
 - Set `txtjet.diagnostics.maxFileSizeKb` to a low value and confirm diagnostics are skipped for larger files.
 - Run `node node_modules/@vscode/vsce/vsce ls --no-dependencies` and inspect the package file list.
 - Run `npm audit` and confirm production and development dependencies have no known vulnerabilities.
-- Confirm the package contains no private templates, root-level local `example*` files, `src`, `test-fixtures`, `node_modules`, `.github`, `.playwright-cli`, static site files, logs, or local VSIX files.
+- Run `git diff --check` and confirm tree hygiene is clean.
+- Generate snapshots for 21 distinct templates in one workflow and one output larger than 1 MB; confirm only 20 entries are retained, the large output is written without retaining its snapshot, then run `TxtJet: Clear Generated Output Snapshots` and confirm previous diffs are cleared.
+- Confirm the package contains no private templates, root-level local `example*` files, generated output folders, Extension Host test sources/runners, `src`, `test-fixtures`, `node_modules`, `.github`, `.playwright-cli`, static site files, logs, or local VSIX files.
 - Confirm the package contains only the manifest, README, changelog, license, language configuration, icon, docs, examples, snippets, syntaxes, and compiled `out/*.js` files.
