@@ -61,7 +61,8 @@
         }
       }
     </script>
-    <link rel="stylesheet" href="styles.css">
+    <script>document.documentElement.classList.add("js")</script>
+    <link rel="stylesheet" href="styles.css?v=0.0.20">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -93,13 +94,26 @@
         <div class="hero-grid">
           <div class="hero-copy reveal">
             <h1 id="hero-title"><span>See the code</span><span><em>behind</em> the</span><span>template.</span></h1>
-            <p class="hero-lede">TxtJet &amp; Eclipse JET tooling for Visual Studio Code.</p>
+            <div class="hero-footer">
+              <div>
+                <p class="hero-lede">TxtJet &amp; Eclipse JET tooling for Visual Studio Code.</p>
+                <p class="hero-proof">Free · local-first · no telemetry</p>
+              </div>
+              <a class="button button-primary hero-cta" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install free <span aria-hidden="true">↗</span></a>
+            </div>
           </div>
 
           <figure class="hero-visual reveal" aria-hidden="true">
             <img src="assets/og-image.png" alt="" width="1200" height="630" fetchpriority="high">
           </figure>
         </div>
+      </section>
+
+      <section class="proof-strip reveal" aria-label="JetForge at a glance">
+        <div><span>01</span><strong>5 output modes</strong><small>Java, HTML, XML, C, Python</small></div>
+        <div><span>02</span><strong>Source ↔ output</strong><small>Deterministic range mapping</small></div>
+        <div><span>03</span><strong>Project-aware</strong><small>Includes, skeletons, dependencies</small></div>
+        <div><span>04</span><strong>Trust-respecting</strong><small>Restricted Mode stays restricted</small></div>
       </section>
 
       <section class="workbench-section" aria-label="Interactive JetForge preview">
@@ -218,6 +232,6 @@
     </footer>
 
     <div class="copy-toast" role="status" aria-live="polite"></div>
-    <script src="script.js"></script>
+    <script src="script.js?v=0.0.20"></script>
   </body>
 </html>

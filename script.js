@@ -80,6 +80,7 @@ const modePanel = document.querySelector("#mode-preview");
 const mappingLane = document.querySelector(".mapping-lane");
 const toast = document.querySelector(".copy-toast");
 const mobileMenu = window.matchMedia("(max-width: 900px)");
+const workbench = document.querySelector("#workbench");
 let activeDemoMode = "java";
 let activeLine = 0;
 let cycleTimer = null;
@@ -147,6 +148,11 @@ function restartCycle() {
   if (!reduceMotion) cycleTimer = window.setInterval(() => selectLine(activeLine + 1), 2800);
 }
 
+function pauseCycle() {
+  if (cycleTimer) window.clearInterval(cycleTimer);
+  cycleTimer = null;
+}
+
 function handleTabKeys(event, tabs, attribute, setter) {
   const direction = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
   if (!direction) return;
@@ -165,6 +171,12 @@ modeTabs.forEach(tab => {
   tab.addEventListener("click", () => setModePreview(tab.dataset.mode));
   tab.addEventListener("keydown", event => handleTabKeys(event, modeTabs, "mode", setModePreview));
 });
+workbench?.addEventListener("pointerenter", pauseCycle);
+workbench?.addEventListener("pointerleave", restartCycle);
+workbench?.addEventListener("focusin", pauseCycle);
+workbench?.addEventListener("focusout", event => {
+  if (!workbench.contains(event.relatedTarget)) restartCycle();
+});
 
 function syncMobileMenu() {
   const open = header.classList.contains("menu-open");
@@ -175,6 +187,13 @@ menuToggle?.addEventListener("click", () => {
   const open = header.classList.toggle("menu-open");
   menuToggle.setAttribute("aria-expanded", String(open));
   syncMobileMenu();
+});
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape" || !header.classList.contains("menu-open")) return;
+  header.classList.remove("menu-open");
+  menuToggle?.setAttribute("aria-expanded", "false");
+  syncMobileMenu();
+  menuToggle?.focus();
 });
 document.querySelectorAll(".site-nav a").forEach(link => link.addEventListener("click", () => {
   header.classList.remove("menu-open");
