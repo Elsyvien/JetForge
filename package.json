@@ -1028,6 +1028,6 @@
     "@types/vscode": "1.85.0",
     "@vscode/test-electron": "2.5.2",
     "@vscode/vsce": "3.9.2",
-    "typescript": "^5.4.5"
+    "typescript": "^7.0.2"
   }
 }
