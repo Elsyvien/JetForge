@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.0.21
+
+- Reintroduced the product as JetForge across the extension, documentation, and website while preserving the existing `elsyvien.txtjet-syntax` extension ID and upgrade path.
+- Added an in-editor Getting Started walkthrough, actionable empty Workspace Explorer states, a 60-second quickstart, guided compiler setup/testing, and a genuine sanitized source-to-output product screenshot.
+- Made Workspace Explorer navigation precise: unresolved references open their exact range, generated targets open generated output, impact reports use clickable file links, and workspace validation is cancellable with structured summaries.
+- Improved multi-root correctness with resource-scoped compiler, resolution, generation, and IP-XACT settings; coalesced workspace refreshes, indexed reverse references, and bounded preview mapping caches keep larger projects responsive.
+- Hardened release delivery with exact-artifact checksums, clean-profile installed-VSIX tests across Linux/Windows and minimum/stable VS Code, retry-safe Marketplace/GitHub publication, release metadata checks, Dependabot, scheduled audits, and contribution/security templates.
+- Added regression coverage for compiler guidance, validation summaries, refresh coalescing, preview caching, multi-root IP-XACT behavior, large workspace models, the walkthrough contract, and the packaged screenshot.
+
 ## 0.0.20
 
 - Made generated-output and Java preview construction linear for large templates and added performance regression coverage.

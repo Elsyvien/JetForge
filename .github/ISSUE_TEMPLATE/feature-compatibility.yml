@@ -1,0 +1,45 @@
+name: Feature or compatibility request
+description: Propose a focused workflow improvement or compatibility fix.
+title: "[Request]: "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Request type
+      options:
+        - Compatibility problem
+        - Feature request
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Relevant versions or tooling
+      placeholder: "JetForge 0.0.21; VS Code 1.85.2; Eclipse JET/tool version"
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Sanitized example and desired workflow
+      description: Provide a minimal sanitized template/example and describe the desired result.
+    validations:
+      required: true
+  - type: textarea
+    id: value
+    attributes:
+      label: Why this matters
+      description: Explain the user impact and any compatibility constraints.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: The example contains no private or proprietary content.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

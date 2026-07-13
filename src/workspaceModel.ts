@@ -62,6 +62,7 @@ export interface TxtJetWorkspaceImpact {
 export interface TxtJetWorkspaceModelOptions {
   includePathsForFile?: (fileName: string) => string[];
   skeletonPathsForFile?: (fileName: string) => string[];
+  ipxactOptionsForFile?: (fileName: string) => { enabled: boolean; templateGlobs: string[] };
   ipxactEnabled?: boolean;
   ipxactTemplateGlobs?: string[];
 }
@@ -84,6 +85,7 @@ export function createTxtJetWorkspaceModel(
   options: TxtJetWorkspaceModelOptions = {}
 ): TxtJetWorkspaceModel {
   const entriesByFile = new Map<string, TxtJetWorkspaceEntry>();
+  const referencesByTarget = new Map<string, TxtJetWorkspaceReference[]>();
 
   for (const file of files) {
     const fileName = normalize(file.fileName);
@@ -118,12 +120,23 @@ export function createTxtJetWorkspaceModel(
       if (!target) {
         continue;
       }
+      const incoming = referencesByTarget.get(reference.resolvedFileName) ?? [];
+      incoming.push(reference);
+      referencesByTarget.set(reference.resolvedFileName, incoming);
       if (reference.kind === "include") {
-        target.includedBy = sortedUnique([...target.includedBy, entry.fileName]);
+        target.includedBy.push(entry.fileName);
       } else {
-        target.skeletonUsedBy = sortedUnique([...target.skeletonUsedBy, entry.fileName]);
+        target.skeletonUsedBy.push(entry.fileName);
       }
     }
+  }
+
+  for (const entry of entriesByFile.values()) {
+    entry.includedBy = sortedUnique(entry.includedBy);
+    entry.skeletonUsedBy = sortedUnique(entry.skeletonUsedBy);
+  }
+  for (const references of referencesByTarget.values()) {
+    references.sort(compareReference);
   }
 
   const entries = Array.from(entriesByFile.values()).sort(compareEntry);
@@ -132,10 +145,16 @@ export function createTxtJetWorkspaceModel(
     .filter((reference) => !reference.resolvedFileName)
     .sort(compareReference);
   const ipxactTemplates = entries
-    .filter((entry) => entry.kind === "template" && isIpxactTemplate(entry.fileName, entry.text, {
-      enabled: options.ipxactEnabled ?? false,
-      templateGlobs: options.ipxactTemplateGlobs ?? []
-    }))
+    .filter((entry) => {
+      if (entry.kind !== "template") {
+        return false;
+      }
+      const fileOptions = options.ipxactOptionsForFile?.(entry.fileName);
+      return isIpxactTemplate(entry.fileName, entry.text, fileOptions ?? {
+        enabled: options.ipxactEnabled ?? false,
+        templateGlobs: options.ipxactTemplateGlobs ?? []
+      });
+    })
     .sort(compareEntry);
 
   return {
@@ -154,9 +173,8 @@ export function createTxtJetWorkspaceModel(
     },
     referencesTo(fileName, kind) {
       const targetFileName = normalize(fileName);
-      const references = entries.flatMap((entry) => entry.references)
-        .filter((reference) => reference.resolvedFileName === targetFileName);
-      return (kind ? references.filter((reference) => reference.kind === kind) : references).sort(compareReference);
+      const references = referencesByTarget.get(targetFileName) ?? [];
+      return kind ? references.filter((reference) => reference.kind === kind) : [...references];
     },
     referenceExists(fileName, referenceFile, kind) {
       return referencesForFileName(normalize(fileName), referenceFile, kind, entriesByFile, options).some((candidate) =>
@@ -174,9 +192,25 @@ export function createTxtJetWorkspaceModel(
         .sort(compareEntry);
     },
     impactedBy(fileName) {
-      return workspaceImpactForFile(normalize(fileName), entriesByFile);
+      return workspaceImpactForFile(normalize(fileName), entriesByFile, referencesByTarget);
     }
   };
+}
+
+/**
+ * Reports whether rebuilding the workspace changed reference relationships.
+ * Text-only edits are intentionally ignored so preview refreshes can stay
+ * targeted, while newly resolved, removed, or redirected references trigger a
+ * conservative refresh of already-open previews.
+ */
+export function workspaceModelTopologyChanged(
+  previous: TxtJetWorkspaceModel,
+  next: TxtJetWorkspaceModel
+): boolean {
+  const previousReferences = workspaceReferenceTopology(previous);
+  const nextReferences = workspaceReferenceTopology(next);
+  return previousReferences.length !== nextReferences.length
+    || previousReferences.some((reference, index) => reference !== nextReferences[index]);
 }
 
 export function isExcludedTxtJetWorkspacePath(fileName: string): boolean {
@@ -260,9 +294,21 @@ function compareReference(left: TxtJetWorkspaceReference, right: TxtJetWorkspace
     || left.referenceFile.localeCompare(right.referenceFile);
 }
 
+function workspaceReferenceTopology(model: TxtJetWorkspaceModel): string[] {
+  return model.entries
+    .flatMap((entry) => entry.references.map((reference) => [
+      reference.sourceFileName,
+      reference.kind,
+      reference.referenceFile,
+      reference.resolvedFileName ?? ""
+    ].join("\0")))
+    .sort();
+}
+
 function workspaceImpactForFile(
   fileName: string,
-  entriesByFile: Map<string, TxtJetWorkspaceEntry>
+  entriesByFile: Map<string, TxtJetWorkspaceEntry>,
+  referencesByTarget: Map<string, TxtJetWorkspaceReference[]>
 ): TxtJetWorkspaceImpact {
   const affectedFileNames = new Set<string>();
   const references: TxtJetWorkspaceReference[] = [];
@@ -275,15 +321,10 @@ function workspaceImpactForFile(
     }
     affectedFileNames.add(current);
 
-    for (const entry of entriesByFile.values()) {
-      for (const reference of entry.references) {
-        if (reference.resolvedFileName !== current) {
-          continue;
-        }
-        references.push(reference);
-        if (!affectedFileNames.has(entry.fileName)) {
-          queue.push(entry.fileName);
-        }
+    for (const reference of referencesByTarget.get(current) ?? []) {
+      references.push(reference);
+      if (!affectedFileNames.has(reference.sourceFileName)) {
+        queue.push(reference.sourceFileName);
       }
     }
   }

@@ -46,10 +46,13 @@ const allowed = [
   /^package\.json$/,
   /^language-configuration\.json$/,
   /^README\.md$/,
+  /^(CONTRIBUTING|SECURITY|SUPPORT)\.md$/,
   /^LICENSE$/,
   /^CHANGELOG\.md$/,
   /^assets\/icon\.png$/,
+  /^assets\/jetforge-workspace-preview\.png$/,
   /^docs\/[A-Za-z0-9_-]+\.md$/,
+  /^walkthrough\/[A-Za-z0-9_-]+\.md$/,
   /^examples\/[A-Za-z0-9_.-]+\.txtjet$/,
   /^examples\/partials\/[A-Za-z0-9_.-]+\.txtjet$/,
   /^examples\/templates\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_.-]+\.skeleton$/,
@@ -74,8 +77,21 @@ assert.deepEqual(
 
 assert.ok(files.includes("package.json"));
 assert.ok(files.includes("README.md"));
+assert.ok(files.includes("SECURITY.md"));
+assert.ok(files.includes("SUPPORT.md"));
+assert.ok(files.includes("assets/jetforge-workspace-preview.png"));
 assert.ok(files.includes("docs/INTELLISENSE_ROADMAP.md"));
 assert.ok(files.includes("docs/QA_CHECKLIST.md"));
+for (const media of [
+  "walkthrough/open-template.md",
+  "walkthrough/choose-output.md",
+  "walkthrough/preview.md",
+  "walkthrough/workspace.md",
+  "walkthrough/compiler.md",
+  "walkthrough/advanced.md"
+]) {
+  assert.ok(files.includes(media), `walkthrough media missing from package: ${media}`);
+}
 assert.ok(files.includes("out/extension.js"));
 assert.ok(files.includes("syntaxes/txtjet.tmLanguage.json"));
 

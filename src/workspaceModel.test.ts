@@ -4,6 +4,7 @@ import {
   createTxtJetWorkspaceModel,
   isExcludedTxtJetWorkspacePath,
   TXTJET_WORKSPACE_EXCLUDE_GLOB,
+  workspaceModelTopologyChanged,
   workspaceEntryKind
 } from "./workspaceModel";
 
@@ -90,6 +91,22 @@ assert.deepEqual(circular.impactedBy(join(root, "a.txtjet")).affectedEntries.map
   join(root, "b.txtjet")
 ]);
 
+const largeWorkspaceSize = 1_500;
+const largeWorkspaceFiles = Array.from({ length: largeWorkspaceSize }, (_, index) => ({
+  fileName: join(root, "large", `${index}.txtjet`),
+  text: index === 0 ? "root" : `<%@ include file="${index - 1}.txtjet" %>`
+}));
+const largeWorkspaceStartedAt = Date.now();
+const largeWorkspace = createTxtJetWorkspaceModel(largeWorkspaceFiles);
+const largeWorkspaceImpact = largeWorkspace.impactedBy(join(root, "large", "0.txtjet"));
+const largeWorkspaceDurationMs = Date.now() - largeWorkspaceStartedAt;
+assert.equal(largeWorkspaceImpact.affectedEntries.length, largeWorkspaceSize);
+assert.equal(largeWorkspaceImpact.references.length, largeWorkspaceSize - 1);
+assert.ok(
+  largeWorkspaceDurationMs < 2_500,
+  `large workspace graph should build and traverse in under 2500ms (actual ${largeWorkspaceDurationMs}ms)`
+);
+
 const privateTemplate = join(root, "private-examples", "secret.txtjet");
 const localToolTemplate = join(root, ".playwright-cli", "scratch.txtjet");
 const ignored = createTxtJetWorkspaceModel([
@@ -104,6 +121,39 @@ assert.equal(ignored.entry(privateTemplate), undefined);
 assert.equal(ignored.entry(localToolTemplate), undefined);
 assert.equal(ignored.templates.length, 1);
 assert.equal(ignored.ipxactTemplates.length, 0);
+
+const firstRootIpxact = join(root, "first", "component.txtjet");
+const secondRootIpxact = join(root, "second", "component.txtjet");
+const perResourceIpxact = createTxtJetWorkspaceModel(
+  [
+    { fileName: firstRootIpxact, text: "component.name=first" },
+    { fileName: secondRootIpxact, text: "component.name=second" }
+  ],
+  {
+    ipxactOptionsForFile(fileName) {
+      return {
+        enabled: fileName === secondRootIpxact,
+        templateGlobs: ["**/*.txtjet"]
+      };
+    }
+  }
+);
+assert.deepEqual(perResourceIpxact.ipxactTemplates.map((entry) => entry.fileName), [secondRootIpxact]);
+
+const topologyParent = join(root, "topology", "parent.txtjet");
+const topologyInclude = join(root, "topology", "partial.jetinc");
+const unresolvedTopology = createTxtJetWorkspaceModel([
+  { fileName: topologyParent, text: '<%@ include file="partial.jetinc" %>\noriginal' }
+]);
+const resolvedTopology = createTxtJetWorkspaceModel([
+  { fileName: topologyParent, text: '<%@ include file="partial.jetinc" %>\noriginal' },
+  { fileName: topologyInclude, text: "resolved" }
+]);
+const textOnlyTopology = createTxtJetWorkspaceModel([
+  { fileName: topologyParent, text: '<%@ include file="partial.jetinc" %>\ntext-only edit' }
+]);
+assert.equal(workspaceModelTopologyChanged(unresolvedTopology, resolvedTopology), true);
+assert.equal(workspaceModelTopologyChanged(unresolvedTopology, textOnlyTopology), false);
 
 assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.playwright-cli/);
 assert.match(TXTJET_WORKSPACE_EXCLUDE_GLOB, /\.antigravitycli/);

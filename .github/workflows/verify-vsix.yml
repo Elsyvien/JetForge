@@ -1,0 +1,116 @@
+name: Verify VSIX
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit
+
+      - name: Check release metadata
+        run: node scripts/check-release-metadata.js
+
+      - name: Verify and package
+        run: npm run verify
+
+      - name: Run source Extension Host smoke test at VS Code floor
+        env:
+          VSCODE_TEST_VERSION: "1.85.2"
+        run: xvfb-run -a npm run test:extension
+
+      - name: Inspect package contents
+        run: node node_modules/@vscode/vsce/vsce ls --no-dependencies
+
+      - name: Create package checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find . -maxdepth 1 -type f -name '*.vsix' -print)
+          test "${#packages[@]}" -eq 1
+          sha256sum "${packages[0]}" > "${packages[0]}.sha256"
+
+      - name: Upload verified VSIX artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: txtjet-syntax-vsix
+          path: |
+            *.vsix
+            *.vsix.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  installed-vsix-smoke:
+    name: Installed VSIX (${{ matrix.os }}, VS Code ${{ matrix.vscode }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        vscode:
+          - "1.85.2"
+          - stable
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download verified VSIX artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: txtjet-syntax-vsix
+          path: artifact
+
+      - name: Resolve and validate VSIX
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find artifact -maxdepth 1 -type f -name '*.vsix' -print)
+          test "${#packages[@]}" -eq 1
+          node scripts/check-release-metadata.js --vsix "${packages[0]}"
+          echo "VSIX_PATH=${packages[0]}" >> "$GITHUB_ENV"
+
+      - name: Run installed VSIX smoke test on Linux
+        if: runner.os == 'Linux'
+        env:
+          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+        run: xvfb-run -a node scripts/run-installed-vsix-tests.js
+
+      - name: Run installed VSIX smoke test on Windows
+        if: runner.os == 'Windows'
+        env:
+          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+        run: node scripts/run-installed-vsix-tests.js

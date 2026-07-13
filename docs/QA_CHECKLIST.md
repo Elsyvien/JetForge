@@ -1,14 +1,22 @@
-# TxtJet Syntax QA Checklist
+# JetForge QA Checklist
 
 Use sanitized files only. Private workplace templates may be opened locally for validation, but must not be committed or packaged.
 
 ## Install And Version
 
 - Run `npm ci` to reproduce the locked dependency tree.
-- Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate plus real Extension Host smoke test passes at the declared VS Code floor.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.20.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.20`.
+- Run `npm run check:release-metadata` and confirm package, lockfile, changelog, README, QA, tag, and VSIX version references agree.
+- Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate, source Extension Host smoke test, packaging, and clean-profile installed-VSIX smoke test pass at the declared VS Code floor.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.21.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.21`.
 - Reload VSCode after install.
+
+## First-Run Experience
+
+- Run `JetForge: Open Getting Started` on VS Code 1.85.2 and current stable; confirm all six walkthrough steps render with their packaged guidance.
+- Open an empty folder and confirm `JetForge Workspace` shows links for Getting Started, refresh, and compiler setup instead of a blank tree.
+- Run `JetForge: Set Up and Test Compiler Toolchain`; confirm it selects the active workspace folder, explains `${file}`, `${workspaceFolder}`, and `${outputFile}`, saves at the correct workspace/folder scope, and produces a structured success/failure report.
+- Repeat compiler setup in Restricted Mode; confirm configuration is allowed but execution remains blocked with a Workspace Trust action.
 
 ## Language Modes
 
@@ -113,14 +121,16 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 ## Workspace Intelligence
 
-- Open the `TxtJet Workspace` Explorer view and confirm Templates, Includes, Skeletons, Unresolved References, and Generated Output Targets are populated for sanitized examples.
+- Open the `JetForge Workspace` Explorer view and confirm only applicable Templates, Includes, Skeletons, Unresolved References, IP-XACT, and Generated Output groups are shown for sanitized examples.
 - Run `TxtJet: Refresh Workspace Model` and confirm the tree refreshes without changing files.
 - Open an include fragment and run `TxtJet: Open Including Template`; confirm the referencing template opens.
-- Run `TxtJet: Open Generated Java For Template` from a template and from the workspace tree; confirm the generated Java preview opens beside the source.
-- Add a temporary unresolved include or skeleton reference and confirm it appears in the workspace tree and editor diagnostics.
+- Open a Generated Output Target in the tree and confirm the target-language generated output opens rather than the generated Java template.
+- Run `TxtJet: Open Generated Java For Template` from a template and confirm the generated Java preview opens beside the source.
+- Add a temporary unresolved include or skeleton reference, confirm it appears in the workspace tree and editor diagnostics, then open it and confirm its exact directive value range is selected.
 - Create the referenced file and confirm the unresolved tree entry and diagnostic disappear after refresh/save.
-- Run `TxtJet: Validate Workspace Templates` with a sanitized compiler wrapper and confirm root templates are validated without forcing unmappable diagnostics into source ranges.
-- Run `TxtJet: Show Impact Graph` for a template, include, and skeleton; confirm a rendered Mermaid preview opens with direct/transitive edges and affected-template counts.
+- Keep a root preview open while creating, deleting, or newly referencing an include; confirm the preview refreshes from the rebuilt dependency topology.
+- Run `TxtJet: Validate Workspace Templates` with a sanitized compiler wrapper, cancel partway through, and confirm the summary reports processed, skipped, cancelled, and remaining templates without forcing unmappable diagnostics into source ranges.
+- Run `TxtJet: Show Impact Graph` for a template, include, and skeleton; confirm a rendered Mermaid preview opens with clickable file links, direct/transitive edges, and affected-template counts.
 - With an unsaved include-reference edit, run the impact graph and confirm it reflects the current open buffer rather than the last saved model.
 - Extract a selection to the default `partials/*.jetinc` path when `partials/` does not exist; confirm the directory and include are created and no unrelated dirty editor is saved.
 - Rename or move an include/skeleton into a new workspace directory and confirm every resolved reference is updated before the file move, including a self-reference if present.
@@ -133,7 +143,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 ## IP-XACT
 
 - Set `txtjet.ipxact.enabled` to true.
-- Open `examples/ipxact-component.txtjet` and confirm the `TxtJet Workspace` Explorer shows it under IP-XACT Templates.
+- Open `examples/ipxact-component.txtjet` and confirm the `JetForge Workspace` Explorer shows it under IP-XACT Templates.
+- In a multi-root workspace, enable IP-XACT only for one folder and confirm workspace navigation indexes and opens templates from that folder without requiring the global setting.
 - In generated-output XML text, type `<` and confirm IP-XACT node completions appear for `component`, `busInterface`, `memoryMap`, `addressBlock`, `register`, and `field`.
 - Run `TxtJet: Open IP-XACT Preview` and confirm a read-only XML preview opens beside the template.
 - Run `TxtJet: Generate IP-XACT Output` and confirm output is written under `txtjet.ipxact.outputDirectory`.
@@ -158,4 +169,4 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `git diff --check` and confirm tree hygiene is clean.
 - Generate snapshots for 21 distinct templates in one workflow and one output larger than 1 MB; confirm only 20 entries are retained, the large output is written without retaining its snapshot, then run `TxtJet: Clear Generated Output Snapshots` and confirm previous diffs are cleared.
 - Confirm the package contains no private templates, root-level local `example*` files, generated output folders, Extension Host test sources/runners, `src`, `test-fixtures`, `node_modules`, `.github`, `.playwright-cli`, static site files, logs, or local VSIX files.
-- Confirm the package contains only the manifest, README, changelog, license, language configuration, icon, docs, examples, snippets, syntaxes, and compiled `out/*.js` files.
+- Confirm the package contains only the manifest, README, changelog, license, language configuration, approved product images, docs, examples, snippets, syntaxes, walkthrough guidance, and compiled `out/*.js` files.

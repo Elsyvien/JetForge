@@ -3,12 +3,21 @@ import { basename, dirname, extname, isAbsolute as isAbsolutePath, join, normali
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
+import { CoalescingAsyncRefresh } from "./asyncRefresh";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import {
   mapCompilerProblemsToSource,
   parseCompilerProblems,
   TxtJetCompilerDiagnosticSeverity
 } from "./compilerDiagnostics";
+import {
+  compilerCommandGuidance,
+  CompilerToolchainReport,
+  CompilerValidationResult,
+  formatCompilerToolchainReport,
+  formatWorkspaceValidationReport,
+  summarizeWorkspaceValidation
+} from "./compilerToolchain";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
@@ -43,6 +52,7 @@ import {
   targetFallbackCompletionLabels
 } from "./javaIntelliSenseBridge";
 import { synchronizedPreviewRange } from "./previewSync";
+import { VersionedPreviewCache } from "./previewCache";
 import {
   classifyTxtJetRegionAt,
   classifyTxtJetRegions,
@@ -74,6 +84,7 @@ import {
   TxtJetWorkspaceModel,
   TxtJetWorkspaceReference,
   TxtJetWorkspaceReferenceKind,
+  workspaceModelTopologyChanged,
   workspaceEntryKind
 } from "./workspaceModel";
 import { generatedOutputPath, isolatedValidationOutputPath } from "./generationPaths";
@@ -111,8 +122,10 @@ const MAX_GENERATED_SNAPSHOT_BYTES = 1024 * 1024;
 const MAX_GENERATED_SNAPSHOT_COUNT = 20;
 const execAsync = promisify(exec);
 let activeWorkspaceModel: TxtJetWorkspaceModel | undefined;
+let requestWorkspaceModelRefresh: ((invalidate?: boolean, immediate?: boolean) => Promise<boolean>) | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
+  activeWorkspaceModel = undefined;
   context.subscriptions.push(outputChannel);
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
@@ -129,13 +142,18 @@ export function activate(context: vscode.ExtensionContext): void {
   const visualDifferentiator = new TxtJetVisualDifferentiator();
   const previewSynchronizer = new TxtJetPreviewSynchronizer();
   const workspaceTreeProvider = new TxtJetWorkspaceTreeProvider();
+  const workspaceTreeView = vscode.window.createTreeView("txtjetWorkspace", {
+    treeDataProvider: workspaceTreeProvider,
+    showCollapseAll: true
+  });
+  workspaceTreeView.message = "Indexing TxtJet workspace files…";
   context.subscriptions.push(
     visualDifferentiator,
     previewSynchronizer,
     previewProvider,
     generatedDiffProvider,
     workspaceTreeProvider,
-    vscode.window.registerTreeDataProvider("txtjetWorkspace", workspaceTreeProvider),
+    workspaceTreeView,
     vscode.workspace.registerTextDocumentContentProvider(OUTPUT_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(JAVA_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(IPXACT_PREVIEW_SCHEME, previewProvider),
@@ -149,8 +167,13 @@ export function activate(context: vscode.ExtensionContext): void {
       if (refreshGeneration !== workspaceRefreshGeneration) {
         return false;
       }
+      const previousModel = activeWorkspaceModel;
       activeWorkspaceModel = model;
       workspaceTreeProvider.setModel(model);
+      updateWorkspaceTreeView(workspaceTreeView, model);
+      if (previousModel && workspaceModelTopologyChanged(previousModel, model)) {
+        previewProvider.refreshAll();
+      }
       if (invalidateCompilerDiagnostics) {
         compilerDiagnosticsBySource.clear();
         ipxactDiagnosticsBySource.clear();
@@ -163,10 +186,39 @@ export function activate(context: vscode.ExtensionContext): void {
       return true;
     } catch (error) {
       appendOutputLog("error", `Workspace model refresh failed: ${String(error)}`);
+      workspaceTreeView.description = undefined;
+      workspaceTreeView.message = "TxtJet workspace indexing failed. Run Refresh Workspace Model and open the TxtJet output for details.";
       return false;
     }
   };
+  const workspaceRefresh = new CoalescingAsyncRefresh(refreshWorkspaceModel, 150);
+  const refreshRequester = (invalidate = false, immediate = false): Promise<boolean> =>
+    workspaceRefresh.request(invalidate, immediate);
+  requestWorkspaceModelRefresh = refreshRequester;
+  context.subscriptions.push(workspaceRefresh);
+  context.subscriptions.push({
+    dispose(): void {
+      if (requestWorkspaceModelRefresh === refreshRequester) {
+        requestWorkspaceModelRefresh = undefined;
+        activeWorkspaceModel = undefined;
+      }
+    }
+  });
 
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openGettingStarted", async () => {
+      await vscode.commands.executeCommand(
+        "workbench.action.openWalkthrough",
+        { category: "elsyvien.txtjet-syntax#jetforge.gettingStarted" },
+        false
+      );
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.setupCompilerToolchain", async (resource?: vscode.Uri | TxtJetWorkspaceTreeNode) => {
+      await setupCompilerToolchain(resource);
+    })
+  );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.detectTargetLanguage", async () => {
       const editor = vscode.window.activeTextEditor;
@@ -326,10 +378,17 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.refreshWorkspaceModel", async () => {
-      if (await refreshWorkspaceModel(false)) {
+      if (await workspaceRefresh.request(false, true)) {
         vscode.window.setStatusBarMessage("TxtJet workspace model refreshed.", 4000);
       } else {
         vscode.window.showErrorMessage("TxtJet could not refresh the workspace model. Open the TxtJet output channel for details.");
+      }
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openWorkspaceReference", async (item?: TxtJetWorkspaceTreeNode) => {
+      if (item?.kind === "reference") {
+        await openWorkspaceReference(item.reference);
       }
     })
   );
@@ -341,6 +400,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.openGeneratedJavaForTemplate", async (item?: TxtJetWorkspaceTreeNode) => {
       await openGeneratedJavaForTemplate(item);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.openGeneratedOutputForTemplate", async (item?: TxtJetWorkspaceTreeNode) => {
+      await openGeneratedOutputForTemplate(item);
     })
   );
   context.subscriptions.push(
@@ -426,7 +490,7 @@ export function activate(context: vscode.ExtensionContext): void {
       updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
       visualDifferentiator.refreshDocument(document);
       if (workspaceEntryKind(document.fileName) && !activeWorkspaceModel?.entry(document.fileName)) {
-        void refreshWorkspaceModel(false);
+        void workspaceRefresh.request();
       }
     })
   );
@@ -477,15 +541,20 @@ export function activate(context: vscode.ExtensionContext): void {
           ipxactValidationRuns
         );
       }
-      void refreshWorkspaceModel(false);
+      void workspaceRefresh.request();
     })
   );
   const workspaceWatcher = vscode.workspace.createFileSystemWatcher(TXTJET_WORKSPACE_GLOB);
+  const handleWorkspaceFileChange = (uri: vscode.Uri): void => {
+    previewSynchronizer.invalidate();
+    previewProvider.refreshAffected(uri, activeWorkspaceModel);
+    void workspaceRefresh.request();
+  };
   context.subscriptions.push(
     workspaceWatcher,
-    workspaceWatcher.onDidCreate(() => void refreshWorkspaceModel(false)),
-    workspaceWatcher.onDidChange(() => void refreshWorkspaceModel(false)),
-    workspaceWatcher.onDidDelete(() => void refreshWorkspaceModel(false))
+    workspaceWatcher.onDidCreate(handleWorkspaceFileChange),
+    workspaceWatcher.onDidChange(handleWorkspaceFileChange),
+    workspaceWatcher.onDidDelete(handleWorkspaceFileChange)
   );
   context.subscriptions.push(
     vscode.languages.onDidChangeDiagnostics((event) => {
@@ -514,7 +583,8 @@ export function activate(context: vscode.ExtensionContext): void {
         updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
       }
       visualDifferentiator.refreshAll();
-      void refreshWorkspaceModel(true);
+      previewSynchronizer.invalidate();
+      void workspaceRefresh.request(true);
     })
   );
   context.subscriptions.push(
@@ -562,7 +632,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidCloseTextDocument(() => updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context))
   );
   updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
-  void refreshWorkspaceModel(false);
+  void workspaceRefresh.request(false, true);
 }
 
 export function deactivate(): void {
@@ -618,17 +688,21 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider, vscod
   }
 
   refreshAffected(changed: vscode.Uri, model: TxtJetWorkspaceModel | undefined): void {
-    if (workspaceEntryKind(changed.fsPath)) {
-      this.refreshAll();
+    if (!model) {
+      this.refresh(changed);
       return;
     }
-    this.refresh(changed);
-    if (!model) {
+    if (this.trackedSourcesHaveChangedReferenceTopology(model)) {
+      this.refreshAll();
       return;
     }
     const affectedFileNames = new Set(
       model.impactedBy(changed.fsPath).affectedEntries.map((entry) => normalize(entry.fileName))
     );
+    if (affectedFileNames.size === 0) {
+      this.refresh(changed);
+      return;
+    }
     for (const [source, previews] of this.previewsBySource) {
       try {
         if (!affectedFileNames.has(normalize(vscode.Uri.parse(source).fsPath))) {
@@ -643,7 +717,7 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider, vscod
     }
   }
 
-  private refreshAll(): void {
+  refreshAll(): void {
     for (const previews of this.previewsBySource.values()) {
       for (const preview of previews) {
         this.changed.fire(vscode.Uri.parse(preview));
@@ -667,12 +741,54 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider, vscod
     this.changed.dispose();
   }
 
+  private trackedSourcesHaveChangedReferenceTopology(model: TxtJetWorkspaceModel): boolean {
+    for (const source of this.previewsBySource.keys()) {
+      let sourceUri: vscode.Uri;
+      try {
+        sourceUri = vscode.Uri.parse(source);
+      } catch {
+        continue;
+      }
+      const document = vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === source);
+      if (!document || !isTxtJetFile(document)) {
+        continue;
+      }
+      const entry = model.entry(sourceUri.fsPath);
+      if (!entry || !sameStrings(currentDocumentReferenceTopology(document), entryReferenceTopology(entry))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private track(source: vscode.Uri, preview: vscode.Uri): void {
     const key = source.toString();
     const previews = this.previewsBySource.get(key) ?? new Set<string>();
     previews.add(preview.toString());
     this.previewsBySource.set(key, previews);
   }
+}
+
+function currentDocumentReferenceTopology(document: vscode.TextDocument): string[] {
+  const template = parseTxtJetTemplate(document.getText());
+  const references = template.includes.map((directive) =>
+    ["include", directive.attributes.file ?? ""].join("\0")
+  );
+  const skeleton = template.jetDirective?.attributes.skeleton;
+  if (skeleton) {
+    references.push(["skeleton", skeleton].join("\0"));
+  }
+  return references.sort();
+}
+
+function entryReferenceTopology(entry: TxtJetWorkspaceEntry): string[] {
+  return entry.references
+    .map((reference) => [reference.kind, reference.referenceFile].join("\0"))
+    .sort();
+}
+
+function sameStrings(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function invalidateAffectedExternalDiagnostics(
@@ -767,17 +883,9 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
       item.contextValue = "txtjetWorkspace.unresolvedReference";
       item.iconPath = new vscode.ThemeIcon("warning");
       item.command = {
-        command: "vscode.open",
+        command: "txtjet.openWorkspaceReference",
         title: "Open TxtJet reference source",
-        arguments: [
-          vscode.Uri.file(element.reference.sourceFileName),
-          {
-            selection: new vscode.Range(
-              new vscode.Position(0, 0),
-              new vscode.Position(0, 0)
-            )
-          }
-        ]
+        arguments: [element]
       };
       return item;
     }
@@ -791,8 +899,8 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
       item.contextValue = "txtjetWorkspace.generated";
       item.iconPath = new vscode.ThemeIcon("symbol-file");
       item.command = {
-        command: "txtjet.openGeneratedJavaForTemplate",
-        title: "Open Generated Java For Template",
+        command: "txtjet.openGeneratedOutputForTemplate",
+        title: "Open Generated Output For Template",
         arguments: [element]
       };
       return item;
@@ -812,18 +920,25 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
   }
 
   getChildren(element?: TxtJetWorkspaceTreeNode): TxtJetWorkspaceTreeNode[] {
-    if (!this.model) {
+    if (!this.model || this.model.entries.length === 0) {
       return [];
     }
     if (!element) {
-      return [
+      const groups: TxtJetWorkspaceTreeNode[] = [
         { kind: "group", id: "templates", label: `Templates (${this.model.templates.length})` },
         { kind: "group", id: "includes", label: `Includes (${this.model.includes.length})` },
         { kind: "group", id: "skeletons", label: `Skeletons (${this.model.skeletons.length})` },
-        { kind: "group", id: "ipxact", label: `IP-XACT Templates (${this.model.ipxactTemplates.length})` },
         { kind: "group", id: "unresolved", label: `Unresolved References (${this.model.unresolvedReferences.length})` },
         { kind: "group", id: "generated", label: `Generated Output Targets (${this.model.templates.length})` }
       ];
+      if (this.model.ipxactTemplates.length > 0) {
+        groups.splice(3, 0, {
+          kind: "group",
+          id: "ipxact",
+          label: `IP-XACT Templates (${this.model.ipxactTemplates.length})`
+        });
+      }
+      return groups;
     }
     if (element.kind !== "group") {
       return [];
@@ -845,6 +960,22 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
         return [];
     }
   }
+}
+
+function updateWorkspaceTreeView(
+  view: vscode.TreeView<TxtJetWorkspaceTreeNode>,
+  model: TxtJetWorkspaceModel
+): void {
+  const workspaceCount = vscode.workspace.workspaceFolders?.length ?? 0;
+  if (model.entries.length === 0) {
+    view.description = undefined;
+    view.message = workspaceCount === 0
+      ? "Open a folder or a TxtJet file to get started."
+      : "No TxtJet files found. Run “TxtJet: Open Getting Started” for setup and examples.";
+    return;
+  }
+  view.message = undefined;
+  view.description = `${model.templates.length} template${model.templates.length === 1 ? "" : "s"}`;
 }
 
 function groupIcon(id: TxtJetWorkspaceGroupId): vscode.ThemeIcon {
@@ -990,16 +1121,26 @@ function outputDecoration(backgroundColor: string, overviewRulerColor: string): 
 
 class TxtJetPreviewSynchronizer implements vscode.Disposable {
   private readonly disposable: vscode.Disposable;
+  private readonly previews = new VersionedPreviewCache<TxtJetGeneratedPreview>();
   private syncing = false;
 
   constructor() {
-    this.disposable = vscode.window.onDidChangeTextEditorSelection((event) => {
-      this.syncSelection(event.textEditor);
-    });
+    this.disposable = vscode.Disposable.from(
+      vscode.window.onDidChangeTextEditorSelection((event) => {
+        this.syncSelection(event.textEditor);
+      }),
+      vscode.workspace.onDidChangeTextDocument(() => this.invalidate()),
+      vscode.workspace.onDidCloseTextDocument(() => this.invalidate())
+    );
   }
 
   dispose(): void {
+    this.previews.invalidate();
     this.disposable.dispose();
+  }
+
+  invalidate(): void {
+    this.previews.invalidate();
   }
 
   private syncSelection(editor: vscode.TextEditor): void {
@@ -1020,7 +1161,7 @@ class TxtJetPreviewSynchronizer implements vscode.Disposable {
       if (!previewEditor) {
         return;
       }
-      const preview = previewForVisiblePreview(editor.document, previewEditor.document.uri);
+      const preview = this.previewForVisiblePreview(editor.document, previewEditor.document.uri);
       const mapped = synchronizedPreviewRange(preview.mappings, selectionToRange(editor.document, editor.selection), "source-to-preview");
       this.reveal(previewEditor, mapped);
       return;
@@ -1033,9 +1174,21 @@ class TxtJetPreviewSynchronizer implements vscode.Disposable {
     if (!sourceEditor) {
       return;
     }
-    const preview = previewForVisiblePreview(sourceEditor.document, editor.document.uri);
+    const preview = this.previewForVisiblePreview(sourceEditor.document, editor.document.uri);
     const mapped = synchronizedPreviewRange(preview.mappings, selectionToRange(editor.document, editor.selection), "preview-to-source");
     this.reveal(sourceEditor, mapped);
+  }
+
+  private previewForVisiblePreview(
+    sourceDocument: vscode.TextDocument,
+    previewUri: vscode.Uri
+  ): TxtJetGeneratedPreview {
+    return this.previews.getOrCreate(
+      sourceDocument.uri.toString(),
+      sourceDocument.version,
+      previewUri.toString(),
+      () => buildPreviewForVisiblePreview(sourceDocument, previewUri)
+    );
   }
 
   private reveal(editor: vscode.TextEditor, range: TxtJetRange | undefined): void {
@@ -1057,7 +1210,7 @@ function visiblePreviewEditorForSource(source: vscode.Uri): vscode.TextEditor | 
   );
 }
 
-function previewForVisiblePreview(sourceDocument: vscode.TextDocument, previewUri: vscode.Uri): TxtJetGeneratedPreview {
+function buildPreviewForVisiblePreview(sourceDocument: vscode.TextDocument, previewUri: vscode.Uri): TxtJetGeneratedPreview {
   if (previewUri.scheme === JAVA_PREVIEW_SCHEME) {
     return buildPreviewForDocument(sourceDocument, "java");
   }
@@ -1322,7 +1475,6 @@ function configuredReferencePathsForFileName(fileName: string, uri: vscode.Uri, 
 async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
   const files = new Map<string, { fileName: string; text?: string }>();
   const uris = await vscode.workspace.findFiles(TXTJET_WORKSPACE_GLOB, TXTJET_WORKSPACE_EXCLUDE_GLOB);
-  const config = vscode.workspace.getConfiguration(CONFIG_SECTION);
   for (const uri of uris) {
     try {
       const text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
@@ -1343,9 +1495,20 @@ async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
     skeletonPathsForFile(fileName) {
       return configuredReferencePathsForFileName(fileName, vscode.Uri.file(fileName), "resolution.skeletonPaths");
     },
-    ipxactEnabled: config.get<boolean>("ipxact.enabled", false),
-    ipxactTemplateGlobs: config.get<string[]>("ipxact.templateGlobs", [])
+    ipxactOptionsForFile(fileName) {
+      const config = vscode.workspace.getConfiguration(CONFIG_SECTION, vscode.Uri.file(fileName));
+      return {
+        enabled: config.get<boolean>("ipxact.enabled", false),
+        templateGlobs: config.get<string[]>("ipxact.templateGlobs", [])
+      };
+    }
   });
+}
+
+async function openWorkspaceReference(reference: TxtJetWorkspaceReference): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(reference.sourceFileName));
+  const selection = vscodeRangeFor(document, reference.range);
+  await vscode.window.showTextDocument(document, { preview: false, selection });
 }
 
 async function openIncludingTemplate(item?: TxtJetWorkspaceTreeNode): Promise<void> {
@@ -1372,6 +1535,17 @@ async function openIncludingTemplate(item?: TxtJetWorkspaceTreeNode): Promise<vo
 }
 
 async function openGeneratedJavaForTemplate(item?: TxtJetWorkspaceTreeNode): Promise<void> {
+  await openGeneratedPreviewForTemplate(item, "java");
+}
+
+async function openGeneratedOutputForTemplate(item?: TxtJetWorkspaceTreeNode): Promise<void> {
+  await openGeneratedPreviewForTemplate(item, "output");
+}
+
+async function openGeneratedPreviewForTemplate(
+  item: TxtJetWorkspaceTreeNode | undefined,
+  kind: PreviewKind
+): Promise<void> {
   const fileName = workspaceFileNameFromNode(item) ?? vscode.window.activeTextEditor?.document.fileName;
   if (!fileName) {
     return;
@@ -1381,7 +1555,7 @@ async function openGeneratedJavaForTemplate(item?: TxtJetWorkspaceTreeNode): Pro
     return;
   }
   const editor = await vscode.window.showTextDocument(document, { preview: false });
-  await openMappedPreview(editor, "java", { start: 0, end: 0 }, true);
+  await openMappedPreview(editor, kind, { start: 0, end: 0 }, true);
 }
 
 async function validateWorkspaceTemplates(
@@ -1397,27 +1571,82 @@ async function validateWorkspaceTemplates(
     return;
   }
 
-  let completed = 0;
-  for (const template of templates) {
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(template.fileName));
-    if (await validateTemplateWithCompiler(
-      document,
-      collection,
-      compilerDiagnosticsBySource,
-      false,
-      ipxactDiagnosticsBySource,
-      validationRuns
-    ) === "completed") {
-      completed += 1;
+  const results = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Validating TxtJet workspace templates",
+      cancellable: true
+    },
+    async (progress, token): Promise<CompilerValidationResult[]> => {
+      const validationResults: CompilerValidationResult[] = [];
+      for (let index = 0; index < templates.length; index += 1) {
+        if (token.isCancellationRequested) {
+          break;
+        }
+        const template = templates[index];
+        progress.report({
+          message: `${index + 1}/${templates.length}: ${workspaceRelativeLabel(template.fileName)}`,
+          increment: 100 / templates.length
+        });
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(template.fileName));
+        validationResults.push(await validateTemplateWithCompiler(
+          document,
+          collection,
+          compilerDiagnosticsBySource,
+          false,
+          ipxactDiagnosticsBySource,
+          validationRuns,
+          token
+        ));
+      }
+      return validationResults;
     }
-  }
-  if (completed === 0) {
-    vscode.window.showWarningMessage("TxtJet did not validate any workspace templates. Check Workspace Trust and compiler settings.");
+  );
+  const summary = summarizeWorkspaceValidation(templates.length, results);
+  appendOutputLog("report", formatWorkspaceValidationReport(summary));
+  if (summary.cancelled > 0 || summary.remaining > 0) {
+    const action = await vscode.window.showInformationMessage(
+      `TxtJet workspace validation cancelled after ${summary.processed} of ${summary.total} templates.`,
+      "Open TxtJet Output"
+    );
+    if (action === "Open TxtJet Output") {
+      outputChannel.show(true);
+    }
     return;
   }
-  const skipped = templates.length - completed;
-  const skippedSuffix = skipped > 0 ? ` ${skipped} skipped.` : "";
-  vscode.window.showInformationMessage(`TxtJet validated ${completed} workspace template${completed === 1 ? "" : "s"}.${skippedSuffix}`);
+  if (summary.completed === 0) {
+    const action = await vscode.window.showWarningMessage(
+      "TxtJet did not validate any workspace templates. Configure a compiler and confirm Workspace Trust.",
+      "Set Up Compiler",
+      "Manage Workspace Trust",
+      "Open TxtJet Output"
+    );
+    if (action === "Set Up Compiler") {
+      await vscode.commands.executeCommand("txtjet.setupCompilerToolchain", vscode.Uri.file(templates[0].fileName));
+    } else if (action === "Manage Workspace Trust") {
+      await vscode.commands.executeCommand("workbench.trust.manage");
+    } else if (action === "Open TxtJet Output") {
+      outputChannel.show(true);
+    }
+    return;
+  }
+  if (summary.failed > 0 || summary.mappedDiagnostics > 0 || summary.unmappedProblems > 0) {
+    const action = await vscode.window.showWarningMessage(
+      `TxtJet validated ${summary.completed} templates: ${summary.failed} failed, ${summary.mappedDiagnostics} mapped diagnostics, ${summary.unmappedProblems} unmapped problems.`,
+      "Show Problems",
+      "Open TxtJet Output"
+    );
+    if (action === "Show Problems") {
+      await vscode.commands.executeCommand("workbench.actions.view.problems");
+    } else if (action === "Open TxtJet Output") {
+      outputChannel.show(true);
+    }
+    return;
+  }
+  const skippedSuffix = summary.skipped > 0 ? ` ${summary.skipped} skipped.` : "";
+  vscode.window.showInformationMessage(
+    `TxtJet validated ${summary.completed} workspace template${summary.completed === 1 ? "" : "s"} successfully.${skippedSuffix}`
+  );
 }
 
 async function showImpactGraph(item?: TxtJetWorkspaceTreeNode): Promise<void> {
@@ -1575,7 +1804,14 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
 }
 
 async function ensureWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
-  activeWorkspaceModel = await buildTxtJetWorkspaceModel();
+  const requestRefresh = requestWorkspaceModelRefresh;
+  if (!requestRefresh) {
+    throw new Error("TxtJet workspace refresh is not available before extension activation.");
+  }
+  const refreshed = await requestRefresh(false, true);
+  if (!refreshed || !activeWorkspaceModel) {
+    throw new Error("TxtJet could not build the workspace model.");
+  }
   return activeWorkspaceModel;
 }
 
@@ -1626,7 +1862,7 @@ function impactGraphMarkdown(model: TxtJetWorkspaceModel, fileName: string): str
   const lines = [
     "# TxtJet Impact Graph",
     "",
-    `Source: \`${sourceLabel}\``,
+    `Source: ${markdownFileLink(fileName, sourceLabel)}`,
     "",
     "## Summary",
     "",
@@ -1644,12 +1880,12 @@ function impactGraphMarkdown(model: TxtJetWorkspaceModel, fileName: string): str
     "",
     "## Affected Templates",
     "",
-    ...markdownList(impact.affectedTemplates.map((entry) => workspaceRelativeLabel(entry.fileName))),
+    ...markdownList(impact.affectedTemplates.map((entry) => markdownFileLink(entry.fileName))),
     "",
     "## Direct And Transitive Reference Edges",
     "",
     ...markdownList(impact.references.map((reference) =>
-      `${workspaceRelativeLabel(reference.resolvedFileName ?? "")} -> ${workspaceRelativeLabel(reference.sourceFileName)} (${reference.kind}: \`${reference.referenceFile}\`)`
+      `${reference.resolvedFileName ? markdownFileLink(reference.resolvedFileName) : "Unresolved"} -> ${markdownFileLink(reference.sourceFileName)} (${reference.kind}: \`${reference.referenceFile}\`)`
     )),
     ""
   ];
@@ -1683,6 +1919,11 @@ function markdownList(values: string[]): string[] {
 
 function markdownEscaped(value: string): string {
   return value.replace(/["<>]/g, "_");
+}
+
+function markdownFileLink(fileName: string, label = workspaceRelativeLabel(fileName)): string {
+  const safeLabel = label.replace(/[\[\]\\]/g, "_");
+  return `[${safeLabel}](${vscode.Uri.file(fileName).toString()})`;
 }
 
 function validateReferenceInput(value: string, kind: TxtJetWorkspaceReferenceKind): string | undefined {
@@ -2062,19 +2303,359 @@ async function validateIpxactTemplate(
 }
 
 async function openIpxactTemplate(): Promise<void> {
-  if (!isIpxactFeatureEnabled()) {
-    vscode.window.showInformationMessage("Enable txtjet.ipxact.enabled to use IP-XACT template navigation.");
+  const model = await ensureWorkspaceModel();
+  if (model.ipxactTemplates.length === 0) {
+    const message = isIpxactFeatureEnabledInAnyWorkspaceContext()
+      ? "TxtJet found no IP-XACT templates in this workspace."
+      : "Enable txtjet.ipxact.enabled in a workspace folder to use IP-XACT template navigation.";
+    vscode.window.showInformationMessage(message);
     return;
   }
-  const model = activeWorkspaceModel ?? await ensureWorkspaceModel();
   const selected = await pickWorkspaceEntry(model.ipxactTemplates, "Open IP-XACT TxtJet template");
   if (!selected) {
-    if (model.ipxactTemplates.length === 0) {
-      vscode.window.showInformationMessage("TxtJet found no IP-XACT templates in this workspace.");
-    }
     return;
   }
   await vscode.window.showTextDocument(vscode.Uri.file(selected.fileName), { preview: false });
+}
+
+async function setupCompilerToolchain(
+  argument?: vscode.Uri | TxtJetWorkspaceTreeNode
+): Promise<void> {
+  const resource = await compilerSetupResource(argument);
+  if (!resource) {
+    const action = await vscode.window.showInformationMessage(
+      "Open a workspace folder or TxtJet template before setting up an external compiler.",
+      "Open Folder",
+      "Open Compiler Settings",
+      "Getting Started"
+    );
+    if (action === "Open Folder") {
+      await vscode.commands.executeCommand("workbench.action.files.openFolder");
+    } else if (action === "Open Compiler Settings") {
+      await openCompilerSettings();
+    } else if (action === "Getting Started") {
+      await vscode.commands.executeCommand("txtjet.openGettingStarted");
+    }
+    return;
+  }
+
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+  let command = config.get<string>("compiler.command", "").trim();
+  const action = await vscode.window.showQuickPick(
+    command
+      ? [
+        { label: "$(testing-run-icon) Test configured compiler", id: "test", description: compilerScopeLabel(resource) },
+        { label: "$(edit) Edit compiler command", id: "edit", description: "Configure the external command for this workspace context" },
+        { label: "$(settings-gear) Open compiler settings", id: "settings" },
+        { label: "$(book) Open Getting Started", id: "walkthrough" }
+      ]
+      : [
+        { label: "$(edit) Configure compiler command", id: "edit", description: "JetForge does not bundle a compiler" },
+        { label: "$(settings-gear) Open compiler settings", id: "settings" },
+        { label: "$(book) Open Getting Started", id: "walkthrough" }
+      ],
+    {
+      title: "Set up TxtJet compiler toolchain",
+      placeHolder: command
+        ? "Test or update the configured external compiler"
+        : "Configure the external compiler used by JetForge"
+    }
+  );
+  if (!action) {
+    return;
+  }
+  if (action.id === "settings") {
+    await openCompilerSettings();
+    return;
+  }
+  if (action.id === "walkthrough") {
+    await vscode.commands.executeCommand("txtjet.openGettingStarted");
+    return;
+  }
+  if (action.id === "edit") {
+    const configured = await configureCompilerCommand(resource, command);
+    if (!configured) {
+      return;
+    }
+    command = configured;
+    const nextAction = await vscode.window.showInformationMessage(
+      `TxtJet compiler command saved for ${compilerScopeLabel(resource)}.`,
+      "Test Compiler",
+      "Open Settings"
+    );
+    if (nextAction === "Open Settings") {
+      await openCompilerSettings();
+      return;
+    }
+    if (nextAction !== "Test Compiler") {
+      return;
+    }
+  }
+
+  if (!vscode.workspace.isTrusted) {
+    const trustAction = await vscode.window.showWarningMessage(
+      "TxtJet saved the compiler configuration, but external commands stay disabled in Restricted Mode.",
+      "Manage Workspace Trust",
+      "Open Compiler Settings"
+    );
+    if (trustAction === "Manage Workspace Trust") {
+      await vscode.commands.executeCommand("workbench.trust.manage");
+    } else if (trustAction === "Open Compiler Settings") {
+      await openCompilerSettings();
+    }
+    return;
+  }
+
+  const document = await selectCompilerTestTemplate(resource);
+  if (!document) {
+    const noTemplateAction = await vscode.window.showInformationMessage(
+      "TxtJet found no template in this workspace context to use for the compiler test.",
+      "Getting Started",
+      "Refresh Workspace"
+    );
+    if (noTemplateAction === "Getting Started") {
+      await vscode.commands.executeCommand("txtjet.openGettingStarted");
+    } else if (noTemplateAction === "Refresh Workspace") {
+      await vscode.commands.executeCommand("txtjet.refreshWorkspaceModel");
+    }
+    return;
+  }
+  if (document.isDirty) {
+    const saveAction = await vscode.window.showWarningMessage(
+      "Save the selected template before testing the external compiler.",
+      "Save and Test",
+      "Cancel"
+    );
+    if (saveAction !== "Save and Test" || !await document.save()) {
+      return;
+    }
+  }
+
+  const report = await runCompilerToolchainTest(document, command);
+  if (!report) {
+    return;
+  }
+  appendOutputLog("report", formatCompilerToolchainReport(report));
+  await showCompilerToolchainResult(document, resource, command, report);
+}
+
+async function compilerSetupResource(
+  argument?: vscode.Uri | TxtJetWorkspaceTreeNode
+): Promise<vscode.Uri | undefined> {
+  if (isVscodeUri(argument)) {
+    return argument;
+  }
+  const itemFileName = argument ? workspaceFileNameFromNode(argument) : undefined;
+  if (itemFileName) {
+    return vscode.Uri.file(itemFileName);
+  }
+  const activeResource = vscode.window.activeTextEditor?.document.uri;
+  if (activeResource?.scheme === "file") {
+    return activeResource;
+  }
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.length === 1) {
+    return folders[0].uri;
+  }
+  if (folders.length > 1) {
+    const picked = await vscode.window.showQuickPick(
+      folders.map((folder) => ({
+        label: folder.name,
+        description: folder.uri.fsPath,
+        uri: folder.uri
+      })),
+      { title: "Select workspace folder for TxtJet compiler setup" }
+    );
+    return picked?.uri;
+  }
+  return undefined;
+}
+
+function isVscodeUri(value: vscode.Uri | TxtJetWorkspaceTreeNode | undefined): value is vscode.Uri {
+  return Boolean(
+    value
+    && "scheme" in value
+    && "path" in value
+    && typeof value.scheme === "string"
+    && typeof value.path === "string"
+  );
+}
+
+async function configureCompilerCommand(resource: vscode.Uri, current: string): Promise<string | undefined> {
+  const command = await vscode.window.showInputBox({
+    title: `Configure TxtJet compiler for ${compilerScopeLabel(resource)}`,
+    prompt: "External shell command. Available placeholders: ${file}, ${workspaceFolder}, and ${outputFile}.",
+    value: current,
+    ignoreFocusOut: true,
+    validateInput(value) {
+      return value.trim().length > 0 ? undefined : "Enter an external compiler command.";
+    }
+  });
+  if (!command?.trim()) {
+    return undefined;
+  }
+  const target = vscode.workspace.getWorkspaceFolder(resource)
+    ? (vscode.workspace.workspaceFolders?.length ?? 0) > 1
+      ? vscode.ConfigurationTarget.WorkspaceFolder
+      : vscode.ConfigurationTarget.Workspace
+    : vscode.ConfigurationTarget.Global;
+  await vscode.workspace.getConfiguration(CONFIG_SECTION, resource)
+    .update("compiler.command", command.trim(), target);
+  const guidance = compilerCommandGuidance(command);
+  if (guidance.warnings.length > 0) {
+    appendOutputLog("report", ["TxtJet compiler configuration guidance", ...guidance.warnings.map((warning) => `warning: ${warning}`)].join("\n"));
+    void vscode.window.showWarningMessage(guidance.warnings.join(" "), "Open TxtJet Output")
+      .then((selected) => {
+        if (selected === "Open TxtJet Output") {
+          outputChannel.show(true);
+        }
+      });
+  }
+  return command.trim();
+}
+
+function compilerScopeLabel(resource: vscode.Uri): string {
+  const folder = vscode.workspace.getWorkspaceFolder(resource);
+  return folder ? `workspace folder “${folder.name}”` : "the current user profile";
+}
+
+async function selectCompilerTestTemplate(resource: vscode.Uri): Promise<vscode.TextDocument | undefined> {
+  const resourceFolder = vscode.workspace.getWorkspaceFolder(resource);
+  const activeDocument = vscode.window.activeTextEditor?.document;
+  if (
+    activeDocument
+    && isTxtJetFile(activeDocument)
+    && (!resourceFolder || vscode.workspace.getWorkspaceFolder(activeDocument.uri)?.uri.toString() === resourceFolder.uri.toString())
+  ) {
+    return activeDocument;
+  }
+  const model = await ensureWorkspaceModel();
+  const templates = model.templates.filter((entry) =>
+    !resourceFolder
+    || vscode.workspace.getWorkspaceFolder(vscode.Uri.file(entry.fileName))?.uri.toString() === resourceFolder.uri.toString()
+  );
+  const selected = templates.length === 1
+    ? templates[0]
+    : await pickWorkspaceEntry(templates, "Select template for compiler toolchain test");
+  return selected ? vscode.workspace.openTextDocument(vscode.Uri.file(selected.fileName)) : undefined;
+}
+
+async function runCompilerToolchainTest(
+  document: vscode.TextDocument,
+  command: string
+): Promise<CompilerToolchainReport | undefined> {
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? dirname(document.fileName);
+  const outputUri = generationOutputUri(document, true);
+  if (!outputUri) {
+    return undefined;
+  }
+  const testOutput = validationOutputUri(outputUri, "compiler", Date.now());
+  if (!await ensureGeneratedOutputDirectory(testOutput, true)) {
+    return undefined;
+  }
+  const fullCommand = safeCompilerCommandFor(command, document.fileName, workspaceFolder, testOutput.fsPath, true);
+  if (!fullCommand) {
+    return undefined;
+  }
+  const timeoutMs = compilerTimeoutMs(
+    vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri).get<number>("compiler.timeoutMs")
+  );
+  const startedAt = Date.now();
+  try {
+    return await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Testing TxtJet compiler with ${basename(document.fileName)}`,
+        cancellable: true
+      },
+      async (_progress, token) => {
+        const controller = new AbortController();
+        const cancellation = token.onCancellationRequested(() => controller.abort());
+        try {
+          const result = await runCompilerCommand(fullCommand, workspaceFolder, timeoutMs, controller.signal);
+          if (result.stdout.trim()) {
+            appendOutputLog("stdout", result.stdout);
+          }
+          if (result.stderr.trim()) {
+            appendOutputLog("stderr", result.stderr);
+          }
+          if (result.error.trim() && !token.isCancellationRequested) {
+            appendOutputLog("error", result.error);
+          }
+          return {
+            status: token.isCancellationRequested ? "cancelled" : result.failed ? "failed" : "success",
+            workspaceFolder,
+            template: document.fileName,
+            durationMs: Date.now() - startedAt,
+            outputProduced: existsSync(testOutput.fsPath),
+            stdoutBytes: Buffer.byteLength(result.stdout, "utf8"),
+            stderrBytes: Buffer.byteLength(result.stderr, "utf8"),
+            error: token.isCancellationRequested ? undefined : result.error || undefined
+          };
+        } finally {
+          cancellation.dispose();
+        }
+      }
+    );
+  } finally {
+    await deleteValidationOutput(testOutput);
+  }
+}
+
+async function showCompilerToolchainResult(
+  document: vscode.TextDocument,
+  resource: vscode.Uri,
+  command: string,
+  report: CompilerToolchainReport
+): Promise<void> {
+  if (report.status === "cancelled") {
+    const action = await vscode.window.showInformationMessage("TxtJet compiler toolchain test cancelled.", "Open TxtJet Output");
+    if (action === "Open TxtJet Output") {
+      outputChannel.show(true);
+    }
+    return;
+  }
+  if (report.status === "failed") {
+    const action = await vscode.window.showErrorMessage(
+      `TxtJet compiler toolchain test failed after ${report.durationMs} ms.`,
+      "Open TxtJet Output",
+      "Edit Command"
+    );
+    if (action === "Open TxtJet Output") {
+      outputChannel.show(true);
+    } else if (action === "Edit Command") {
+      await configureCompilerCommand(resource, command);
+    }
+    return;
+  }
+  const guidance = compilerCommandGuidance(command);
+  const message = guidance.hasOutputFilePlaceholder && !report.outputProduced
+    ? "TxtJet compiler ran successfully, but it did not create the configured ${outputFile}."
+    : `TxtJet compiler toolchain test succeeded in ${report.durationMs} ms.`;
+  const action = await vscode.window.showInformationMessage(message, "Compile Template", "Open TxtJet Output");
+  if (action === "Open TxtJet Output") {
+    outputChannel.show(true);
+  } else if (action === "Compile Template") {
+    await vscode.window.showTextDocument(document, { preview: false });
+    await vscode.commands.executeCommand("txtjet.compileTemplate");
+  }
+}
+
+async function openCompilerSettings(): Promise<void> {
+  await vscode.commands.executeCommand("workbench.action.openSettings", "txtjet.compiler.command");
+}
+
+async function showCompilerNotConfigured(resource: vscode.Uri): Promise<void> {
+  const action = await vscode.window.showErrorMessage(
+    "TxtJet has no external compiler command configured for this workspace context.",
+    "Set Up Compiler",
+    "Open Compiler Settings"
+  );
+  if (action === "Set Up Compiler") {
+    await vscode.commands.executeCommand("txtjet.setupCompilerToolchain", resource);
+  } else if (action === "Open Compiler Settings") {
+    await openCompilerSettings();
+  }
 }
 
 async function compileTemplateWithExternalTool(): Promise<void> {
@@ -2100,7 +2681,7 @@ async function compileTemplateWithExternalTool(): Promise<void> {
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION, editor.document.uri);
   const compileCommand = config.get<string>("compiler.command", "").trim();
   if (compileCommand.length === 0) {
-    vscode.window.showErrorMessage("TxtJet compile command is not configured. Set txtjet.compiler.command in settings.");
+    await showCompilerNotConfigured(editor.document.uri);
     return;
   }
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath ?? dirname(editor.document.fileName);
@@ -2143,28 +2724,32 @@ async function validateTemplateWithCompiler(
   compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
   interactive: boolean,
   ipxactDiagnosticsBySource: Map<string, vscode.Diagnostic[]> | undefined,
-  validationRuns: ValidationRunCoordinator
-): Promise<"completed" | "skipped"> {
+  validationRuns: ValidationRunCoordinator,
+  cancellationToken?: vscode.CancellationToken
+): Promise<CompilerValidationResult> {
   if (!isTxtJetFile(document)) {
-    return "skipped";
+    return skippedCompilerValidation("not-txtjet");
+  }
+  if (cancellationToken?.isCancellationRequested) {
+    return cancelledCompilerValidation();
   }
 
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
   if (!config.get<boolean>("diagnostics.enabled", true) || !config.get<boolean>("diagnostics.compiler.enabled", true)) {
     compilerDiagnosticsBySource.delete(document.uri.toString());
     updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-    return "skipped";
+    return skippedCompilerValidation("disabled");
   }
 
   if (!canRunExternalCommands(interactive)) {
     compilerDiagnosticsBySource.delete(document.uri.toString());
     updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-    return "skipped";
+    return skippedCompilerValidation("restricted");
   }
 
   if (document.isDirty) {
     if (!interactive) {
-      return "skipped";
+      return skippedCompilerValidation("dirty");
     }
     const choice = await vscode.window.showWarningMessage(
       "Save the current template before validating it with the external compiler.",
@@ -2172,9 +2757,11 @@ async function validateTemplateWithCompiler(
       "Cancel"
     );
     if (choice !== "Save and Validate") {
-      return "skipped";
+      return skippedCompilerValidation("dirty");
     }
-    await document.save();
+    if (!await document.save()) {
+      return skippedCompilerValidation("dirty");
+    }
   }
 
   const compileCommand = config.get<string>("compiler.command", "").trim();
@@ -2182,15 +2769,15 @@ async function validateTemplateWithCompiler(
     compilerDiagnosticsBySource.delete(document.uri.toString());
     updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
     if (interactive) {
-      vscode.window.showErrorMessage("TxtJet compile command is not configured. Set txtjet.compiler.command in settings.");
+      await showCompilerNotConfigured(document.uri);
     }
-    return "skipped";
+    return skippedCompilerValidation("unconfigured");
   }
 
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? dirname(document.fileName);
   const outputUri = generationOutputUri(document, interactive);
   if (!outputUri) {
-    return "skipped";
+    return skippedCompilerValidation("unsafe-output");
   }
   const source = document.uri.toString();
   const sourceText = document.getText();
@@ -2201,23 +2788,28 @@ async function validateTemplateWithCompiler(
     outputPreviewOptions(document)
   );
   const run = validationRuns.begin(source, document.version);
+  const cancellation = cancellationToken?.onCancellationRequested(() => validationRuns.invalidate(source));
   const validationOutput = validationOutputUri(outputUri, "compiler", run.generation);
   const outputPath = validationOutput.fsPath;
   try {
     if (!await ensureGeneratedOutputDirectory(validationOutput, interactive)) {
-      return "skipped";
+      return skippedCompilerValidation("output-directory");
     }
     if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
-      return "skipped";
+      return cancellationToken?.isCancellationRequested
+        ? cancelledCompilerValidation()
+        : skippedCompilerValidation("superseded");
     }
     const fullCommand = safeCompilerCommandFor(compileCommand, document.fileName, workspaceFolder, outputPath, interactive);
     if (!fullCommand) {
-      return "skipped";
+      return skippedCompilerValidation("unsafe-command");
     }
     const timeoutMs = compilerTimeoutMs(config.get<number>("compiler.timeoutMs"));
     const result = await runCompilerCommand(fullCommand, workspaceFolder, timeoutMs, run.signal);
     if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
-      return "skipped";
+      return cancellationToken?.isCancellationRequested
+        ? cancelledCompilerValidation()
+        : skippedCompilerValidation("superseded");
     }
     if (result.stdout.trim().length > 0) {
       appendOutputLog("stdout", result.stdout);
@@ -2249,23 +2841,71 @@ async function validateTemplateWithCompiler(
     }
     updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
 
+    const validationResult: CompilerValidationResult = {
+      outcome: "completed",
+      failed: result.failed,
+      mappedDiagnostics: mappedDiagnostics.length,
+      compilerProblems: problems.length
+    };
     if (!interactive) {
-      return "completed";
+      return validationResult;
     }
     if (mappedDiagnostics.length > 0) {
-      vscode.window.showWarningMessage(`TxtJet compiler validation found ${mappedDiagnostics.length} mapped diagnostic${mappedDiagnostics.length === 1 ? "" : "s"}.`);
+      const action = await vscode.window.showWarningMessage(
+        `TxtJet compiler validation found ${mappedDiagnostics.length} mapped diagnostic${mappedDiagnostics.length === 1 ? "" : "s"}.`,
+        "Show Problems"
+      );
+      if (action === "Show Problems") {
+        await vscode.commands.executeCommand("workbench.actions.view.problems");
+      }
     } else if (problems.length > 0) {
-      vscode.window.showWarningMessage("TxtJet compiler validation finished, but no compiler diagnostics could be mapped to this template.");
+      const action = await vscode.window.showWarningMessage(
+        "TxtJet compiler validation finished, but no compiler diagnostics could be mapped to this template.",
+        "Open TxtJet Output"
+      );
+      if (action === "Open TxtJet Output") {
+        outputChannel.show(true);
+      }
     } else if (result.failed) {
-      vscode.window.showErrorMessage("TxtJet compiler validation failed. Open the TxtJet output channel for details.");
+      const action = await vscode.window.showErrorMessage(
+        "TxtJet compiler validation failed.",
+        "Open TxtJet Output",
+        "Set Up Compiler"
+      );
+      if (action === "Open TxtJet Output") {
+        outputChannel.show(true);
+      } else if (action === "Set Up Compiler") {
+        await vscode.commands.executeCommand("txtjet.setupCompilerToolchain", document.uri);
+      }
     } else {
       vscode.window.showInformationMessage("TxtJet compiler validation finished without mapped diagnostics.");
     }
-    return "completed";
+    return validationResult;
   } finally {
+    cancellation?.dispose();
     await deleteValidationOutput(validationOutput);
     validationRuns.finish(source, run);
   }
+}
+
+function skippedCompilerValidation(reason: string): CompilerValidationResult {
+  return {
+    outcome: "skipped",
+    failed: false,
+    mappedDiagnostics: 0,
+    compilerProblems: 0,
+    reason
+  };
+}
+
+function cancelledCompilerValidation(): CompilerValidationResult {
+  return {
+    outcome: "cancelled",
+    failed: false,
+    mappedDiagnostics: 0,
+    compilerProblems: 0,
+    reason: "cancelled"
+  };
 }
 
 function canRunExternalCommands(interactive: boolean): boolean {
@@ -2273,9 +2913,14 @@ function canRunExternalCommands(interactive: boolean): boolean {
     return true;
   }
   if (interactive) {
-    vscode.window.showErrorMessage(
-      "TxtJet external compiler and validator commands are disabled in Restricted Mode. Trust this workspace before running them."
-    );
+    void vscode.window.showErrorMessage(
+      "TxtJet external compiler and validator commands are disabled in Restricted Mode.",
+      "Manage Workspace Trust"
+    ).then((action) => {
+      if (action === "Manage Workspace Trust") {
+        void vscode.commands.executeCommand("workbench.trust.manage");
+      }
+    });
   }
   return false;
 }
@@ -2374,7 +3019,7 @@ function compilerDiagnosticSeverity(severity: TxtJetCompilerDiagnosticSeverity):
 
 const outputChannel = vscode.window.createOutputChannel("TxtJet");
 
-function appendOutputLog(stream: "stdout" | "stderr" | "error", content: string): void {
+function appendOutputLog(stream: "stdout" | "stderr" | "error" | "report", content: string): void {
   outputChannel.appendLine(`[${new Date().toISOString()}] ${stream}`);
   outputChannel.appendLine(content.trimEnd());
 }
@@ -2484,6 +3129,17 @@ async function writeGeneratedOutput(outputUri: vscode.Uri, content: string, inte
 
 function isIpxactFeatureEnabled(document?: vscode.TextDocument): boolean {
   return vscode.workspace.getConfiguration(CONFIG_SECTION, document?.uri).get<boolean>("ipxact.enabled", false);
+}
+
+function isIpxactFeatureEnabledInAnyWorkspaceContext(): boolean {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  if (folders.some((folder) =>
+    vscode.workspace.getConfiguration(CONFIG_SECTION, folder.uri).get<boolean>("ipxact.enabled", false)
+  )) {
+    return true;
+  }
+  const activeDocument = vscode.window.activeTextEditor?.document;
+  return Boolean(activeDocument && isIpxactFeatureEnabled(activeDocument));
 }
 
 function isIpxactDocument(document: vscode.TextDocument): boolean {

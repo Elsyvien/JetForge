@@ -1,10 +1,13 @@
 name: Publish VSIX
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish to Visual Studio Marketplace after verification"
+        description: "Publish only when this workflow is dispatched from a matching vX.Y.Z tag"
         required: true
         type: boolean
         default: false
@@ -12,57 +15,149 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: marketplace-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  verify-package:
+  verify-vsix:
+    uses: ./.github/workflows/verify-vsix.yml
+
+  publish:
+    name: Publish exact verified artifact
+    needs: verify-vsix
+    if: github.ref_type == 'tag' && (github.event_name == 'push' || inputs.publish == true)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: marketplace
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout tagged source
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+
+      - name: Require release tag on main history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "Release tag must point to a commit contained in origin/main." >&2
+            exit 1
+          }
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
+      - name: Install locked publishing toolchain
         run: npm ci
 
-      - name: Audit dependencies
-        run: npm audit
-
-      - name: Verify and package
-        run: npm run verify
-
-      - name: Cache VS Code 1.85 test runtime
-        uses: actions/cache@v4
-        with:
-          path: .vscode-test
-          key: vscode-test-${{ runner.os }}-${{ runner.arch }}-1.85.2
-
-      - name: Run Extension Host smoke test
-        env:
-          VSCODE_TEST_VERSION: "1.85.2"
-        run: xvfb-run -a npm run test:extension
-
-      - name: Inspect package contents
-        run: node node_modules/@vscode/vsce/vsce ls --no-dependencies
-
-      - name: Upload VSIX artifact
-        uses: actions/upload-artifact@v4
+      - name: Download verified VSIX artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: txtjet-syntax-vsix
-          path: "*.vsix"
-          if-no-files-found: error
+          path: artifact
 
-      - name: Publish to Marketplace
-        if: ${{ inputs.publish == true }}
+      - name: Verify tag, artifact name, and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t packages < <(find artifact -maxdepth 1 -type f -name '*.vsix' -print)
+          test "${#packages[@]}" -eq 1
+          vsix="${packages[0]}"
+          node scripts/check-release-metadata.js --tag "$GITHUB_REF_NAME" --vsix "$vsix"
+          (cd artifact && sha256sum -c "$(basename "$vsix").sha256")
+          release_version=$(node -p "require('./package.json').version")
+          extension_id=$(node -p "const manifest = require('./package.json'); manifest.publisher + '.' + manifest.name")
+          echo "VSIX_PATH=$vsix" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
+          echo "EXTENSION_ID=$extension_id" >> "$GITHUB_ENV"
+
+      - name: Create or verify draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if release_is_draft=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$release_is_draft" = "true" ]; then
+              gh release upload "$GITHUB_REF_NAME" "$VSIX_PATH" "$VSIX_PATH.sha256" --clobber
+              echo "RELEASE_ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
+            else
+              release_assets=$(mktemp -d)
+              gh release download "$GITHUB_REF_NAME" \
+                --pattern "$(basename "$VSIX_PATH")" \
+                --pattern "$(basename "$VSIX_PATH.sha256")" \
+                --dir "$release_assets"
+              cmp "$VSIX_PATH" "$release_assets/$(basename "$VSIX_PATH")"
+              cmp "$VSIX_PATH.sha256" "$release_assets/$(basename "$VSIX_PATH.sha256")"
+              echo "RELEASE_ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
+            fi
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "$VSIX_PATH" \
+              "$VSIX_PATH.sha256" \
+              --verify-tag \
+              --draft \
+              --generate-notes \
+              --title "JetForge ${GITHUB_REF_NAME#v}"
+            echo "RELEASE_ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Inspect Marketplace version
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --no-install vsce show "$EXTENSION_ID" --json > marketplace-extension.json
+          marketplace_state=$(node - "$RELEASE_VERSION" "$VSIX_PATH.sha256" <<'NODE'
+          const { readFileSync } = require("node:fs");
+          const expectedVersion = process.argv[2];
+          const checksumPath = process.argv[3];
+          const metadata = JSON.parse(readFileSync("marketplace-extension.json", "utf8"));
+          const published = metadata.versions?.find((entry) => entry.version === expectedVersion);
+          if (!published) {
+            process.stdout.write("missing");
+            process.exit(0);
+          }
+          const publishedChecksum = published.properties?.find(
+            (property) => property.key === "Microsoft.VisualStudio.Services.VsixSha256"
+          )?.value?.toLowerCase();
+          const localChecksum = readFileSync(checksumPath, "utf8").trim().split(/\s+/)[0]?.toLowerCase();
+          process.stdout.write(publishedChecksum && publishedChecksum === localChecksum ? "exact" : "mismatch");
+          NODE
+          )
+          case "$marketplace_state" in
+            exact)
+              echo "MARKETPLACE_ALREADY_PUBLISHED=true" >> "$GITHUB_ENV"
+              ;;
+            missing)
+              echo "MARKETPLACE_ALREADY_PUBLISHED=false" >> "$GITHUB_ENV"
+              ;;
+            *)
+              echo "Marketplace already contains $EXTENSION_ID@$RELEASE_VERSION with a different VSIX checksum." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Require Marketplace credential
+        if: env.MARKETPLACE_ALREADY_PUBLISHED != 'true'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: |
-          if [ -z "$VSCE_PAT" ]; then
-            echo "VSCE_PAT secret is required when publish=true."
-            exit 1
-          fi
-          npx --no-install vsce publish --packagePath txtjet-syntax-*.vsix
+        run: test -n "$VSCE_PAT"
+
+      - name: Publish verified artifact to Visual Studio Marketplace
+        if: env.MARKETPLACE_ALREADY_PUBLISHED != 'true'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --no-install vsce publish --packagePath "$VSIX_PATH"
+
+      - name: Publish GitHub Release
+        if: env.RELEASE_ALREADY_PUBLISHED != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false

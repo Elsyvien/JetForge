@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-TxtJet Syntax currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, compiler-backed diagnostics through a configured external compiler, Quick Fixes, completions for TxtJet constructs and configured project metadata, generated-output language modes, read-only generated previews, synchronized reveal for deterministic preview mappings, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, local generated-output fallback suggestions for Java, Python, and C/C++, optional IP-XACT workflows, and workspace-wide TxtJet indexing for templates, includes, skeletons, IP-XACT templates, unresolved references, and generated targets. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
+JetForge currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, guided external-compiler setup and compiler-backed diagnostics, Quick Fixes, completions for TxtJet constructs and configured project metadata, generated-output language modes, read-only generated previews, synchronized reveal for deterministic preview mappings, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, local generated-output fallback suggestions for Java, Python, and C/C++, optional IP-XACT workflows, and workspace-wide TxtJet indexing for templates, includes, skeletons, IP-XACT templates, unresolved references, and generated targets. It does not implement full semantic analysis directly or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -43,25 +43,29 @@ VSCode language servers generally operate on one coherent language document. A `
   - Parser-backed region classification distinguishes generated output, TxtJet markers, directives, and embedded template Java for editor decorations and fallback hover text.
 
 - Workspace resolution, formatting, and generation helpers
-  - The `TxtJet Workspace` Explorer view indexes root templates, `.jetinc` include fragments, `.skeleton` files, opt-in IP-XACT templates, unresolved references, generated target entries, and include backlinks.
+  - The `JetForge Workspace` Explorer view indexes root templates, `.jetinc` include fragments, `.skeleton` files, opt-in IP-XACT templates, unresolved references, generated target entries, and include backlinks.
   - Include and skeleton references can resolve through configured workspace search paths and extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidates.
   - Rendered impact reports trace direct and transitive reverse dependencies to affected templates and generated targets.
   - Conservative include/skeleton refactors rebuild from open buffers, reject unsafe paths, and update only deterministically mapped references.
   - Generated output and Java previews prefer unsaved open include/skeleton buffers over stale on-disk content and refresh already-open root previews when those dependencies change.
+  - Resource-scoped resolution, compiler, generation, and IP-XACT settings keep folders independent in multi-root workspaces.
+  - Reverse-reference indexes, coalesced refreshes, impacted-preview invalidation, and bounded mapping caches avoid repeated whole-workspace work during event bursts.
   - Include/skeleton reads are contained to the workspace or explicit configured roots, including canonical `..` and symlink checks.
   - Document formatting and format selection normalize directive attributes, expressions, and template Java block indentation.
   - On-demand generation preserves workspace-relative source directories and original template filenames, prevents same-stem collisions across every TxtJet suffix, and can diff against bounded local generation snapshots.
   - Large mixed templates use linear preview text construction so preview generation does not block the Extension Host quadratically.
 
 - Compiler-backed diagnostics
+  - `JetForge: Set Up and Test Compiler Toolchain` guides workspace/folder-scoped command configuration, placeholder checks, trust handling, cancellation, and an isolated test run.
   - `TxtJet: Validate Template With External Compiler` runs the configured compiler command, parses stdout/stderr with a configurable problem matcher, and maps generated Java/output locations back into `.txtjet` ranges where the preview source map is deterministic.
+  - Workspace validation is cancellable and emits a structured processed/clean/failed/diagnostic/skipped/remaining summary.
   - Optional on-save validation is available but disabled by default so compiler cost stays under workspace control.
   - Per-document run generations abort superseded compiler/IP-XACT validations and discard results if the document changed or closed.
   - Compiler and IP-XACT validation runs use isolated temporary outputs so overlapping runs cannot overwrite each other's inputs or canonical generated files.
 
 - Release verification
   - A real Extension Host smoke test activates the compiled extension in an isolated VS Code Extension Host, checks every contributed command and language, opens a sanitized template, and executes a generated-preview command.
-  - CI runs the smoke test against VS Code 1.85.2, matching the declared minimum API floor.
+  - The packaged VSIX is installed into clean profiles and smoke-tested on Linux and Windows against VS Code 1.85.2 and current stable before that exact checksummed artifact can publish.
 
 - Opt-in IP-XACT workflows
   - `txtjet.ipxact.enabled` gates IP-XACT preview, generation, diff, validation, snippets, completions, and workspace indexing.

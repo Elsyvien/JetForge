@@ -1,9 +1,26 @@
-# TxtJet Syntax
+# JetForge — TxtJet & Eclipse JET
 
-<img width="1200" height="630" alt="image" src="https://github.com/user-attachments/assets/18ec225a-4bbc-4edc-8807-a6535476e3a9" />
+[![CI](https://github.com/Elsyvien/JetForge/actions/workflows/ci.yml/badge.svg)](https://github.com/Elsyvien/JetForge/actions/workflows/ci.yml)
+[![Visual Studio Marketplace](https://img.shields.io/visual-studio-marketplace/v/elsyvien.txtjet-syntax?label=Marketplace)](https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax)
+[![License: MIT](https://img.shields.io/badge/license-MIT-111827.svg)](LICENSE)
 
+<img width="1200" height="630" alt="JetForge source-to-output artwork" src="https://github.com/user-attachments/assets/18ec225a-4bbc-4edc-8807-a6535476e3a9" />
 
-VSCode extension for `.txtjet` Java emitter template files.
+JetForge is a local-first VS Code extension for understanding, navigating, validating, refactoring, previewing, and generating TxtJet and Eclipse JET templates.
+
+[Install JetForge from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax)
+
+## 60-Second Quickstart
+
+1. Install JetForge from the Marketplace and open a TxtJet template.
+2. Run **JetForge: Open Getting Started** for the optional in-editor walkthrough.
+3. Run **TxtJet: Select Generated Output Mode**, or let filename/content detection choose Java, HTML, XML, C, or Python.
+4. Run **TxtJet: Open Preview Beside Source** to reach the core source-to-output workflow.
+5. Open **JetForge Workspace** in Explorer to navigate includes, skeletons, unresolved references, impact graphs, and generated targets.
+
+Java completion, hover, and definition forwarding requires compatible installed Java tooling. The [Extension Pack for Java](https://marketplace.visualstudio.com/items?itemName=vscjava.vscode-java-pack) is a practical starting point. JetForge shows local fallbacks when Java tooling cannot answer its generated virtual document.
+
+![JetForge Workspace Explorer with a TxtJet template and its generated HTML preview side by side](assets/jetforge-workspace-preview.png)
 
 ## Features
 
@@ -24,7 +41,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Optional IP-XACT preview, generation, diff, validation, snippets, completions, and workspace indexing behind `txtjet.ipxact.enabled`.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
-- Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `TxtJet Workspace` Explorer view.
+- Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `JetForge Workspace` Explorer view.
 - Impact graph reports for templates, includes, and skeletons so project-level generated-output blast radius is visible before edits.
 - Safe refactor commands to extract selected template text into `.jetinc` files and rename or move includes/skeletons while updating references.
 - Find All References, Rename Symbol, and Signature Help for local template Java helper methods declared in `<%! ... %>` blocks.
@@ -32,7 +49,7 @@ VSCode extension for `.txtjet` Java emitter template files.
 - Remembered per-file language choices with commands to clear them.
 - No runtime network access, telemetry, or proprietary template content.
 
-## Install Locally
+## Develop Or Install Locally
 
 Package the extension:
 
@@ -46,17 +63,19 @@ Run the full local release check:
 npm run verify:release
 ```
 
-This runs the unit/package gate plus a real VS Code Extension Host smoke test. Set `VSCODE_TEST_VERSION=1.85.2` when you want to run the smoke test against the declared minimum VS Code release instead of a locally installed VS Code.
+This checks release metadata, runs the unit/package gate and a real VS Code Extension Host smoke test, packages the VSIX, then installs that exact artifact into a clean VS Code profile for an installed-extension smoke test. Set `VSCODE_TEST_VERSION=1.85.2` to run both smoke paths against the declared minimum VS Code release.
 
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.20.vsix
+code --install-extension txtjet-syntax-0.0.21.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
 
-CI packages the extension as a workflow artifact. Marketplace publishing is available only through the manual publish workflow and requires a configured `VSCE_PAT` secret.
+CI packages and installs the exact VSIX in clean Linux and Windows profiles against the minimum and current stable VS Code releases. Matching `vX.Y.Z` tags on `main` can publish that verified artifact through the protected `marketplace` environment and attach it with a checksum to a GitHub Release.
+
+For help, see [SUPPORT.md](SUPPORT.md). Contributions should follow [CONTRIBUTING.md](CONTRIBUTING.md), and vulnerabilities should be reported privately as described in [SECURITY.md](SECURITY.md).
 
 ## Usage
 
@@ -94,9 +113,9 @@ TxtJet files also show a clickable status bar item for selecting the target lang
 
 Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Detect checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
 
-## TxtJet Workspace Intelligence
+## JetForge Workspace Intelligence
 
-The `TxtJet Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, generated output targets, and opt-in IP-XACT templates. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, `.jetinc`, and `.skeleton` files.
+The `JetForge Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, generated output targets, and opt-in IP-XACT templates. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, `.jetinc`, and `.skeleton` files. Empty groups stay out of the way, unresolved entries open their exact source range, and generated-target entries open the corresponding generated-output preview.
 
 Use these commands for project-level workflows:
 
@@ -104,12 +123,13 @@ Use these commands for project-level workflows:
 - `TxtJet: Open Including Template`
 - `TxtJet: Open Generated Java For Template`
 - `TxtJet: Validate Workspace Templates`
+- `JetForge: Set Up and Test Compiler Toolchain`
 - `TxtJet: Open IP-XACT Template`
 - `TxtJet: Show Impact Graph`
 - `TxtJet: Extract Selection to Include`
 - `TxtJet: Rename or Move Include/Skeleton`
 
-Workspace indexing reuses `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so unresolved include and skeleton diagnostics update when referenced workspace files are created, deleted, or changed. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
+Workspace indexing reuses the resource-scoped `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so each folder in a multi-root workspace can resolve its own project layout and unresolved diagnostics update when referenced files are created, deleted, or changed. Compiler, generation, and IP-XACT settings follow the same per-resource configuration model. The generated Java preview URI is stable per source template and remains the bridge used for Java IntelliSense forwarding.
 
 Impact graph reports open in the rendered Markdown preview and show direct and transitive Mermaid edges from a changed include, skeleton, or template to affected templates and generated-output targets. The refactor commands rebuild the workspace model from current open buffers before editing and fail closed if any resolved reference cannot be mapped. Extraction creates a new workspace-local `.jetinc`; include/skeleton rename or move uses a confirmed WorkspaceEdit that updates only resolved references in the current workspace model.
 

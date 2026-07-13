@@ -1,8 +1,7 @@
 # JetForge Hero Design QA
 
-- Source visual truth: `/var/folders/zw/dpc00g_j087dzk52hdhbsvkm0000gn/T/codex-clipboard-c1bd70db-94ee-4200-8c9d-8ff40394a204.png`
-- Implementation screenshot: `/private/tmp/jetforge-hero-implementation.png`
-- Combined comparison: `/private/tmp/jetforge-hero-comparison-final.png`
+- Source visual truth: `assets/og-image.png`
+- Genuine extension UI capture: `assets/jetforge-workspace-preview.png`
 - Viewport: `1200 × 630`
 - State: page loaded at `#top`, entrance reveal complete, navigation closed
 
@@ -33,6 +32,14 @@ A separate crop was not needed because every fidelity-critical element is legibl
 - Matched the reference split proportions, diagonal seam, brand scale, headline wrapping, and subtitle width.
 - Moved the interactive workbench into a dedicated section beneath the hero.
 - Added a stacked mobile adaptation with the artwork retained below the copy.
+- Tightened the narrow-screen headline scale so all three fixed headline lines remain inside 320 px and 390 px layouts without horizontal clipping.
+
+## Responsive verification
+
+- Desktop (`1440 × 1000`): editorial split, navigation, proof strip, workbench, and install section retain their intended hierarchy.
+- Mobile (`390 × 844`): navigation collapses, hero copy/art stack, proof cells become two columns, and interactive controls retain touch-sized targets.
+- Narrow mobile (`320 × 720`): no document-level horizontal overflow; the non-wrapping hero headline, command rows, footer links, and code workbench stay within the viewport.
+- Reduced motion: reveal content remains visible and transitions collapse to effectively zero duration.
 
 ## Final result
 

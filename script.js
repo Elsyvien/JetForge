@@ -215,7 +215,7 @@ const revealObserver = new IntersectionObserver(entries => {
 }, { threshold: 0.12, rootMargin: "0px 0px -5%" });
 document.querySelectorAll(".reveal").forEach(element => reduceMotion ? element.classList.add("is-visible") : revealObserver.observe(element));
 
-const navLinks = [...document.querySelectorAll(".site-nav a")];
+const navLinks = [...document.querySelectorAll(".site-nav a[href^='#']")];
 const navSections = navLinks.map(link => document.querySelector(link.getAttribute("href"))).filter(Boolean);
 const sectionObserver = new IntersectionObserver(entries => {
   entries.forEach(entry => {

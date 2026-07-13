@@ -1,0 +1,14 @@
+{
+  "name": "txtjet-vsix-test-harness",
+  "displayName": "JetForge VSIX Test Harness",
+  "version": "0.0.0",
+  "publisher": "txtjet-tests",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "*"
+  ]
+}

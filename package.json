@@ -1,8 +1,8 @@
 {
   "name": "txtjet-syntax",
-  "displayName": "TxtJet Syntax",
+  "displayName": "JetForge — TxtJet & Eclipse JET",
   "description": "Local-first TxtJet and Eclipse JET tooling for VS Code: highlighting, previews, diagnostics, navigation, and generation.",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -265,8 +265,7 @@
       },
       {
         "command": "txtjet.toggleVisualDifferentiation",
-        "title": "TxtJet: Toggle Region Background Coloring",
-        "category": "TxtJet"
+        "title": "TxtJet: Toggle Region Background Coloring"
       },
       {
         "command": "txtjet.openGeneratedOutputPreview",
@@ -307,97 +306,156 @@
       {
         "command": "txtjet.compileTemplate",
         "title": "TxtJet: Compile Template With External Compiler",
-        "category": "TxtJet",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.validateWithCompiler",
         "title": "TxtJet: Validate Template With External Compiler",
-        "category": "TxtJet",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.refreshWorkspaceModel",
-        "title": "TxtJet: Refresh Workspace Model",
-        "category": "TxtJet"
+        "title": "TxtJet: Refresh Workspace Model"
       },
       {
         "command": "txtjet.openIncludingTemplate",
-        "title": "TxtJet: Open Including Template",
-        "category": "TxtJet"
+        "title": "TxtJet: Open Including Template"
       },
       {
         "command": "txtjet.openGeneratedJavaForTemplate",
-        "title": "TxtJet: Open Generated Java For Template",
-        "category": "TxtJet"
+        "title": "TxtJet: Open Generated Java For Template"
       },
       {
         "command": "txtjet.validateWorkspaceTemplates",
         "title": "TxtJet: Validate Workspace Templates",
-        "category": "TxtJet",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.showImpactGraph",
-        "title": "TxtJet: Show Impact Graph",
-        "category": "TxtJet"
+        "title": "TxtJet: Show Impact Graph"
       },
       {
         "command": "txtjet.extractSelectionToInclude",
-        "title": "TxtJet: Extract Selection to Include",
-        "category": "TxtJet"
+        "title": "TxtJet: Extract Selection to Include"
       },
       {
         "command": "txtjet.renameWorkspaceReference",
-        "title": "TxtJet: Rename or Move Include/Skeleton",
-        "category": "TxtJet"
+        "title": "TxtJet: Rename or Move Include/Skeleton"
       },
       {
         "command": "txtjet.openIpxactPreview",
-        "title": "TxtJet: Open IP-XACT Preview",
-        "category": "TxtJet"
+        "title": "TxtJet: Open IP-XACT Preview"
       },
       {
         "command": "txtjet.generateIpxactOutput",
-        "title": "TxtJet: Generate IP-XACT Output",
-        "category": "TxtJet"
+        "title": "TxtJet: Generate IP-XACT Output"
       },
       {
         "command": "txtjet.diffIpxactOutput",
-        "title": "TxtJet: Diff Current IP-XACT Output Against Last Generation",
-        "category": "TxtJet"
+        "title": "TxtJet: Diff Current IP-XACT Output Against Last Generation"
       },
       {
         "command": "txtjet.validateIpxact",
         "title": "TxtJet: Validate IP-XACT Output",
-        "category": "TxtJet",
         "enablement": "isWorkspaceTrusted"
       },
       {
         "command": "txtjet.openIpxactTemplate",
-        "title": "TxtJet: Open IP-XACT Template",
-        "category": "TxtJet"
+        "title": "TxtJet: Open IP-XACT Template"
       },
       {
         "command": "txtjet.openSynchronizedPreview",
-        "title": "TxtJet: Open Synchronized Preview",
-        "category": "TxtJet"
+        "title": "TxtJet: Open Synchronized Preview"
       },
       {
         "command": "txtjet.togglePreviewSynchronization",
-        "title": "TxtJet: Toggle Preview Synchronization",
-        "category": "TxtJet"
+        "title": "TxtJet: Toggle Preview Synchronization"
+      },
+      {
+        "command": "txtjet.openGettingStarted",
+        "title": "JetForge: Open Getting Started"
+      },
+      {
+        "command": "txtjet.setupCompilerToolchain",
+        "title": "JetForge: Set Up and Test Compiler Toolchain"
+      },
+      {
+        "command": "txtjet.openGeneratedOutputForTemplate",
+        "title": "JetForge: Open Generated Output For Template"
       }
     ],
     "views": {
       "explorer": [
         {
           "id": "txtjetWorkspace",
-          "name": "TxtJet Workspace",
+          "name": "JetForge Workspace",
           "when": "workspaceFolderCount > 0"
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "txtjetWorkspace",
+        "contents": "JetForge indexes TxtJet templates, includes, skeletons, references, and generated targets in this workspace.\n[Open Getting Started](command:txtjet.openGettingStarted)\n[Refresh Workspace](command:txtjet.refreshWorkspaceModel)\n[Set Up Compiler](command:txtjet.setupCompilerToolchain)"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "jetforge.gettingStarted",
+        "title": "Get Started with JetForge",
+        "description": "Reach your first source-to-output preview, then connect optional project tooling in about a minute.",
+        "steps": [
+          {
+            "id": "jetforge.openTemplate",
+            "title": "Open a TxtJet template",
+            "description": "Open a `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, or `.jetinc` file. JetForge activates locally and never uploads its contents.",
+            "media": {
+              "markdown": "walkthrough/open-template.md"
+            }
+          },
+          {
+            "id": "jetforge.chooseOutput",
+            "title": "Choose the generated output mode",
+            "description": "[Select or auto-detect the output language](command:txtjet.selectTargetLanguage) so the outer template text uses the right highlighting and preview mode.",
+            "media": {
+              "markdown": "walkthrough/choose-output.md"
+            }
+          },
+          {
+            "id": "jetforge.preview",
+            "title": "See source and output together",
+            "description": "[Open the generated output beside the template](command:txtjet.openPreviewBesideSource), then select a source region to inspect deterministic mappings.",
+            "media": {
+              "markdown": "walkthrough/preview.md"
+            }
+          },
+          {
+            "id": "jetforge.workspace",
+            "title": "Index the workspace",
+            "description": "[Refresh the JetForge Workspace](command:txtjet.refreshWorkspaceModel) to discover templates, includes, skeletons, unresolved references, impact graphs, and generated targets.",
+            "media": {
+              "markdown": "walkthrough/workspace.md"
+            }
+          },
+          {
+            "id": "jetforge.compiler",
+            "title": "Connect your compiler",
+            "description": "[Set up and test a local compiler command](command:txtjet.setupCompilerToolchain). JetForge stores the command per workspace folder and runs it only in trusted workspaces.",
+            "media": {
+              "markdown": "walkthrough/compiler.md"
+            }
+          },
+          {
+            "id": "jetforge.next",
+            "title": "Explore advanced workflows when needed",
+            "description": "Use impact graphs and fail-closed refactors from the JetForge Workspace. Optional IP-XACT support is available under [JetForge settings](command:workbench.action.openSettings?%22txtjet%22).",
+            "media": {
+              "markdown": "walkthrough/advanced.md"
+            }
+          }
+        ]
+      }
+    ],
     "configuration": {
       "title": "TxtJet",
       "properties": {
@@ -449,17 +507,20 @@
         "txtjet.diagnostics.compiler.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable compiler-backed diagnostics produced by TxtJet: Validate Template With External Compiler."
+          "description": "Enable compiler-backed diagnostics produced by TxtJet: Validate Template With External Compiler.",
+          "scope": "resource"
         },
         "txtjet.diagnostics.compiler.runOnSave": {
           "type": "boolean",
           "default": false,
-          "description": "Run compiler-backed validation when a TxtJet template is saved."
+          "description": "Run compiler-backed validation when a TxtJet template is saved.",
+          "scope": "resource"
         },
         "txtjet.diagnostics.compiler.problemMatcher": {
           "type": "string",
           "default": "^(?<file>.*?):(?<line>\\d+):(?<column>\\d+):(?:\\s*(?<severity>error|warning|info|information|hint):)?\\s*(?<message>.+)$",
-          "markdownDescription": "Regex used to parse compiler diagnostics from stdout and stderr. The default supports `file:line:column: severity: message` and `file:line:column: message`; custom expressions should expose `file`, `line`, `column`, optional `severity`, and `message` capture groups."
+          "markdownDescription": "Regex used to parse compiler diagnostics from stdout and stderr. The default supports `file:line:column: severity: message` and `file:line:column: message`; custom expressions should expose `file`, `line`, `column`, optional `severity`, and `message` capture groups.",
+          "scope": "resource"
         },
         "txtjet.codeActions.enabled": {
           "type": "boolean",
@@ -507,7 +568,8 @@
           "items": {
             "type": "string"
           },
-          "description": "Additional workspace-relative or absolute directories used to resolve TxtJet include files. Supports ${workspaceFolder}."
+          "description": "Additional workspace-relative or absolute directories used to resolve TxtJet include files. Supports ${workspaceFolder}.",
+          "scope": "resource"
         },
         "txtjet.resolution.skeletonPaths": {
           "type": "array",
@@ -515,7 +577,8 @@
           "items": {
             "type": "string"
           },
-          "description": "Additional workspace-relative or absolute directories used to resolve TxtJet skeleton files. Supports ${workspaceFolder}."
+          "description": "Additional workspace-relative or absolute directories used to resolve TxtJet skeleton files. Supports ${workspaceFolder}.",
+          "scope": "resource"
         },
         "txtjet.formatting.enabled": {
           "type": "boolean",
@@ -530,7 +593,8 @@
         "txtjet.generation.outputDirectory": {
           "type": "string",
           "default": "${workspaceFolder}/generated",
-          "description": "Directory used by TxtJet: Generate Output File. Supports ${workspaceFolder}."
+          "description": "Directory used by TxtJet: Generate Output File. Supports ${workspaceFolder}.",
+          "scope": "resource"
         },
         "txtjet.compiler.command": {
           "type": "string",
@@ -565,7 +629,8 @@
         "txtjet.ipxact.enabled": {
           "type": "boolean",
           "default": false,
-          "description": "Enable optional IP-XACT workflows for matched TxtJet templates."
+          "description": "Enable optional IP-XACT workflows for matched TxtJet templates.",
+          "scope": "resource"
         },
         "txtjet.ipxact.templateGlobs": {
           "type": "array",
@@ -576,17 +641,20 @@
           "items": {
             "type": "string"
           },
-          "description": "Workspace-relative template globs treated as IP-XACT when txtjet.ipxact.enabled is true. Templates can also opt in with @jet ipxact=\"true\"."
+          "description": "Workspace-relative template globs treated as IP-XACT when txtjet.ipxact.enabled is true. Templates can also opt in with @jet ipxact=\"true\".",
+          "scope": "resource"
         },
         "txtjet.ipxact.outputDirectory": {
           "type": "string",
           "default": "${workspaceFolder}/generated-ipxact",
-          "description": "Directory used by TxtJet: Generate IP-XACT Output. Supports ${workspaceFolder}."
+          "description": "Directory used by TxtJet: Generate IP-XACT Output. Supports ${workspaceFolder}.",
+          "scope": "resource"
         },
         "txtjet.ipxact.generation.autoOpen": {
           "type": "boolean",
           "default": true,
-          "description": "Open the generated IP-XACT XML file after generation."
+          "description": "Open the generated IP-XACT XML file after generation.",
+          "scope": "resource"
         },
         "txtjet.ipxact.validation.command": {
           "type": "string",
@@ -597,12 +665,14 @@
         "txtjet.ipxact.validation.problemMatcher": {
           "type": "string",
           "default": "^(?<file>.*?):(?<line>\\d+):(?<column>\\d+):(?:\\s*(?<severity>error|warning|info|information|hint):)?\\s*(?<message>.+)$",
-          "markdownDescription": "Regex used to parse IP-XACT validator diagnostics from stdout and stderr. Capture groups match the compiler problem matcher: `file`, `line`, `column`, optional `severity`, and `message`."
+          "markdownDescription": "Regex used to parse IP-XACT validator diagnostics from stdout and stderr. Capture groups match the compiler problem matcher: `file`, `line`, `column`, optional `severity`, and `message`.",
+          "scope": "resource"
         },
         "txtjet.ipxact.validation.runOnSave": {
           "type": "boolean",
           "default": false,
-          "description": "Run IP-XACT validation when a matched TxtJet template is saved."
+          "description": "Run IP-XACT validation when a matched TxtJet template is saved.",
+          "scope": "resource"
         },
         "txtjet.ipxact.validation.timeoutMs": {
           "type": "number",
@@ -747,8 +817,7 @@
           "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
         },
         {
-          "command": "txtjet.openIpxactTemplate",
-          "when": "config.txtjet.ipxact.enabled"
+          "command": "txtjet.openIpxactTemplate"
         },
         {
           "command": "txtjet.openSynchronizedPreview",
@@ -756,6 +825,16 @@
         },
         {
           "command": "txtjet.togglePreviewSynchronization",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.openGettingStarted"
+        },
+        {
+          "command": "txtjet.setupCompilerToolchain"
+        },
+        {
+          "command": "txtjet.openGeneratedOutputForTemplate",
           "when": "resourceLangId =~ /^txtjet/"
         }
       ],
@@ -839,7 +918,17 @@
         },
         {
           "command": "txtjet.openIpxactTemplate",
-          "when": "view == txtjetWorkspace && config.txtjet.ipxact.enabled",
+          "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
+          "command": "txtjet.setupCompilerToolchain",
+          "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
+          "command": "txtjet.openGettingStarted",
+          "when": "view == txtjetWorkspace",
           "group": "navigation"
         }
       ],
@@ -861,6 +950,11 @@
         },
         {
           "command": "txtjet.openGeneratedJavaForTemplate",
+          "when": "view == txtjetWorkspace && viewItem == txtjetWorkspace.template",
+          "group": "inline"
+        },
+        {
+          "command": "txtjet.openGeneratedOutputForTemplate",
           "when": "view == txtjetWorkspace && viewItem =~ /txtjetWorkspace\\.(template|generated)/",
           "group": "inline"
         }
@@ -911,16 +1005,21 @@
     "onCommand:txtjet.validateIpxact",
     "onCommand:txtjet.openIpxactTemplate",
     "onCommand:txtjet.openSynchronizedPreview",
-    "onCommand:txtjet.togglePreviewSynchronization"
+    "onCommand:txtjet.togglePreviewSynchronization",
+    "onCommand:txtjet.openGettingStarted",
+    "onCommand:txtjet.setupCompilerToolchain",
+    "onCommand:txtjet.openGeneratedOutputForTemplate"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "npm run clean && tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/asyncRefresh.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/compilerToolchain.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/previewCache.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "test:extension": "npm run compile && node scripts/run-extension-host-tests.js",
+    "test:vsix": "node scripts/run-installed-vsix-tests.js",
+    "check:release-metadata": "node scripts/check-release-metadata.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
-    "verify:release": "npm run test:extension && npm run verify",
+    "verify:release": "npm run check:release-metadata && npm run test:extension && npm run verify && npm run test:vsix",
     "vscode:prepublish": "npm run compile",
     "package": "vsce package"
   },

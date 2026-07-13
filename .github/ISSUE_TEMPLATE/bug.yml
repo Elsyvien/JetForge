@@ -1,0 +1,52 @@
+name: Bug report
+description: Report a reproducible JetForge extension problem using sanitized inputs.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not include proprietary templates, credentials, or security vulnerabilities.
+        Report security issues privately through the repository Security page.
+  - type: input
+    id: version
+    attributes:
+      label: JetForge extension version
+      placeholder: "0.0.21"
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: VS Code and operating system
+      placeholder: "VS Code 1.85.2; Windows 11"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Sanitized reproduction
+      description: Provide minimal sanitized template text, settings, and exact steps.
+      placeholder: |
+        1. Create this sanitized template: ...
+        2. Configure: ...
+        3. Run: ...
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+      description: Include sanitized logs or screenshots when useful.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: The reproduction contains no private or proprietary content.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
