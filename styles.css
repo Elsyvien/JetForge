@@ -76,7 +76,7 @@ section { scroll-margin-top: 92px; }
 .hero-visual { position: relative; min-width: 0; min-height: inherit; margin: 0; overflow: hidden; background: var(--ink); clip-path: polygon(16% 0, 100% 0, 100% 100%, 0 100%); }
 .hero-visual img { position: absolute; top: 0; right: 0; width: 100vw; max-width: none; height: 100%; object-fit: cover; object-position: right center; }
 
-.proof-strip { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(4, 1fr); width: var(--page); margin: clamp(34px, 5vw, 70px) auto 0; border-block: 1px solid var(--ink); }
+.proof-strip { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(4, 1fr); width: var(--page); margin: 0 auto; border-block: 1px solid var(--ink); }
 .proof-strip > div { position: relative; display: grid; min-width: 0; min-height: 126px; align-content: center; padding: 24px clamp(16px, 2.2vw, 30px); border-right: 1px solid var(--line); }
 .proof-strip > div:last-child { border-right: 0; }
 .proof-strip span { position: absolute; top: 14px; left: clamp(16px, 2.2vw, 30px); color: var(--blue-dark); font-family: var(--mono); font-size: .62rem; }
