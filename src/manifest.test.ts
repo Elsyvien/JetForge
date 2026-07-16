@@ -8,6 +8,7 @@ const grammars = new Map(contributes.grammars.filter((grammar: { language?: stri
 const snippets = new Map(contributes.snippets.map((snippet: { language: string; path: string }) => [snippet.language, snippet.path]));
 const activationEvents = new Set(manifest.activationEvents);
 const commandPaletteCommands = new Set(contributes.menus.commandPalette.map((item: { command: string }) => item.command));
+const editorContextCommands = contributes.menus["editor/context"].map((item: { command: string }) => item.command);
 const contributedCommands = new Set(contributes.commands.map((command: { command: string }) => command.command));
 const commandContributions = new Map<string, { command: string; enablement?: string }>(
   contributes.commands.map((command: { command: string; enablement?: string }) => [command.command, command])
@@ -20,10 +21,15 @@ const expectedLanguages = [
   "txtjet-html",
   "txtjet-xml",
   "txtjet-c",
-  "txtjet-python"
+  "txtjet-python",
+  "txtjet-latex"
 ];
 
 assert.deepEqual(languages, expectedLanguages);
+assert.deepEqual(editorContextCommands, [
+  "txtjet.selectTargetLanguage",
+  "txtjet.openGeneratedOutputPreview"
+]);
 assert.equal(untrustedWorkspaces?.supported, "limited");
 assert.deepEqual(untrustedWorkspaces?.restrictedConfigurations, [
   "txtjet.compiler.command",
@@ -59,6 +65,8 @@ assert.deepEqual(contributes.languages[0].extensions, [
   ".xmljet",
   ".cjet",
   ".pythonjet",
+  ".texjet",
+  ".latexjet",
   ".propertiesjet",
   ".jetinc"
 ]);

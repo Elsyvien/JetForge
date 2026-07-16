@@ -10,6 +10,7 @@ import {
   resolveReferenceCandidates,
   resolveIncludePath,
   resolveTemplateReferencePath,
+  targetOutputExtension,
   targetPreviewLanguage
 } from "./templateModel";
 
@@ -70,9 +71,14 @@ assert.ok(buildGeneratedOutputPreview("// generated <%= name %>\nclass Demo {}",
 assert.ok(buildGeneratedOutputPreview("GENERATED_<%= name.toUpperCase() %>", "txtjet-c").text.includes("GENERATED_txtjet_name_toUpperCase"));
 assert.ok(buildGeneratedOutputPreview("class E:\n    <%= color.toUpperCase() %> = \"<%= color %>\"", "txtjet-python").text.includes("TXTJET_COLOR_TOUPPERCASE"));
 assert.ok(buildGeneratedOutputPreview("class E:\n    <%= color.toUpperCase() %> = \"<%= color %>\"", "txtjet-python").text.includes("\"txtjet:color\""));
+const latexOutputPreview = buildGeneratedOutputPreview("\\section{<%= title %>}\n<% if (showDate) { %>\\today<% } %>", "txtjet-latex");
+assert.ok(latexOutputPreview.text.includes("\\section{txtjet-title}"));
+assert.ok(latexOutputPreview.text.includes("% txtjet scriptlet:"));
 assert.ok(buildGeneratedOutputPreview("<a href=\"/<%= item.toLowerCase() %>\"><%= item %></a>", "txtjet-html").text.includes("href=\"/${item.toLowerCase()}\""));
 assert.ok(buildGeneratedOutputPreview("<setting name=\"<%= key %>\"><%= value %></setting>", "txtjet-xml").text.includes("name=\"${key}\""));
 assert.ok(buildGeneratedOutputPreview("<setting name=\"<%= key %>\"><%= value %></setting>", "txtjet-xml").text.includes(">${value}<"));
+assert.equal(targetPreviewLanguage("txtjet-latex"), "latex");
+assert.equal(targetOutputExtension("txtjet-latex"), "tex");
 
 const javaPreview = buildGeneratedJavaPreview(template);
 assert.ok(javaPreview.text.includes("package example.txtjet.samples;"));

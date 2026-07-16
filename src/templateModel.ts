@@ -241,9 +241,22 @@ export function targetPreviewLanguage(languageId: TxtJetTargetLanguage): string 
       return "c";
     case "txtjet-python":
       return "python";
+    case "txtjet-latex":
+      return "latex";
     case "txtjet":
     default:
       return "plaintext";
+  }
+}
+
+export function targetOutputExtension(languageId: TxtJetTargetLanguage): string {
+  switch (languageId) {
+    case "txtjet-latex":
+      return "tex";
+    case "txtjet":
+      return "txt";
+    default:
+      return targetPreviewLanguage(languageId);
   }
 }
 
@@ -607,6 +620,8 @@ function expressionPlaceholder(
       return javaLikeExpressionPlaceholder(trimmed, context);
     case "txtjet-python":
       return pythonExpressionPlaceholder(trimmed, context);
+    case "txtjet-latex":
+      return latexExpressionPlaceholder(trimmed);
     case "txtjet-html":
     case "txtjet-xml":
       return markupExpressionPlaceholder(trimmed, context);
@@ -649,6 +664,13 @@ function markupExpressionPlaceholder(expression: string, context: ExpressionCont
     return readableExpressionValue(expression);
   }
   return readableExpression(expression);
+}
+
+function latexExpressionPlaceholder(expression: string): string {
+  const sanitized = expression
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `txtjet-${sanitized || "expression"}`;
 }
 
 function expressionContextFor(blocks: TxtJetBlock[], index: number): ExpressionContext {
@@ -784,6 +806,8 @@ function commentPlaceholder(text: string, targetLanguage: TxtJetTargetLanguage):
       return `<!-- ${normalized.replace(/-->/g, "-- >")} -->\n`;
     case "txtjet-python":
       return normalized.split("\n").map((line) => `# ${line}`).join("\n") + "\n";
+    case "txtjet-latex":
+      return normalized.split("\n").map((line) => `% ${line}`).join("\n") + "\n";
     case "txtjet-java":
     case "txtjet-c":
       return blockComment(normalized);

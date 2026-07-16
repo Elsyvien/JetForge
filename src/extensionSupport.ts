@@ -28,6 +28,8 @@ const TXTJET_PATH_SUFFIXES = [
   ".xmljet",
   ".cjet",
   ".pythonjet",
+  ".texjet",
+  ".latexjet",
   ".propertiesjet",
   ".jetinc"
 ];
@@ -38,7 +40,8 @@ const TXTJET_LANGUAGE_IDS = new Set<TxtJetTargetLanguage>([
   "txtjet-html",
   "txtjet-xml",
   "txtjet-c",
-  "txtjet-python"
+  "txtjet-python",
+  "txtjet-latex"
 ]);
 
 export function isTxtJetPath(pathLike: string): boolean {

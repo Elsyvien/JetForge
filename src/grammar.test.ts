@@ -30,8 +30,10 @@ assertGrammarEmbeds("txtjet-xml.tmLanguage.json", "text.xml");
 assertGrammarEmbeds("txtjet-java.tmLanguage.json", "source.java");
 assertGrammarEmbeds("txtjet-c.tmLanguage.json", "source.c");
 assertGrammarEmbeds("txtjet-python.tmLanguage.json", "source.python");
+assertGrammarEmbeds("txtjet-latex.tmLanguage.json", "text.tex.latex");
 assertTemplateBeforeHostLanguage("txtjet-html.tmLanguage.json", "text.html.basic");
 assertTemplateBeforeHostLanguage("txtjet-xml.tmLanguage.json", "text.xml");
+assertTemplateBeforeHostLanguage("txtjet-latex.tmLanguage.json", "text.tex.latex");
 
 console.log("grammar tests ok");
 

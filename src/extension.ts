@@ -69,6 +69,7 @@ import {
   parseTxtJetTemplate,
   resolveReferenceCandidates,
   resolveIncludePath,
+  targetOutputExtension,
   targetPreviewLanguage,
   TxtJetBlock,
   TxtJetDirective,
@@ -96,7 +97,8 @@ const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet-html",
   "txtjet-xml",
   "txtjet-c",
-  "txtjet-python"
+  "txtjet-python",
+  "txtjet-latex"
 ]);
 
 const LANGUAGE_OPTIONS: Array<{ label: string; shortLabel: string; description: string; languageId: TxtJetTargetLanguage; command: string }> = [
@@ -105,7 +107,8 @@ const LANGUAGE_OPTIONS: Array<{ label: string; shortLabel: string; description: 
   { label: "Generated HTML Output", shortLabel: "HTML output", description: "Use only when the generated outer content is HTML.", languageId: "txtjet-html", command: "txtjet.setLanguage.html" },
   { label: "Generated XML Output", shortLabel: "XML output", description: "Use only when the generated outer content is XML.", languageId: "txtjet-xml", command: "txtjet.setLanguage.xml" },
   { label: "Generated C Output", shortLabel: "C output", description: "Use only when the generated outer content is C/C header code.", languageId: "txtjet-c", command: "txtjet.setLanguage.c" },
-  { label: "Generated Python Output", shortLabel: "Python output", description: "Use only when the generated outer content is Python.", languageId: "txtjet-python", command: "txtjet.setLanguage.python" }
+  { label: "Generated Python Output", shortLabel: "Python output", description: "Use only when the generated outer content is Python.", languageId: "txtjet-python", command: "txtjet.setLanguage.python" },
+  { label: "Generated LaTeX Output", shortLabel: "LaTeX output", description: "Use only when the generated outer content is LaTeX.", languageId: "txtjet-latex", command: "txtjet.setLanguage.latex" }
 ];
 
 const MODE_STORAGE_KEY = "txtjet.documentLanguageModes.v2";
@@ -1032,7 +1035,8 @@ class TxtJetVisualDifferentiator implements vscode.Disposable {
     "txtjet-html": outputDecoration("rgba(224, 108, 117, 0.08)", "rgba(224, 108, 117, 0.22)"),
     "txtjet-xml": outputDecoration("rgba(229, 192, 123, 0.10)", "rgba(229, 192, 123, 0.24)"),
     "txtjet-c": outputDecoration("rgba(97, 175, 239, 0.08)", "rgba(97, 175, 239, 0.22)"),
-    "txtjet-python": outputDecoration("rgba(152, 195, 121, 0.10)", "rgba(152, 195, 121, 0.24)")
+    "txtjet-python": outputDecoration("rgba(152, 195, 121, 0.10)", "rgba(152, 195, 121, 0.24)"),
+    "txtjet-latex": outputDecoration("rgba(198, 120, 221, 0.10)", "rgba(198, 120, 221, 0.24)")
   };
 
   refreshAll(): void {
@@ -1237,7 +1241,8 @@ function emptyDecorationGroups(): {
       "txtjet-html": [],
       "txtjet-xml": [],
       "txtjet-c": [],
-      "txtjet-python": []
+      "txtjet-python": [],
+      "txtjet-latex": []
     }
   };
 }
@@ -3029,8 +3034,7 @@ function shellEscape(value: string): string {
 }
 
 function generationOutputUri(document: vscode.TextDocument, interactive: boolean): vscode.Uri | undefined {
-  const target = targetPreviewLanguage(selectedTargetLanguage(document));
-  const extension = target === "plaintext" ? "txt" : target;
+  const extension = targetOutputExtension(selectedTargetLanguage(document));
   return configuredGeneratedOutputUri(
     document,
     "generation.outputDirectory",
@@ -4372,6 +4376,8 @@ function directiveValueCompletions(
       ".xmljet",
       ".cjet",
       ".pythonjet",
+      ".texjet",
+      ".latexjet",
       ".jetinc"
     ], "TxtJet include file");
   }

@@ -9,7 +9,8 @@ const EXPECTED_LANGUAGE_IDS = [
   "txtjet-html",
   "txtjet-xml",
   "txtjet-c",
-  "txtjet-python"
+  "txtjet-python",
+  "txtjet-latex"
 ];
 
 export async function run(): Promise<void> {

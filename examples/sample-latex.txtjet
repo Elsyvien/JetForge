@@ -1,0 +1,13 @@
+<%@ jet package="example.txtjet.samples" class="LatexSample" imports="java.util.List" %>
+<%
+    List<String> topics = List.of("TxtJet", "LaTeX");
+%>
+\documentclass{article}
+\begin{document}
+\section{<%= title %>}
+\begin{itemize}
+<% for (String topic : topics) { %>
+  \item <%= topic %>
+<% } %>
+\end{itemize}
+\end{document}

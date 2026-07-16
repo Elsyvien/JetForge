@@ -14,7 +14,7 @@ JetForge is a local-first VS Code extension for understanding, navigating, valid
 
 1. Install JetForge from the Marketplace and open a TxtJet template.
 2. Run **JetForge: Open Getting Started** for the optional in-editor walkthrough.
-3. Run **TxtJet: Select Generated Output Mode**, or let filename/content detection choose Java, HTML, XML, C, or Python.
+3. Run **TxtJet: Select Generated Output Mode**, or let filename/content detection choose Java, HTML, XML, C, Python, or LaTeX.
 4. Run **TxtJet: Open Preview Beside Source** to reach the core source-to-output workflow.
 5. Open **JetForge Workspace** in Explorer to navigate includes, skeletons, unresolved references, impact graphs, and generated targets.
 
@@ -25,8 +25,8 @@ Java completion, hover, and definition forwarding requires compatible installed 
 ## Features
 
 - Default `txtjet` language mode for `.txtjet` files.
-- Also recognizes `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, and `.jetinc` files.
-- Manual target modes for `txtjet-java`, `txtjet-html`, `txtjet-xml`, `txtjet-c`, and `txtjet-python`.
+- Also recognizes `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.texjet`, `.latexjet`, `.propertiesjet`, and `.jetinc` files.
+- Manual target modes for `txtjet-java`, `txtjet-html`, `txtjet-xml`, `txtjet-c`, `txtjet-python`, and `txtjet-latex`.
 - TextMate highlighting for JET/JSP-style blocks:
   - `<% ... %>`
   - `<%= ... %>`
@@ -88,9 +88,10 @@ If the generated outer content should be highlighted as a specific language, use
 - `TxtJet XML Output`
 - `TxtJet C Output`
 - `TxtJet Python Output`
+- `TxtJet LaTeX Output`
 
 These modes describe the generated output language outside template blocks. Embedded Java inside `<% ... %>`, `<%= ... %>`, `<%! ... %>`, and `<%@ ... %>` is highlighted in every TxtJet mode.
-Template delimiters are also injected into common outer-language strings, comments, and preprocessor regions so generated C/XML/HTML/Python/Java text does not hide TxtJet blocks.
+Template delimiters are also injected into common outer-language strings, comments, and preprocessor regions so generated C/XML/HTML/Python/Java/LaTeX text does not hide TxtJet blocks.
 By default, TxtJet also applies subtle editor decorations that distinguish generated-output text from template markers, directives, and embedded Java. Run `TxtJet: Toggle Region Background Coloring` or disable `txtjet.visualDifferentiation.enabled` if a theme already provides enough contrast.
 
 Auto Detect can infer the generated target language from filename hints and file content when a default `.txtjet` file is opened. It only switches files that are still in the default `TxtJet` mode, and it does not override a manual `TxtJet ...` language mode selection.
@@ -101,6 +102,7 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 - `TxtJet: Auto Detect Generated Output Mode`
 - `TxtJet: Use Generated C Output Mode`
 - `TxtJet: Use Generated Python Output Mode`
+- `TxtJet: Use Generated LaTeX Output Mode`
 - `TxtJet: Use Generated XML Output Mode`
 - `TxtJet: Use Generated HTML Output Mode`
 - `TxtJet: Use Generated Java Output Mode`
@@ -111,11 +113,11 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
-Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Detect checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, and `schema.xml.txtjet` open in the expected target mode.
+Manual selections are remembered for the file in the current workspace. Auto-detected choices are not remembered, so detection can be rerun after file content changes. The selector and status bar indicate whether the current mode is remembered or auto/default. Auto Detect checks filename hints before scanning content, so names like `packet.c.txtjet`, `model.py.txtjet`, `schema.xml.txtjet`, and `report.tex.txtjet` open in the expected target mode.
 
 ## JetForge Workspace Intelligence
 
-The `JetForge Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, generated output targets, and opt-in IP-XACT templates. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, `.jetinc`, and `.skeleton` files. Empty groups stay out of the way, unresolved entries open their exact source range, and generated-target entries open the corresponding generated-output preview.
+The `JetForge Workspace` Explorer view indexes workspace templates, include fragments, skeleton files, unresolved references, generated output targets, and opt-in IP-XACT templates. It understands `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.texjet`, `.latexjet`, `.propertiesjet`, `.jetinc`, and `.skeleton` files. Empty groups stay out of the way, unresolved entries open their exact source range, and generated-target entries open the corresponding generated-output preview.
 
 Use these commands for project-level workflows:
 

@@ -67,7 +67,7 @@ export interface TxtJetWorkspaceModelOptions {
   ipxactTemplateGlobs?: string[];
 }
 
-export const TXTJET_WORKSPACE_GLOB = "**/*.{txtjet,jet,javajet,htmljet,xmljet,cjet,pythonjet,propertiesjet,jetinc,skeleton}";
+export const TXTJET_WORKSPACE_GLOB = "**/*.{txtjet,jet,javajet,htmljet,xmljet,cjet,pythonjet,texjet,latexjet,propertiesjet,jetinc,skeleton}";
 const TXTJET_WORKSPACE_EXCLUDED_DIRECTORIES = new Set([
   "node_modules",
   "out",

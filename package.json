@@ -73,6 +73,8 @@
           ".xmljet",
           ".cjet",
           ".pythonjet",
+          ".texjet",
+          ".latexjet",
           ".propertiesjet",
           ".jetinc"
         ],
@@ -122,6 +124,15 @@
           "txtjet-python"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "txtjet-latex",
+        "aliases": [
+          "TxtJet LaTeX Output",
+          "TxtJet Generated LaTeX",
+          "txtjet-latex"
+        ],
+        "configuration": "./language-configuration-latex.json"
       }
     ],
     "grammars": [
@@ -178,6 +189,15 @@
         }
       },
       {
+        "language": "txtjet-latex",
+        "scopeName": "text.txtjet.latex",
+        "path": "./syntaxes/txtjet-latex.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.java": "java",
+          "text.tex.latex": "latex"
+        }
+      },
+      {
         "scopeName": "text.txtjet.embedded-expression.injection",
         "path": "./syntaxes/txtjet-expression.injection.tmLanguage.json",
         "injectTo": [
@@ -185,7 +205,8 @@
           "text.txtjet.html",
           "text.txtjet.xml",
           "source.txtjet.c",
-          "source.txtjet.python"
+          "source.txtjet.python",
+          "text.txtjet.latex"
         ],
         "embeddedLanguages": {
           "source.java": "java"
@@ -215,6 +236,10 @@
       },
       {
         "language": "txtjet-python",
+        "path": "./snippets/txtjet.code-snippets"
+      },
+      {
+        "language": "txtjet-latex",
         "path": "./snippets/txtjet.code-snippets"
       }
     ],
@@ -250,6 +275,10 @@
       {
         "command": "txtjet.setLanguage.python",
         "title": "TxtJet: Use Generated Python Output Mode"
+      },
+      {
+        "command": "txtjet.setLanguage.latex",
+        "title": "TxtJet: Use Generated LaTeX Output Mode"
       },
       {
         "command": "txtjet.clearLanguage.active",
@@ -408,7 +437,7 @@
           {
             "id": "jetforge.openTemplate",
             "title": "Open a TxtJet template",
-            "description": "Open a `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.propertiesjet`, or `.jetinc` file. JetForge activates locally and never uploads its contents.",
+            "description": "Open a `.txtjet`, `.jet`, `.javajet`, `.htmljet`, `.xmljet`, `.cjet`, `.pythonjet`, `.texjet`, `.latexjet`, `.propertiesjet`, or `.jetinc` file. JetForge activates locally and never uploads its contents.",
             "media": {
               "markdown": "walkthrough/open-template.md"
             }
@@ -473,7 +502,8 @@
             "txtjet-html",
             "txtjet-xml",
             "txtjet-c",
-            "txtjet-python"
+            "txtjet-python",
+            "txtjet-latex"
           ],
           "description": "Fallback TxtJet target language used when Auto Detect is disabled."
         },
@@ -688,63 +718,67 @@
       "commandPalette": [
         {
           "command": "txtjet.selectTargetLanguage",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.detectTargetLanguage",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.default",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.java",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.html",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.xml",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.c",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.setLanguage.python",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
+        },
+        {
+          "command": "txtjet.setLanguage.latex",
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.clearLanguage.active",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openGeneratedOutputPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openGeneratedJavaPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openPreviewBesideSource",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openRegionInGeneratedPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.openRegionInJavaPreview",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.revealPreviewFromSource",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.revealSourceFromPreview",
@@ -752,11 +786,11 @@
         },
         {
           "command": "txtjet.generateOutput",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.diffLastGeneratedOutput",
-          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|propertiesjet|jetinc)$/"
+          "when": "resourceExtname =~ /^\\.(txtjet|jet|javajet|htmljet|xmljet|cjet|pythonjet|texjet|latexjet|propertiesjet|jetinc)$/"
         },
         {
           "command": "txtjet.clearLanguage.all"
@@ -840,64 +874,14 @@
       ],
       "editor/context": [
         {
-          "command": "txtjet.toggleVisualDifferentiation",
+          "command": "txtjet.selectTargetLanguage",
           "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@29"
+          "group": "navigation@1"
         },
         {
-          "command": "txtjet.compileTemplate",
+          "command": "txtjet.openGeneratedOutputPreview",
           "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@30"
-        },
-        {
-          "command": "txtjet.validateWithCompiler",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@31"
-        },
-        {
-          "command": "txtjet.showImpactGraph",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@32"
-        },
-        {
-          "command": "txtjet.extractSelectionToInclude",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@33"
-        },
-        {
-          "command": "txtjet.openIncludingTemplate",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@34"
-        },
-        {
-          "command": "txtjet.openGeneratedJavaForTemplate",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@35"
-        },
-        {
-          "command": "txtjet.openIpxactPreview",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
-          "group": "navigation@36"
-        },
-        {
-          "command": "txtjet.generateIpxactOutput",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
-          "group": "navigation@37"
-        },
-        {
-          "command": "txtjet.validateIpxact",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled",
-          "group": "navigation@38"
-        },
-        {
-          "command": "txtjet.openSynchronizedPreview",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@39"
-        },
-        {
-          "command": "txtjet.togglePreviewSynchronization",
-          "when": "resourceLangId =~ /^txtjet/",
-          "group": "navigation@40"
+          "group": "navigation@2"
         }
       ],
       "view/title": [
@@ -968,6 +952,7 @@
     "onLanguage:txtjet-xml",
     "onLanguage:txtjet-c",
     "onLanguage:txtjet-python",
+    "onLanguage:txtjet-latex",
     "onCommand:txtjet.selectTargetLanguage",
     "onCommand:txtjet.detectTargetLanguage",
     "onCommand:txtjet.setLanguage.default",
@@ -976,6 +961,7 @@
     "onCommand:txtjet.setLanguage.xml",
     "onCommand:txtjet.setLanguage.c",
     "onCommand:txtjet.setLanguage.python",
+    "onCommand:txtjet.setLanguage.latex",
     "onCommand:txtjet.clearLanguage.active",
     "onCommand:txtjet.clearLanguage.all",
     "onCommand:txtjet.clearGeneratedSnapshots",
@@ -1017,7 +1003,7 @@
     "test:extension": "npm run compile && node scripts/run-extension-host-tests.js",
     "test:vsix": "node scripts/run-installed-vsix-tests.js",
     "check:release-metadata": "node scripts/check-release-metadata.js",
-    "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
+    "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','language-configuration-latex.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
     "verify": "npm test && npm run validate:json && npm run package",
     "verify:release": "npm run check:release-metadata && npm run test:extension && npm run verify && npm run test:vsix",
     "vscode:prepublish": "npm run compile",

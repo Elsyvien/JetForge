@@ -1,10 +1,33 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
-  "name": "TxtJet Embedded Template Injection",
-  "scopeName": "text.txtjet.embedded-expression.injection",
-  "injectionSelector": "L:(source.txtjet.java, text.txtjet.html, text.txtjet.xml, source.txtjet.c, source.txtjet.python, text.txtjet.latex) (string.quoted, meta.preprocessor, comment)",
+  "name": "TxtJet LaTeX",
+  "scopeName": "text.txtjet.latex",
   "patterns": [
     {
+      "include": "#txtjet-template"
+    },
+    {
+      "include": "text.tex.latex"
+    }
+  ],
+  "repository": {
+    "txtjet-template": {
+      "patterns": [
+        {
+          "include": "#directive"
+        },
+        {
+          "include": "#expression"
+        },
+        {
+          "include": "#declaration"
+        },
+        {
+          "include": "#scriptlet"
+        }
+      ]
+    },
+    "directive": {
       "name": "meta.directive.txtjet",
       "begin": "(<%@)\\s*([A-Za-z_][\\w.-]*)?",
       "beginCaptures": {
@@ -23,34 +46,17 @@
       },
       "patterns": [
         {
-          "name": "entity.other.attribute-name.txtjet meta.directive.attribute.txtjet",
-          "match": "\\b[A-Za-z_][\\w.-]*(?=\\s*=)"
+          "include": "#directive-attribute"
         },
         {
-          "name": "string.quoted.double.directive.txtjet string.quoted.double.txtjet",
-          "begin": "\"",
-          "end": "\"",
-          "patterns": [
-            {
-              "name": "constant.character.escape.txtjet",
-              "match": "\\\\."
-            }
-          ]
+          "include": "#directive-string"
         },
         {
-          "name": "string.quoted.single.directive.txtjet string.quoted.single.txtjet",
-          "begin": "'",
-          "end": "'",
-          "patterns": [
-            {
-              "name": "constant.character.escape.txtjet",
-              "match": "\\\\."
-            }
-          ]
+          "include": "#directive-single-string"
         }
       ]
     },
-    {
+    "expression": {
       "name": "meta.embedded.expression.java.txtjet",
       "begin": "(<%=)",
       "beginCaptures": {
@@ -71,7 +77,7 @@
         }
       ]
     },
-    {
+    "declaration": {
       "name": "meta.embedded.declaration.java.txtjet",
       "begin": "(<%!)",
       "beginCaptures": {
@@ -92,7 +98,7 @@
         }
       ]
     },
-    {
+    "scriptlet": {
       "name": "meta.embedded.block.java.txtjet",
       "begin": "(<%)",
       "beginCaptures": {
@@ -112,6 +118,32 @@
           "include": "source.java"
         }
       ]
+    },
+    "directive-attribute": {
+      "name": "entity.other.attribute-name.txtjet meta.directive.attribute.txtjet",
+      "match": "\\b[A-Za-z_][\\w.-]*(?=\\s*=)"
+    },
+    "directive-string": {
+      "name": "string.quoted.double.directive.txtjet string.quoted.double.txtjet",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.txtjet",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "directive-single-string": {
+      "name": "string.quoted.single.directive.txtjet string.quoted.single.txtjet",
+      "begin": "'",
+      "end": "'",
+      "patterns": [
+        {
+          "name": "constant.character.escape.txtjet",
+          "match": "\\\\."
+        }
+      ]
     }
-  ]
+  }
 }

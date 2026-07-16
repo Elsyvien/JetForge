@@ -44,7 +44,7 @@ const forbidden = [
 
 const allowed = [
   /^package\.json$/,
-  /^language-configuration\.json$/,
+  /^language-configuration(?:-latex)?\.json$/,
   /^README\.md$/,
   /^(CONTRIBUTING|SECURITY|SUPPORT)\.md$/,
   /^LICENSE$/,
@@ -76,6 +76,7 @@ assert.deepEqual(
 );
 
 assert.ok(files.includes("package.json"));
+assert.ok(files.includes("language-configuration-latex.json"));
 assert.ok(files.includes("README.md"));
 assert.ok(files.includes("SECURITY.md"));
 assert.ok(files.includes("SUPPORT.md"));

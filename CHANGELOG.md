@@ -2,6 +2,8 @@
 
 ## 0.0.21
 
+- Added a generated LaTeX target mode with `.texjet`/`.latexjet` recognition, filename and content detection, LaTeX highlighting, previews, generation, workspace indexing, and a sanitized example.
+- Reduced the TxtJet editor context menu to target-mode selection and generated-output preview; advanced actions remain available from the Command Palette and Workspace view.
 - Reintroduced the product as JetForge across the extension, documentation, and website while preserving the existing `elsyvien.txtjet-syntax` extension ID and upgrade path.
 - Added an in-editor Getting Started walkthrough, actionable empty Workspace Explorer states, a 60-second quickstart, guided compiler setup/testing, and a genuine sanitized source-to-output product screenshot.
 - Made Workspace Explorer navigation precise: unresolved references open their exact range, generated targets open generated output, impact reports use clickable file links, and workspace validation is cancellable with structured summaries.

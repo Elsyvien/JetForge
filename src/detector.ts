@@ -4,7 +4,8 @@ export type TxtJetTargetLanguage =
   | "txtjet-html"
   | "txtjet-xml"
   | "txtjet-c"
-  | "txtjet-python";
+  | "txtjet-python"
+  | "txtjet-latex";
 
 type TargetScore = Exclude<TxtJetTargetLanguage, "txtjet">;
 
@@ -17,6 +18,9 @@ export function detectTargetLanguageFromFileName(fileName: string): TxtJetTarget
   }
   if (matchesHint(normalized, ["py", "python"])) {
     return "txtjet-python";
+  }
+  if (matchesHint(normalized, ["tex", "latex"])) {
+    return "txtjet-latex";
   }
   if (matchesHint(normalized, ["xml", "xmi", "xsd", "wsdl"])) {
     return "txtjet-xml";
@@ -42,7 +46,8 @@ export function detectTargetLanguage(text: string): TxtJetTargetLanguage {
     "txtjet-html": 0,
     "txtjet-xml": 0,
     "txtjet-c": 0,
-    "txtjet-python": 0
+    "txtjet-python": 0,
+    "txtjet-latex": 0
   };
 
   add(scores, "txtjet-xml", count(outer, /<\?xml\b/g) * 12);
@@ -61,6 +66,11 @@ export function detectTargetLanguage(text: string): TxtJetTargetLanguage {
   add(scores, "txtjet-python", count(outer, /^\s*(def|class)\s+[A-Za-z_]\w*.*:\s*$/mg) * 6);
   add(scores, "txtjet-python", count(outer, /^\s*@\w+/mg) * 3);
   add(scores, "txtjet-python", count(outer, /\bself\b|->\s*[A-Za-z_][\w.[\]]*:/g) * 2);
+
+  add(scores, "txtjet-latex", count(outer, /^\s*\\documentclass(?:\[[^\]]*\])?\s*\{/mg) * 14);
+  add(scores, "txtjet-latex", count(outer, /^\s*\\usepackage(?:\[[^\]]*\])?\s*\{/mg) * 6);
+  add(scores, "txtjet-latex", count(outer, /\\begin\s*\{(?:document|abstract|figure|table|equation|align|itemize|enumerate)\}/g) * 5);
+  add(scores, "txtjet-latex", count(outer, /\\(?:chapter|section|subsection|paragraph|label|ref|cite)\*?\s*\{/g) * 3);
 
   add(scores, "txtjet-java", count(outer, /^\s*package\s+[\w.]+;/mg) * 7);
   add(scores, "txtjet-java", count(outer, /^\s*import\s+[\w.*]+;/mg) * 5);

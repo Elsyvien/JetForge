@@ -38,6 +38,8 @@ assert.equal(isTxtJetPath("/workspace/example.htmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.xmljet"), true);
 assert.equal(isTxtJetPath("/workspace/example.cjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.pythonjet"), true);
+assert.equal(isTxtJetPath("/workspace/example.texjet"), true);
+assert.equal(isTxtJetPath("/workspace/example.latexjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.propertiesjet"), true);
 assert.equal(isTxtJetPath("/workspace/example.jetinc"), true);
 assert.equal(isTxtJetPath("/workspace/EXAMPLE.TXTJET"), true);
@@ -52,6 +54,8 @@ for (const suffix of [
   ".xmljet",
   ".cjet",
   ".pythonjet",
+  ".texjet",
+  ".latexjet",
   ".propertiesjet",
   ".jetinc"
 ]) {
@@ -79,6 +83,7 @@ if (process.platform !== "win32") {
 assert.equal(selectedTargetLanguageId("txtjet-html", "txtjet-java"), "txtjet-html");
 assert.equal(selectedTargetLanguageId("txtjet", "txtjet-python"), "txtjet");
 assert.equal(selectedTargetLanguageId("plaintext", "txtjet-python"), "txtjet-python");
+assert.equal(selectedTargetLanguageId("txtjet-latex", "txtjet-java"), "txtjet-latex");
 
 assert.equal(shellSingleQuote("/tmp/template.txtjet"), "'/tmp/template.txtjet'");
 assert.equal(shellSingleQuote("/tmp/with spaces/$HOME/`name`.txtjet"), "'/tmp/with spaces/$HOME/`name`.txtjet'");

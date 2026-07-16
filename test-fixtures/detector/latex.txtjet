@@ -1,0 +1,6 @@
+<%@ jet package="example.fixtures" class="LatexFixture" %>
+\documentclass{article}
+\usepackage{graphicx}
+\begin{document}
+\section{<%= title %>}
+\end{document}

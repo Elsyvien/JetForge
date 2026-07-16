@@ -29,6 +29,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
   - `TxtJet XML Output`
   - `TxtJet C Output`
   - `TxtJet Python Output`
+  - `TxtJet LaTeX Output`
 - Confirm the status bar shows the selected generated output mode.
 - Confirm remembered manual mode survives closing and reopening the file.
 - Run `TxtJet: Clear Remembered Target Language` and confirm the file returns to generic mode.
@@ -86,7 +87,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Keep the root generated-output preview open, edit an included file without saving, and confirm the existing preview refreshes immediately from the open buffer instead of stale disk content.
 - Run `TxtJet: Open Generated Java Template Preview` and confirm the preview uses `@jet package`, `class`, and `imports` metadata.
 - Run `TxtJet: Open Preview Beside Source` and confirm the preview opens beside the template.
-- Place the cursor in generated XML/HTML/Python/C/Java output and run `TxtJet: Open Region In Generated Preview`; confirm the mapped generated-output preview region is selected.
+- Place the cursor in generated XML/HTML/Python/C/Java/LaTeX output and run `TxtJet: Open Region In Generated Preview`; confirm the mapped generated-output preview region is selected.
 - Place the cursor in a scriptlet, expression, or declaration and run `TxtJet: Open Region In Java Preview`; confirm the mapped generated Java preview region is selected.
 - Run `TxtJet: Reveal Generated Output Preview From Source` and confirm the matching preview region is selected.
 - Run `TxtJet: Reveal Source From Preview` from an open preview and confirm the matching template region is selected.
