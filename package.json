@@ -364,6 +364,10 @@
         "title": "TxtJet: Show Impact Graph"
       },
       {
+        "command": "txtjet.showReferencedJavaClasses",
+        "title": "TxtJet: Show Referenced Workspace Classes"
+      },
+      {
         "command": "txtjet.extractSelectionToInclude",
         "title": "TxtJet: Extract Selection to Include"
       },
@@ -565,7 +569,7 @@
         "txtjet.javaIntelliSense.enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable Java IntelliSense forwarding for TxtJet scriptlet, expression, and declaration blocks when Java tooling is available."
+          "description": "Enable Java IntelliSense for TxtJet scriptlet, expression, and declaration blocks, including workspace @jet classes and forwarding to installed Java tooling when available."
         },
         "txtjet.statusBar.enabled": {
           "type": "boolean",
@@ -828,6 +832,10 @@
           "command": "txtjet.showImpactGraph"
         },
         {
+          "command": "txtjet.showReferencedJavaClasses",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
           "command": "txtjet.extractSelectionToInclude",
           "when": "resourceLangId =~ /^txtjet/"
         },
@@ -982,6 +990,7 @@
     "onCommand:txtjet.openGeneratedJavaForTemplate",
     "onCommand:txtjet.validateWorkspaceTemplates",
     "onCommand:txtjet.showImpactGraph",
+    "onCommand:txtjet.showReferencedJavaClasses",
     "onCommand:txtjet.extractSelectionToInclude",
     "onCommand:txtjet.renameWorkspaceReference",
     "onView:txtjetWorkspace",
@@ -999,7 +1008,7 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "npm run clean && tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/asyncRefresh.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/compilerToolchain.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/previewCache.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/asyncRefresh.test.js && node out/regionClassifier.test.js && node out/javaIntelliSenseBridge.test.js && node out/javaWorkspaceIntelligence.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/compilerToolchain.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/previewCache.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "test:extension": "npm run compile && node scripts/run-extension-host-tests.js",
     "test:vsix": "node scripts/run-installed-vsix-tests.js",
     "check:release-metadata": "node scripts/check-release-metadata.js",

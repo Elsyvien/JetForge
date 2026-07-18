@@ -62,6 +62,8 @@ export async function run(): Promise<void> {
     topologyRoot = vscode.Uri.file(resolve(extensionRoot, "examples", ".jetforge-extension-host-topology"));
     const topologySource = vscode.Uri.joinPath(topologyRoot, "parent.txtjet");
     const topologyInclude = vscode.Uri.joinPath(topologyRoot, "partial.jetinc");
+    const workspaceService = vscode.Uri.joinPath(topologyRoot, "WorkspaceService.txtjet");
+    const workspaceConsumer = vscode.Uri.joinPath(topologyRoot, "WorkspaceConsumer.txtjet");
     const resolvedMarker = "resolved-include-from-topology-refresh";
     await vscode.workspace.fs.createDirectory(topologyRoot);
     await vscode.workspace.fs.writeFile(
@@ -83,6 +85,41 @@ export async function run(): Promise<void> {
       () => topologyPreview.getText().includes(resolvedMarker),
       "an open parent preview must refresh when a formerly unresolved include becomes available"
     );
+
+    await vscode.workspace.fs.writeFile(
+      workspaceService,
+      Buffer.from('<%@ jet package="host" class="WorkspaceService" %>\n<%! public String render(String value) { return value; } %>\n', "utf8")
+    );
+    const consumerText = '<%@ jet package="host" class="WorkspaceConsumer" %>\n<%! private WorkspaceService service = new WorkspaceService(); %>\n<% service.ren; service.render("x"); %>\n';
+    await vscode.workspace.fs.writeFile(workspaceConsumer, Buffer.from(consumerText, "utf8"));
+    await vscode.commands.executeCommand("txtjet.refreshWorkspaceModel");
+    const consumerDocument = await vscode.workspace.openTextDocument(workspaceConsumer);
+    await vscode.window.showTextDocument(consumerDocument);
+
+    const completionOffset = consumerText.indexOf("service.ren") + "service.ren".length;
+    const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
+      "vscode.executeCompletionItemProvider",
+      consumerDocument.uri,
+      consumerDocument.positionAt(completionOffset)
+    );
+    assert.ok(completions.items.some((item) => completionLabel(item) === "render" && item.detail?.includes("host.WorkspaceService")),
+      "cross-class IntelliSense must offer methods from another workspace @jet class");
+
+    const definitionOffset = consumerText.indexOf('service.render("x")') + "service.".length + 2;
+    const definitions = await vscode.commands.executeCommand<vscode.Location[]>(
+      "vscode.executeDefinitionProvider",
+      consumerDocument.uri,
+      consumerDocument.positionAt(definitionOffset)
+    );
+    assert.ok(definitions.some((location) => location.uri.fsPath === workspaceService.fsPath),
+      "cross-class Go to Definition must open the template that declares the method");
+
+    const codeLenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+      "vscode.executeCodeLensProvider",
+      consumerDocument.uri
+    );
+    assert.ok(codeLenses.some((lens) => lens.command?.title.includes("1 referenced workspace class")),
+      "the current template must show its referenced workspace classes");
   } finally {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     if (topologyRoot) {
@@ -93,6 +130,10 @@ export async function run(): Promise<void> {
       }
     }
   }
+}
+
+function completionLabel(item: vscode.CompletionItem): string {
+  return typeof item.label === "string" ? item.label : item.label.label;
 }
 
 async function waitFor(predicate: () => boolean, message: string, timeoutMs = 5_000): Promise<void> {
