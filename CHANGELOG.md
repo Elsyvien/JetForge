@@ -1,10 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Added workspace-aware Java class indexing so IntelliSense in a TxtJet Java block can complete, hover, show signatures for, and navigate to methods declared by other workspace `@jet` classes.
-- Added a class-level CodeLens and command that list the other workspace template classes referenced by the current template, with direct navigation to their declarations.
-
 ## 0.0.21
 
 - Added a generated LaTeX target mode with `.texjet`/`.latexjet` recognition, filename and content detection, LaTeX highlighting, previews, generation, workspace indexing, and a sanitized example.
