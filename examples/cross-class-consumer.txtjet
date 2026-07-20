@@ -1,0 +1,9 @@
+<%@ jet package="demo.workspace" class="CrossClassConsumer" %>
+<%!
+private CrossClassService service = new CrossClassService();
+%>
+<%
+String first = service.render("JetForge");
+String second = CrossClassService.defaultService().render("workspace IntelliSense");
+%>
+<%= first + " / " + second %>

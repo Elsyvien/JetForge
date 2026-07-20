@@ -51,6 +51,15 @@ import {
   projectSourceOffsetToJavaPreview,
   targetFallbackCompletionLabels
 } from "./javaIntelliSenseBridge";
+import {
+  createJavaWorkspaceIndex,
+  referencedWorkspaceJavaClasses,
+  TxtJetJavaWorkspaceIndex,
+  workspaceJavaCompletionsAt,
+  workspaceJavaDefinitionsAt,
+  workspaceJavaHoverAt,
+  workspaceJavaSignatureHelpAt
+} from "./javaWorkspaceIntelligence";
 import { synchronizedPreviewRange } from "./previewSync";
 import { VersionedPreviewCache } from "./previewCache";
 import {
@@ -126,6 +135,8 @@ const MAX_GENERATED_SNAPSHOT_COUNT = 20;
 const execAsync = promisify(exec);
 let activeWorkspaceModel: TxtJetWorkspaceModel | undefined;
 let requestWorkspaceModelRefresh: ((invalidate?: boolean, immediate?: boolean) => Promise<boolean>) | undefined;
+let workspaceModelGeneration = 0;
+let javaWorkspaceIndexCache: { key: string; index: TxtJetJavaWorkspaceIndex } | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   activeWorkspaceModel = undefined;
@@ -172,6 +183,8 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const previousModel = activeWorkspaceModel;
       activeWorkspaceModel = model;
+      workspaceModelGeneration += 1;
+      javaWorkspaceIndexCache = undefined;
       workspaceTreeProvider.setModel(model);
       updateWorkspaceTreeView(workspaceTreeView, model);
       if (previousModel && workspaceModelTopologyChanged(previousModel, model)) {
@@ -204,6 +217,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (requestWorkspaceModelRefresh === refreshRequester) {
         requestWorkspaceModelRefresh = undefined;
         activeWorkspaceModel = undefined;
+        javaWorkspaceIndexCache = undefined;
       }
     }
   });
@@ -426,6 +440,11 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
   context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.showReferencedJavaClasses", async (resource?: vscode.Uri) => {
+      await showReferencedJavaClasses(resource);
+    })
+  );
+  context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.extractSelectionToInclude", async () => {
       await extractSelectionToInclude();
     })
@@ -605,6 +624,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerCompletionProvider());
   context.subscriptions.push(registerCodeActionProvider());
   context.subscriptions.push(registerDocumentSymbolProvider());
+  context.subscriptions.push(registerCodeLensProvider());
   context.subscriptions.push(registerDefinitionProvider());
   context.subscriptions.push(registerHoverProvider());
   context.subscriptions.push(registerReferenceProvider());
@@ -1678,6 +1698,41 @@ async function showImpactGraph(item?: TxtJetWorkspaceTreeNode): Promise<void> {
   }
 }
 
+async function showReferencedJavaClasses(resource?: vscode.Uri): Promise<void> {
+  const document = resource
+    ? await vscode.workspace.openTextDocument(resource)
+    : vscode.window.activeTextEditor?.document;
+  if (!document || !isTxtJetFile(document)) {
+    return;
+  }
+  const index = await javaWorkspaceIndex(document);
+  const referenced = referencedWorkspaceJavaClasses(index, document.fileName, document.getText());
+  if (referenced.length === 0) {
+    vscode.window.showInformationMessage("JetForge found no references to other workspace @jet classes in this template.");
+    return;
+  }
+  const picked = await vscode.window.showQuickPick(
+    referenced.map((entry) => ({
+      label: entry.className,
+      description: entry.packageName,
+      detail: `${workspaceRelativeLabel(entry.fileName)} — ${entry.methods.length} indexed method${entry.methods.length === 1 ? "" : "s"}`,
+      entry
+    })),
+    {
+      title: `Referenced workspace classes from ${basename(document.fileName)}`,
+      placeHolder: "Select a class to open its TxtJet template"
+    }
+  );
+  if (!picked) {
+    return;
+  }
+  const targetDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(picked.entry.fileName));
+  await vscode.window.showTextDocument(targetDocument, {
+    preview: false,
+    selection: vscodeRangeFor(targetDocument, picked.entry.range)
+  });
+}
+
 async function extractSelectionToInclude(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || !isTxtJetFile(editor.document)) {
@@ -1818,6 +1873,44 @@ async function ensureWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
     throw new Error("TxtJet could not build the workspace model.");
   }
   return activeWorkspaceModel;
+}
+
+async function javaWorkspaceIndex(document: vscode.TextDocument): Promise<TxtJetJavaWorkspaceIndex> {
+  if (!activeWorkspaceModel) {
+    try {
+      await ensureWorkspaceModel();
+    } catch {
+      // Open documents still provide a useful partial index while workspace discovery is unavailable.
+    }
+  }
+  const openTemplates = vscode.workspace.textDocuments
+    .filter((candidate) => workspaceEntryKind(candidate.fileName) === "template")
+    .sort((left, right) => left.fileName.localeCompare(right.fileName));
+  const key = [
+    workspaceModelGeneration,
+    ...openTemplates.map((candidate) => `${normalize(candidate.fileName)}:${candidate.version}`)
+  ].join("|");
+  if (javaWorkspaceIndexCache?.key === key) {
+    return javaWorkspaceIndexCache.index;
+  }
+
+  const sources = new Map<string, { fileName: string; text: string }>();
+  for (const entry of activeWorkspaceModel?.templates ?? []) {
+    if (entry.text !== undefined) {
+      sources.set(normalize(entry.fileName), { fileName: entry.fileName, text: entry.text });
+    }
+  }
+  for (const openDocument of openTemplates) {
+    sources.set(normalize(openDocument.fileName), {
+      fileName: openDocument.fileName,
+      text: openDocument.getText()
+    });
+  }
+  sources.set(normalize(document.fileName), { fileName: document.fileName, text: document.getText() });
+
+  const index = createJavaWorkspaceIndex(Array.from(sources.values()));
+  javaWorkspaceIndexCache = { key, index };
+  return index;
 }
 
 async function workspaceFileNameForImpact(
@@ -3532,6 +3625,38 @@ function registerDocumentSymbolProvider(): vscode.Disposable {
   );
 }
 
+function registerCodeLensProvider(): vscode.Disposable {
+  return vscode.languages.registerCodeLensProvider(
+    Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
+    {
+      async provideCodeLenses(document) {
+        if (!javaBridgeEnabled(document)) {
+          return [];
+        }
+        const index = await javaWorkspaceIndex(document);
+        const sourceClass = index.classForFile(document.fileName);
+        if (!sourceClass) {
+          return [];
+        }
+        const referenced = referencedWorkspaceJavaClasses(index, document.fileName, document.getText());
+        const count = referenced.length;
+        const title = count === 0
+          ? "JetForge: no referenced workspace classes"
+          : `JetForge: ${count} referenced workspace class${count === 1 ? "" : "es"}`;
+        const lens = new vscode.CodeLens(vscodeRangeFor(document, sourceClass.range), {
+          title,
+          tooltip: count > 0
+            ? referenced.map((entry) => entry.qualifiedName).join(", ")
+            : "No other @jet classes are referenced from this template's Java blocks.",
+          command: "txtjet.showReferencedJavaClasses",
+          arguments: [document.uri]
+        });
+        return [lens];
+      }
+    }
+  );
+}
+
 function registerDefinitionProvider(): vscode.Disposable {
   return vscode.languages.registerDefinitionProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
@@ -3563,6 +3688,10 @@ async function javaDefinitions(document: vscode.TextDocument, position: vscode.P
   if (!javaBridgeEnabled(document)) {
     return undefined;
   }
+  const workspaceDefinitions = await workspaceJavaDefinitionLocations(document, position);
+  if (workspaceDefinitions.length > 0) {
+    return workspaceDefinitions;
+  }
   return await javaBridgeDefinitions(document, position) ?? localJavaDefinition(document, position);
 }
 
@@ -3583,7 +3712,9 @@ function registerHoverProvider(): vscode.Disposable {
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
           const javaHover = javaBridgeEnabled(document)
-            ? await javaBridgeHover(document, position) ?? localJavaHover(document, position)
+            ? await workspaceJavaHover(document, position)
+              ?? await javaBridgeHover(document, position)
+              ?? localJavaHover(document, position)
             : undefined;
           return javaHover ?? regionHover(document, text, offset);
         }
@@ -3671,11 +3802,12 @@ function registerSignatureHelpProvider(): vscode.Disposable {
   return vscode.languages.registerSignatureHelpProvider(
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
-      provideSignatureHelp(document, position) {
+      async provideSignatureHelp(document, position) {
         if (!javaBridgeEnabled(document)) {
           return undefined;
         }
-        const signatureHelp = localJavaSignatureHelpAt(document.getText(), document.offsetAt(position));
+        const signatureHelp = await workspaceJavaSignatureHelp(document, position)
+          ?? localJavaSignatureHelpAt(document.getText(), document.offsetAt(position));
         if (!signatureHelp) {
           return undefined;
         }
@@ -3981,9 +4113,10 @@ async function javaBridgeCompletions(
     return [];
   }
 
+  const workspaceItems = await workspaceJavaCompletionItems(document, position);
   const projection = await openJavaBridgeProjection(document, position);
   if (!projection) {
-    return fallbackTargetCompletions(document, position);
+    return mergeJavaCompletions(workspaceItems, fallbackTargetCompletions(document, position).items);
   }
 
   const completions = await vscode.commands.executeCommand<vscode.CompletionList>(
@@ -3993,16 +4126,116 @@ async function javaBridgeCompletions(
     triggerCharacter
   );
   if (!completions) {
-    return fallbackTargetCompletions(document, position);
+    return mergeJavaCompletions(workspaceItems, fallbackTargetCompletions(document, position).items);
   }
 
   const items = completions.items
     .map((item) => remapJavaCompletionItem(document, projection.previewDocument, position, item))
     .filter((item): item is vscode.CompletionItem => Boolean(item));
   if (items.length === 0) {
-    return fallbackTargetCompletions(document, position);
+    return mergeJavaCompletions(workspaceItems, fallbackTargetCompletions(document, position).items);
   }
-  return new vscode.CompletionList(items, completions.isIncomplete);
+  return new vscode.CompletionList(mergeJavaCompletionItems(workspaceItems, items), completions.isIncomplete);
+}
+
+async function workspaceJavaCompletionItems(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<vscode.CompletionItem[]> {
+  const index = await javaWorkspaceIndex(document);
+  return workspaceJavaCompletionsAt(index, document.fileName, document.getText(), document.offsetAt(position))
+    .map((completion) => {
+      const item = new vscode.CompletionItem(
+        completion.label,
+        completion.kind === "method" ? vscode.CompletionItemKind.Method : vscode.CompletionItemKind.Class
+      );
+      item.detail = completion.detail;
+      item.insertText = completion.insertText;
+      item.range = vscodeRangeFor(document, completion.range);
+      item.sortText = `0_${completion.label}_${completion.detail}`;
+      return item;
+    });
+}
+
+function mergeJavaCompletions(
+  workspaceItems: vscode.CompletionItem[],
+  otherItems: readonly vscode.CompletionItem[]
+): vscode.CompletionList {
+  return new vscode.CompletionList(mergeJavaCompletionItems(workspaceItems, otherItems), false);
+}
+
+function mergeJavaCompletionItems(
+  workspaceItems: vscode.CompletionItem[],
+  otherItems: readonly vscode.CompletionItem[]
+): vscode.CompletionItem[] {
+  const seen = new Set<string>();
+  return [...workspaceItems, ...otherItems].filter((item) => {
+    const label = typeof item.label === "string" ? item.label : item.label.label;
+    const key = `${label}\0${item.detail ?? ""}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+async function workspaceJavaDefinitionLocations(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<vscode.Location[]> {
+  const index = await javaWorkspaceIndex(document);
+  return workspaceJavaDefinitionsAt(index, document.fileName, document.getText(), document.offsetAt(position))
+    .map((definition) => {
+      const targetDocument = vscode.workspace.textDocuments.find((candidate) =>
+        normalize(candidate.fileName) === normalize(definition.fileName)
+      );
+      if (targetDocument) {
+        return new vscode.Location(targetDocument.uri, vscodeRangeFor(targetDocument, definition.range));
+      }
+      return new vscode.Location(
+        vscode.Uri.file(definition.fileName),
+        new vscode.Range(positionAtSourceOffset(index.source(definition.fileName)?.text ?? "", definition.range.start), positionAtSourceOffset(index.source(definition.fileName)?.text ?? "", definition.range.end))
+      );
+    });
+}
+
+async function workspaceJavaHover(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<vscode.Hover | undefined> {
+  const index = await javaWorkspaceIndex(document);
+  const hover = workspaceJavaHoverAt(index, document.fileName, document.getText(), document.offsetAt(position));
+  if (!hover) {
+    return undefined;
+  }
+  const markdown = new vscode.MarkdownString();
+  markdown.appendMarkdown(`**${hover.title}**\n\n`);
+  for (const signature of hover.signatures) {
+    markdown.appendCodeblock(signature, "java");
+  }
+  return new vscode.Hover(markdown, vscodeRangeFor(document, hover.range));
+}
+
+async function workspaceJavaSignatureHelp(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): Promise<ReturnType<typeof localJavaSignatureHelpAt>> {
+  const index = await javaWorkspaceIndex(document);
+  return workspaceJavaSignatureHelpAt(index, document.fileName, document.getText(), document.offsetAt(position));
+}
+
+function positionAtSourceOffset(text: string, offset: number): vscode.Position {
+  const safeOffset = Math.min(Math.max(offset, 0), text.length);
+  let line = 0;
+  let lineStart = 0;
+  for (let index = 0; index < safeOffset; index += 1) {
+    if (text[index] === "\n") {
+      line += 1;
+      lineStart = index + 1;
+    }
+  }
+  return new vscode.Position(line, safeOffset - lineStart);
 }
 
 async function javaBridgeHover(

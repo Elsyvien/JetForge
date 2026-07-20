@@ -1,0 +1,10 @@
+<%@ jet package="demo.workspace" class="CrossClassService" %>
+<%!
+public String render(String value) {
+    return "Rendered: " + value;
+}
+
+public static CrossClassService defaultService() {
+    return new CrossClassService();
+}
+%>

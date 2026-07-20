@@ -99,6 +99,9 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Create a sanitized relative include and confirm Go to Definition from `file="..."` opens it.
 - Open `examples/skeleton-directive.txtjet` and confirm Go to Definition from `skeleton="..."` opens `templates/base.skeleton`.
 - In a scriptlet or expression that calls a helper declared in `<%! ... %>`, confirm Go to Definition jumps to the helper method name.
+- Open `examples/cross-class-consumer.txtjet`, type after `service.`, and confirm completion includes `render` from `cross-class-service.txtjet` even when Java tooling does not index virtual preview documents.
+- On the cross-class `render` call, confirm Hover and Signature Help show the service signature and Go to Definition opens the method in `cross-class-service.txtjet`.
+- Confirm the CodeLens above `CrossClassConsumer` reports one referenced workspace class and opens a picker that navigates to `CrossClassService`.
 - With multiple same-name helper overloads in `<%! ... %>`, confirm Peek Definition shows each local overload.
 - Hover a local helper call and confirm the helper signature appears when Java tooling does not provide hover content.
 - Run Find All References on a local helper call and confirm the helper declarations plus direct/`this.` calls are listed, excluding comments, strings, and non-local receivers.
