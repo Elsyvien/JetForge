@@ -89,6 +89,20 @@ function initWorkbench() {
   if (!workbench || !sourceCode || !outputCode || !demoStatus || !demoPanel || !mappingLane || !sourceName || !outputName || !tabs.length) return;
 
   let activeMode = "java";
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  function animateMapping(elements) {
+    if (reducedMotion.matches || !workbench.classList.contains("is-ready")) return;
+    elements.filter(Boolean).forEach((element, index) => {
+      element.animate(
+        [
+          { opacity: .55, transform: `translateX(${index ? -6 : 6}px)` },
+          { opacity: 1, transform: "translateX(0)" }
+        ],
+        { duration: 260, easing: "cubic-bezier(.16, 1, .3, 1)" }
+      );
+    });
+  }
 
   function selectLine(index) {
     const sample = samples[activeMode];
@@ -114,6 +128,11 @@ function initWorkbench() {
       demoStatus.textContent = `${sample.label} · Source line ${activeLine + 1} has no deterministic preview range`;
       mappingLane.style.setProperty("--map-position", "50%");
     }
+
+    animateMapping([
+      sourceCode.querySelector(".code-line.is-active"),
+      outputCode.querySelector(".code-line.is-active")
+    ]);
   }
 
   function setMode(mode) {
@@ -131,6 +150,15 @@ function initWorkbench() {
     });
     demoPanel.setAttribute("aria-labelledby", `demo-tab-${mode}`);
     selectLine(0);
+    if (!reducedMotion.matches && workbench.classList.contains("is-ready")) {
+      demoPanel.animate(
+        [
+          { opacity: .55, transform: "translateY(8px)" },
+          { opacity: 1, transform: "translateY(0)" }
+        ],
+        { duration: 320, easing: "cubic-bezier(.16, 1, .3, 1)" }
+      );
+    }
   }
 
   function handleTabKey(event) {

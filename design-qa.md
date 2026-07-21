@@ -1,61 +1,54 @@
 # JetForge Landing Page Design QA
 
 - Design direction: editorial/industrial “generation trace”
-- Header visual: `assets/og-image.png`, shared with Open Graph and Twitter cards
-- Product visual: `assets/jetforge-workspace-preview.webp`, shown in a dedicated actual-workspace section
+- Live hero: native HTML/CSS composition with paper/ink split, typographic headline, generated `J`, and source traces
+- Social card: `assets/og-image.png`, retained for Open Graph, Twitter, and structured metadata only
+- Product visual: `assets/jetforge-workspace-preview.webp`, shown unframed in the real-workspace section
 - Verification date: 2026-07-22
 - Runtime: deployment-shaped static artifact served over local HTTP and driven in headless Chromium
 
-## Opening-view requirement
+## Opening view
 
-The shared social poster is now the primary header image. A compact product dock keeps the value statement, install action, workflow link, and proof line in the same opening view without competing with the artwork. The hero ends exactly at the viewport boundary and the workbench starts immediately after it.
+The desktop-first hero is a live layout rather than an embedded social card. Its real heading, value statement, install action, demo link, and proof line fit in the opening desktop viewport. The diagonal split and generated `J` carry the same visual idea as the social card without duplicating the raster asset on the page.
 
-| Viewport | Hero bottom | Workbench top | Primary action | Horizontal overflow |
-| --- | ---: | ---: | ---: | ---: |
-| 1440 × 900 | 900 px | 900 px | 798–850 px | none |
-| 1366 × 768 | 768 px | 768 px | 670–722 px | none |
-| 1024 × 768 | 768 px | 768 px | 672–724 px | none |
-| 820 × 1180 | 1180 px | 1180 px | 1064–1116 px | none |
-| 390 × 844 | 844 px | 844 px | 538–590 px | none |
-| 320 × 568 | 568 px | 568 px | 403–447 px | none |
-| 844 × 390 | 390 px | 390 px | 336–380 px | none |
+At 390 × 844, the content and artwork stack deliberately. The primary action remains in the opening view and the CSS artwork continues below it instead of squeezing the desktop composition into a miniature poster.
 
-Short screens use dedicated compositions rather than squeezing the desktop layout:
+The checked 1440 × 900 and 390 × 844 compositions had no horizontal overflow.
 
-- 390 × 844 keeps the full poster, value statement, both actions, and proof line in the opening view.
-- 320 × 568 keeps the full poster and primary installation action; secondary copy and the redundant jump link are omitted.
-- 844 × 390 keeps the complete poster and both actions in a compact landscape composition.
+## Distilled structure
+
+The page now has four decisions: understand the promise, try the mapping demo, inspect the real workspace, and install. The six-row feature dossier, standalone output-mode chapter, standalone privacy chapter, three-step install route, and two footer links were removed. Essential feature coverage remains in three short proof points, one output-mode line, and the documentation link.
+
+The desktop page is 4,017 CSS pixels tall at 1440 × 900. The demo heading and full interactive workbench fit together in one viewport.
 
 ## Visual review
 
-- Desktop and laptop: the 1200 × 630 social artwork is uncropped, centered in an ink field, and paired with a two-column product dock.
-- Tablet and phone: the poster preserves its original composition and scales proportionally rather than being cropped into an unreadable fragment.
-- Product proof: the genuine VS Code workspace capture now appears after the workflow section in a large editorial frame with source/output registration marks.
-- Mobile product proof: the real workspace remains complete and uncropped; its caption simplifies to the two most useful labels.
-- Full page: the poster hero, interactive trace, workflow runway, actual-workspace spread, technical dossier, modes, privacy, and install chapters retain the existing paper/ink/cobalt rhythm.
-- Anti-pattern review: passed. The interface avoids generic card grids, glass surfaces, gradient text, glow effects, and decorative terminal clichés.
+- Desktop: the typographic statement is the focal point; one generated `J`, two traces, and the diagonal seam reinforce source-to-output transformation without competing with the copy.
+- Product proof: the genuine VS Code capture sits directly on the paper grid. The former dark wrapper, purple inset outline, and blue offset shadow were removed.
+- Social sharing: the existing 1200 × 630 social card remains referenced by Open Graph, Twitter, and schema metadata.
+- Full page: duplicate workflow exposition and dedicated secondary chapters were removed. The page now moves directly from proposition to demo, workspace proof, and installation.
+- Anti-pattern review: passed. The page avoids generic card grids, glass surfaces, decorative terminal clichés, and a rasterized text hero.
 
 ## Interaction and accessibility evidence
 
-- The visual headline is duplicated as a visually hidden `h1`, so the image does not become the only accessible source of the page title.
-- Skip link is first in keyboard order and moves focus to `#main`.
-- Mobile menu opens from the keyboard, exposes its navigation, closes after navigation, and returns to its compact state.
-- All six workbench tabs remain operable; the LaTeX tab reports `report.latexjet` → `report.tex` and updates its live mapping status.
-- Intended interactive targets remain at least 44 × 44 CSS pixels on mobile.
-- Reduced-motion and forced-colors fallbacks remain intact.
+- The visual headline is a real `h1`; the hero does not depend on an image to communicate its title.
+- Hero elements enter once with staggered opacity/transform motion; two trace lines draw toward the generated mark.
+- Workbench mode changes and source-line mappings use brief transform/opacity feedback.
+- Button press feedback is immediate and uses a subtle scale change.
+- Skip-link, mobile-menu keyboard behavior, workbench tabs, live mapping status, and 44 × 44 CSS-pixel interactive targets remain intact.
+- Reduced-motion mode reports zero animations longer than 10 ms.
 
-## Failure-mode and runtime evidence
+## Runtime evidence
 
-- Runtime requests for the page, versioned CSS/JavaScript, icon, social-card header, and lazily loaded workspace image returned HTTP 200.
-- Browser console reported no errors or warnings.
-- `assets/og-image.png` retained its 1200 × 630 social-card dimensions.
-- `assets/jetforge-workspace-preview.webp` retained its 1320 × 768 intrinsic dimensions and descriptive alternative text.
-- Seven checked viewport compositions had no horizontal overflow.
-- `node --check script.js`, `git diff --check`, and `npm run verify`: passed.
+- Page assets returned successfully over local HTTP and the browser console reported no errors.
+- The hero contains no image while `og:image` continues to reference `assets/og-image.png`.
+- The workspace screenshot has no outer shadow, border, or generated inset frame.
+- Desktop, narrow, normal-motion interaction, and reduced-motion Playwright checks passed.
+- `git diff --check` and `npm run verify`: passed.
 
 ## Scope not exercised
 
-- Physical iOS/Android devices and Safari, Firefox, and Edge were not available in this environment. Responsive behavior was driven in Chromium with desktop, tablet, portrait-phone, short-phone, and landscape-phone contexts.
+Physical mobile devices and Safari, Firefox, and Edge were not available. Responsive behavior was driven in Chromium.
 
 ## Final result
 

@@ -63,7 +63,7 @@
       }
     </script>
     <script>document.documentElement.classList.add("js")</script>
-    <link rel="stylesheet" href="styles.css?v=20260722">
+    <link rel="stylesheet" href="styles.css?v=20260722-3">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -79,9 +79,7 @@
       <div class="nav-shell" id="site-nav">
         <nav class="site-nav" aria-label="Primary navigation">
           <a href="#workbench">Demo</a>
-          <a href="#flow">Workflow</a>
-          <a href="#capabilities">System</a>
-          <a href="#modes">Modes</a>
+          <a href="#product">Features</a>
           <a href="#install">Install</a>
         </nav>
         <div class="header-actions">
@@ -93,43 +91,43 @@
 
     <main id="main" tabindex="-1">
       <section class="hero" id="top" aria-labelledby="hero-title">
-        <div class="hero-stage">
-          <div class="hero-poster-shell">
-            <figure class="hero-poster reveal">
-              <img src="assets/og-image.png" alt="" width="1200" height="630" fetchpriority="high">
-            </figure>
-          </div>
-
-          <div class="hero-dock reveal">
-            <div class="hero-dock-copy">
-              <p class="hero-eyebrow"><span>TXTJET + ECLIPSE JET</span><span>VS CODE / 0.0.21</span></p>
-              <h1 class="visually-hidden" id="hero-title">See the code behind the template.</h1>
-              <p class="hero-lede">Source, local previews, and project relationships in one editor—so unfamiliar generation systems become navigable.</p>
-            </div>
+        <div class="hero-canvas">
+          <div class="hero-copy">
+            <p class="hero-eyebrow"><span>TXTJET + ECLIPSE JET</span><span>VS CODE / 0.0.21</span></p>
+            <h1 id="hero-title">See the code <em>behind</em> the template.</h1>
+            <p class="hero-lede">Preview generated output, trace includes, and understand unfamiliar JET projects—without leaving VS Code.</p>
             <div class="hero-actions">
               <a class="button button-primary" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install JetForge <span aria-hidden="true">↗</span></a>
-              <a class="trace-link" href="#workbench">Explore the workflow <span aria-hidden="true">↓</span></a>
+              <a class="trace-link" href="#workbench">Try the live demo <span aria-hidden="true">↓</span></a>
             </div>
             <ul class="hero-proof" aria-label="JetForge at a glance">
               <li>Free &amp; open source</li>
-              <li>6 output modes</li>
+              <li>Runs locally</li>
               <li>No telemetry</li>
             </ul>
+          </div>
+
+          <div class="hero-mark" aria-hidden="true">
+            <div class="hero-traces">
+              <i></i><i></i>
+            </div>
+            <span class="hero-monogram">J</span>
+            <p class="hero-mark-label">Template <span>→</span> output</p>
           </div>
         </div>
       </section>
 
       <section class="workbench-section" id="workbench" aria-labelledby="workbench-title">
         <div class="workbench-intro reveal">
-          <p class="overline"><span>01</span> Source / preview trace</p>
-          <h2 id="workbench-title">Trace what the template makes.</h2>
-          <p>Select a source line and follow it into the local preview. JetForge synchronizes both sides where range mapping is deterministic.</p>
+          <p class="overline"><span>01</span> Live source-to-output demo</p>
+          <h2 id="workbench-title">See what each line generates.</h2>
+          <p>Select a template line. When JetForge can map it reliably, the matching preview line lights up beside it.</p>
         </div>
 
         <div class="workbench reveal" aria-label="Interactive source to preview demonstration">
           <header class="workbench-header">
             <div>
-              <p class="workbench-label">Mapping workbench</p>
+              <p class="workbench-label">Source mapping</p>
               <p class="workbench-status"><span aria-hidden="true"></span><b id="demo-status" role="status" aria-live="polite" aria-atomic="true">Java · Directive mapped to local preview line 1</b></p>
             </div>
             <div class="demo-tabs" role="tablist" aria-label="Preview language">
@@ -165,32 +163,19 @@
             </article>
           </div>
           <footer class="workbench-footer">
-            <span>Select a source line to trace its preview range</span>
+            <span>Choose any source line to reveal its preview</span>
             <span class="keyboard-note"><kbd>←</kbd><kbd>→</kbd> switch mode</span>
           </footer>
         </div>
-        <p class="workbench-note reveal"><strong>Preview, not pretense.</strong> Built-in previews approximate generated output for inspection. Configure an external compiler when exact output matters.</p>
       </section>
 
-      <section class="runway dark-section" id="flow" aria-labelledby="flow-title">
-        <div class="section-heading reveal">
-          <p class="overline light"><span>02</span> One connected workflow</p>
-          <h2 id="flow-title">From strange template to understood system.</h2>
-          <p>JetForge follows the work from first read to generated artifact without sending template code anywhere.</p>
-        </div>
-        <ol class="runway-list">
-          <li class="reveal"><span>01</span><div><p class="runway-verb">Read</p><h3>Separate the languages.</h3><p>Directives, embedded Java, expressions, and generated text stay visually distinct.</p></div><b>Understand</b></li>
-          <li class="reveal"><span>02</span><div><p class="runway-verb">Follow</p><h3>Move through the graph.</h3><p>Navigate includes, skeletons, helpers, preview ranges, and workspace relationships.</p></div><b>Navigate</b></li>
-          <li class="reveal"><span>03</span><div><p class="runway-verb">Check</p><h3>Bring failures home.</h3><p>Local checks and configured compiler diagnostics map parseable problems back to source.</p></div><b>Validate</b></li>
-          <li class="reveal"><span>04</span><div><p class="runway-verb">Make</p><h3>Generate with context.</h3><p>Preview, compare, and write output while known ranges keep both sides aligned.</p></div><b>Generate</b></li>
-        </ol>
-      </section>
-
-      <section class="workspace-proof" aria-labelledby="workspace-proof-title">
+      <section class="workspace-proof" id="product" aria-labelledby="workspace-proof-title">
         <div class="workspace-proof-heading reveal">
-          <p class="workspace-proof-label">Actual product / no mockup</p>
-          <h2 id="workspace-proof-title">The whole system, in sight.</h2>
-          <p>JetForge keeps the template, its include graph, and the generated result close enough to reason about together. This is the real extension running in VS Code.</p>
+          <p class="overline"><span>02</span> Real workspace</p>
+          <div>
+            <h2 id="workspace-proof-title">Keep the whole project in view.</h2>
+            <p>Templates, includes, previews, and dependencies—together in VS Code.</p>
+          </div>
         </div>
         <figure class="workspace-visual reveal">
           <div class="workspace-registration" aria-hidden="true"><span>JF / SOURCE</span><i></i><span>OUTPUT / LOCAL</span></div>
@@ -199,112 +184,36 @@
           </div>
           <figcaption><span>Include-aware workspace</span><span>Template source ↔ local preview</span><span>VS Code / JetForge 0.0.21</span></figcaption>
         </figure>
-      </section>
-
-      <section class="capabilities" id="capabilities" aria-labelledby="capabilities-title">
-        <div class="capability-intro reveal">
-          <p class="overline"><span>03</span> Technical dossier</p>
-          <h2 id="capabilities-title">Built for systems, not isolated files.</h2>
-          <p>Workspace context turns JET from a wall of mixed syntax into something the editor can explain.</p>
+        <div class="feature-list">
+          <article class="reveal"><span>01</span><h3>Navigate</h3><p>Follow includes, helpers, and project impact.</p></article>
+          <article class="reveal"><span>02</span><h3>Preview</h3><p>Map source to local output in both directions.</p></article>
+          <article class="reveal"><span>03</span><h3>Refactor</h3><p>Rename, move, and extract without guessing.</p></article>
         </div>
-        <div class="dossier">
-          <article class="dossier-row reveal">
-            <span class="dossier-number">A.01</span>
-            <div><p class="dossier-kicker">Workspace model</p><h3>See the generation graph.</h3></div>
-            <p>Index templates, include fragments, skeletons, unresolved references, and output targets; inspect direct and transitive impact before changing them.</p>
-            <ul><li>Explorer views</li><li>Impact reports</li><li>Current-buffer aware</li></ul>
-          </article>
-          <article class="dossier-row reveal">
-            <span class="dossier-number">A.02</span>
-            <div><p class="dossier-kicker">Range mapping</p><h3>Move both ways.</h3></div>
-            <p>Reveal source from local preview—or preview from source—where the generated ranges can be mapped deterministically.</p>
-            <ul><li>Source → preview</li><li>Preview → source</li></ul>
-          </article>
-          <article class="dossier-row dossier-accent reveal">
-            <span class="dossier-number">A.03</span>
-            <div><p class="dossier-kicker">Fail-closed edits</p><h3>Refactor without guessing.</h3></div>
-            <p>Extract includes and rename or move referenced files through workspace edits that stop when the result cannot be established safely.</p>
-            <ul><li>Extract include</li><li>Rename &amp; move</li></ul>
-          </article>
-          <article class="dossier-row reveal">
-            <span class="dossier-number">A.04</span>
-            <div><p class="dossier-kicker">Java help</p><h3>Keep editor context inside JET.</h3></div>
-            <p>Forward completion, hover, and definition through mappable template-Java regions when compatible Java tooling is installed. Local helper references, rename, and signatures stay conservative.</p>
-            <ul><li>Tooling-aware</li><li>Conservative fallback</li></ul>
-          </article>
-          <article class="dossier-row reveal">
-            <span class="dossier-number">A.05</span>
-            <div><p class="dossier-kicker">External compiler</p><h3>Use the real toolchain.</h3></div>
-            <p>Run a user-configured compiler and map parseable errors into the template editor. External execution remains blocked in Restricted Mode.</p>
-            <ul><li>User configured</li><li>Trust respecting</li></ul>
-          </article>
-          <article class="dossier-row reveal">
-            <span class="dossier-number">A.06</span>
-            <div><p class="dossier-kicker">Hardware workflows</p><h3>Opt into IP-XACT.</h3></div>
-            <p>Preview, generate, diff, validate, complete, and index IP-XACT output through an optional feature set that is disabled by default.</p>
-            <ul><li>Optional</li><li>Off by default</li></ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="modes dark-section" id="modes" aria-labelledby="modes-title">
-        <div class="modes-heading reveal">
-          <p class="overline light"><span>04</span> Output-aware editing</p>
-          <h2 id="modes-title">One template language. Six destinations.</h2>
-          <p>Choose a mode or let JetForge infer one from the file. When a name is ambiguous, explicit selection keeps the outer language honest.</p>
-        </div>
-        <ol class="mode-ledger reveal">
-          <li><span>01</span><strong>Java</strong><code>.javajet</code><p>Classes, packages, and generated members</p></li>
-          <li><span>02</span><strong>HTML</strong><code>.htmljet</code><p>Markup with embedded JET control flow</p></li>
-          <li><span>03</span><strong>XML</strong><code>.xmljet</code><p>Structured documents and schemas</p></li>
-          <li><span>04</span><strong>C</strong><code>.cjet</code><p>Headers, declarations, and native output</p></li>
-          <li><span>05</span><strong>Python</strong><code>.pythonjet</code><p>Scripts and generated modules</p></li>
-          <li><span>06</span><strong>LaTeX</strong><code>.latexjet</code><p>Typeset documents and technical output</p></li>
-        </ol>
-        <p class="modes-note reveal">Automatic detection is heuristic. Set the output mode explicitly when the filename does not make the destination clear.</p>
-      </section>
-
-      <section class="privacy" aria-labelledby="privacy-title">
-        <div class="privacy-statement reveal">
-          <p class="overline"><span>05</span> Local by design</p>
-          <h2 id="privacy-title">Your templates are not training data.</h2>
-        </div>
-        <div class="privacy-detail reveal">
-          <p>JetForge has no runtime network access, no telemetry, and no proprietary upload path. Your editor, workspace, and configured local tools remain the system boundary.</p>
-          <dl>
-            <div><dt>Runtime network</dt><dd>None</dd></div>
-            <div><dt>Telemetry</dt><dd>None</dd></div>
-            <div><dt>License</dt><dd>MIT</dd></div>
-            <div><dt>Workspace Trust</dt><dd>Respected</dd></div>
-          </dl>
-          <p class="privacy-caveat">External compilers, validators, and configured paths outside the workspace are blocked while VS Code is in Restricted Mode.</p>
+        <div class="product-meta reveal">
+          <p><strong>Output modes</strong> Java · HTML · XML · C · Python · LaTeX</p>
+          <a href="https://github.com/Elsyvien/JetForge#readme">See every feature <span aria-hidden="true">→</span></a>
         </div>
       </section>
 
       <section class="install" id="install" aria-labelledby="install-title">
         <div class="install-copy reveal">
-          <p class="overline light"><span>06</span> Start with the source</p>
-          <h2 id="install-title">Put the output in sight.</h2>
-          <p>Install JetForge from the Visual Studio Marketplace, then open a template and preview what it generates—locally.</p>
-          <div class="install-actions">
-            <a class="button button-paper" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Open Marketplace <span aria-hidden="true">↗</span></a>
-            <a class="text-link light-link" href="https://github.com/Elsyvien/JetForge#60-second-quickstart">Read the 60-second quickstart</a>
-          </div>
+          <p class="overline light"><span>03</span> Get started</p>
+          <h2 id="install-title">Open one template. See what it makes.</h2>
+          <p>Free, local, and open source. No telemetry.</p>
         </div>
-        <ol class="install-route reveal" aria-label="Getting started">
-          <li><span>01</span><div><strong>Install</strong><p>Add the published extension to VS Code.</p></div></li>
-          <li><span>02</span><div><strong>Open</strong><p>Choose a TxtJet or Eclipse JET template.</p></div></li>
-          <li><span>03</span><div><strong>Trace</strong><p>Preview locally and follow known ranges both ways.</p></div></li>
-        </ol>
+        <div class="install-actions reveal">
+          <a class="button button-paper" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install JetForge <span aria-hidden="true">↗</span></a>
+          <a class="text-link light-link" href="https://github.com/Elsyvien/JetForge#60-second-quickstart">60-second quickstart</a>
+        </div>
       </section>
     </main>
 
     <footer class="site-footer">
       <a class="brand footer-brand" href="#top"><img src="assets/icon.png" width="34" height="34" alt=""><span>JetForge</span></a>
       <p>TxtJet and Eclipse JET tooling for VS Code. Built by <a class="author-link" href="https://elsyvien.github.io/" rel="author me">Max Staneker</a>.</p>
-      <nav aria-label="Footer navigation"><a href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Marketplace</a><a href="https://github.com/Elsyvien/JetForge#readme">Docs</a><a href="https://github.com/Elsyvien/JetForge/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/Elsyvien/JetForge/blob/main/SUPPORT.md">Support</a><a href="https://github.com/Elsyvien/JetForge/issues">Issues</a><a href="#top">Back to top ↑</a></nav>
+      <nav aria-label="Footer navigation"><a href="https://github.com/Elsyvien/JetForge#readme">Docs</a><a href="https://github.com/Elsyvien/JetForge">GitHub</a><a href="https://github.com/Elsyvien/JetForge/blob/main/CHANGELOG.md">Changelog</a><a href="#top">Back to top ↑</a></nav>
     </footer>
 
-    <script src="script.js?v=20260722"></script>
+    <script src="script.js?v=20260722-3"></script>
   </body>
 </html>
