@@ -1,46 +1,66 @@
-# JetForge Hero Design QA
+# JetForge Landing Page Design QA
 
-- Source visual truth: `assets/og-image.png`
-- Genuine extension UI capture: `assets/jetforge-workspace-preview.png`
-- Viewport: `1200 × 630`
-- State: page loaded at `#top`, entrance reveal complete, navigation closed
+- Design direction: editorial/industrial “generation trace”
+- Product visual: `assets/jetforge-workspace-preview.webp`, derived from the genuine workspace capture
+- Social visual: `assets/og-image.png` (metadata only)
+- Verification date: 2026-07-18
+- Runtime: deployment-shaped static artifact served over local HTTP and driven in headless Chromium
 
-## Full-view comparison evidence
+## Opening-view requirement
 
-The reference and implementation were reviewed together in one side-by-side image. The cream/ink split, diagonal seam, 62px brand lockup, three-line editorial headline, blue italic emphasis, subtitle baseline, textured J artwork, and vertical template-to-output label align closely. The implementation intentionally retains functional navigation, GitHub access, and the Marketplace CTA above the reference composition.
+The hero and first content section were measured at each target viewport. On standard desktop, laptop, tablet, and tall-phone viewports, the hero ends exactly at the viewport boundary and the workbench begins immediately after it. No proof strip or partial next-section bar enters the opening view.
 
-## Focused region comparison evidence
+| Viewport | Hero bottom | Workbench top | Horizontal overflow |
+| --- | ---: | ---: | ---: |
+| 1440 × 900 | 900 px | 900 px | none |
+| 1366 × 768 | 768 px | 768 px | none |
+| 1280 × 720 | 720 px | 720 px | none |
+| 1024 × 768 | 768 px | 768 px | none |
+| 820 × 1180 | 1180 px | 1180 px | none |
+| 390 × 844 | 844 px | 844 px | none |
 
-A separate crop was not needed because every fidelity-critical element is legible at the native 1200 × 630 comparison size. Browser geometry additionally confirmed the brand at `x=70, y=62`, the hero height at `630px`, and the subtitle starting at `x=70`.
+Short screens use dedicated compositions rather than squeezing the desktop layout:
 
-## Required fidelity surfaces
+- 375 × 667: both actions and a focused source/preview screenshot strip fit in a 667 px hero.
+- 320 × 568: primary installation action and a focused screenshot strip fit in a 568 px hero; the redundant jump link is omitted.
+- 844 × 390 landscape: compact split layout keeps the complete value statement, both actions, and the full screenshot inside a 390 px hero.
+- 640 × 360 (200% zoom proxy): menu remains available, the page has no horizontal overflow, and the next section stays below the opening.
 
-- Fonts and typography: passed. The existing Iowan/Baskerville editorial stack reproduces the reference hierarchy and line wrapping; the Avenir/Helvetica sans stack matches the brand and subtitle roles.
-- Spacing and layout rhythm: passed. Headline, subtitle, brand, seam, and image occupy the same visual bands as the reference.
-- Colors and visual tokens: passed. Existing paper, ink, cobalt, violet, and signal tokens match the supplied artwork.
-- Image quality and asset fidelity: passed. The actual 1200 × 630 JetForge artwork is used for the right panel with responsive cropping; no placeholder or reconstructed illustration is used.
-- Copy and content: passed. The reference headline and subtitle are reproduced verbatim as accessible HTML.
+## Visual review
 
-## Findings
+- Desktop and laptop: balanced editorial copy/screenshot split, intact diagonal seam, complete CTA hierarchy, and no clipping.
+- Tablet: intentionally stacked copy and product-proof stages; the workspace image remains legible and uncropped.
+- Tall mobile: complete headline, explanation, actions, proof line, and product image in one opening view.
+- Short mobile: a deliberate center crop emphasizes the source/preview relationship instead of shrinking the full editor to unreadable size.
+- Full page: alternating paper, ink, and cobalt chapters preserve a clear long-form rhythm; compact mobile dossier rows reduce the longest cream passage.
+- Anti-pattern review: passed. The interface avoids generic card grids, glass surfaces, gradient text, glow effects, and decorative terminal clichés.
 
-- No actionable P0, P1, or P2 findings.
-- P3 accepted deviation: functional navigation and installation controls remain visible because they are required product affordances and were absent from the static reference card.
+## Interaction and accessibility evidence
 
-## Patches made during QA
+- Skip link is first in keyboard order and moves focus to `#main`.
+- Mobile menu opens from the keyboard, closes with Escape, restores focus, closes after navigation, and is removed from focus order while hidden.
+- All six workbench tabs support click, Arrow keys, Home, and End with roving `tabindex`.
+- Source-line selection exposes one `aria-pressed="true"` line, one current preview line, and an atomic live status naming the source and preview ranges.
+- LaTeX mode reports `report.latexjet` → `report.tex` and updates its mapping status correctly.
+- Intended interactive targets measured at least 44 × 44 CSS pixels on mobile.
+- Keyboard focus uses a solid 3 px cobalt ring on paper and the context signal color on dark surfaces.
+- Forced-colors mode retains a solid 3 px focus indicator and visible content.
+- Reduced-motion mode leaves all reveal content visible and manual workbench interaction functional.
 
-- Replaced the abstract CSS hero mark with the real JetForge artwork.
-- Matched the reference split proportions, diagonal seam, brand scale, headline wrapping, and subtitle width.
-- Moved the interactive workbench into a dedicated section beneath the hero.
-- Added a stacked mobile adaptation with the artwork retained below the copy.
-- Tightened the narrow-screen headline scale so all three fixed headline lines remain inside 320 px and 390 px layouts without horizontal clipping.
+## Failure-mode and runtime evidence
 
-## Responsive verification
+- JavaScript disabled, desktop and mobile: navigation remains visible, static Java source/preview content remains present, reveal content stays opaque, and there is no horizontal overflow.
+- Runtime requests: no off-origin request, failed request, page error, or console error during the viewport and interaction passes.
+- Hero image response: HTTP 200, `image/webp`, 1320 × 768 intrinsic dimensions, 59,672 bytes.
+- Local reference audit: 25 unique IDs, seven valid fragment targets, and four existing local assets.
+- HTML diagnostics: legacy macOS Tidy reports only its known lack of HTML5-element recognition; with those legacy notices filtered, it reports no additional diagnostics.
+- `node --check script.js`, `xmllint --noout sitemap.xml`, and `git diff --check`: passed.
+- `npm run verify`: passed, including TypeScript compilation, unit tests, JSON validation, package-hygiene checks, and VSIX packaging.
 
-- Desktop (`1440 × 1000`): editorial split, navigation, proof strip, workbench, and install section retain their intended hierarchy.
-- Mobile (`390 × 844`): navigation collapses, hero copy/art stack, proof cells become two columns, and interactive controls retain touch-sized targets.
-- Narrow mobile (`320 × 720`): no document-level horizontal overflow; the non-wrapping hero headline, command rows, footer links, and code workbench stay within the viewport.
-- Reduced motion: reveal content remains visible and transitions collapse to effectively zero duration.
+## Scope not exercised
+
+- Physical iOS/Android devices and Safari, Firefox, and Edge were not available in this environment. Responsive behavior was driven in Chromium with desktop, touch-sized, portrait, landscape, reduced-motion, JavaScript-disabled, forced-colors, and zoom-proxy contexts.
 
 ## Final result
 
-final result: passed
+Final result: passed.
