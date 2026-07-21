@@ -1,65 +1,61 @@
 # JetForge Landing Page Design QA
 
 - Design direction: editorial/industrial “generation trace”
-- Product visual: `assets/jetforge-workspace-preview.webp`, derived from the genuine workspace capture
-- Social visual: `assets/og-image.png` (metadata only)
-- Verification date: 2026-07-18
+- Header visual: `assets/og-image.png`, shared with Open Graph and Twitter cards
+- Product visual: `assets/jetforge-workspace-preview.webp`, shown in a dedicated actual-workspace section
+- Verification date: 2026-07-22
 - Runtime: deployment-shaped static artifact served over local HTTP and driven in headless Chromium
 
 ## Opening-view requirement
 
-The hero and first content section were measured at each target viewport. On standard desktop, laptop, tablet, and tall-phone viewports, the hero ends exactly at the viewport boundary and the workbench begins immediately after it. No proof strip or partial next-section bar enters the opening view.
+The shared social poster is now the primary header image. A compact product dock keeps the value statement, install action, workflow link, and proof line in the same opening view without competing with the artwork. The hero ends exactly at the viewport boundary and the workbench starts immediately after it.
 
-| Viewport | Hero bottom | Workbench top | Horizontal overflow |
-| --- | ---: | ---: | ---: |
-| 1440 × 900 | 900 px | 900 px | none |
-| 1366 × 768 | 768 px | 768 px | none |
-| 1280 × 720 | 720 px | 720 px | none |
-| 1024 × 768 | 768 px | 768 px | none |
-| 820 × 1180 | 1180 px | 1180 px | none |
-| 390 × 844 | 844 px | 844 px | none |
+| Viewport | Hero bottom | Workbench top | Primary action | Horizontal overflow |
+| --- | ---: | ---: | ---: | ---: |
+| 1440 × 900 | 900 px | 900 px | 798–850 px | none |
+| 1366 × 768 | 768 px | 768 px | 670–722 px | none |
+| 1024 × 768 | 768 px | 768 px | 672–724 px | none |
+| 820 × 1180 | 1180 px | 1180 px | 1064–1116 px | none |
+| 390 × 844 | 844 px | 844 px | 538–590 px | none |
+| 320 × 568 | 568 px | 568 px | 403–447 px | none |
+| 844 × 390 | 390 px | 390 px | 336–380 px | none |
 
 Short screens use dedicated compositions rather than squeezing the desktop layout:
 
-- 375 × 667: both actions and a focused source/preview screenshot strip fit in a 667 px hero.
-- 320 × 568: primary installation action and a focused screenshot strip fit in a 568 px hero; the redundant jump link is omitted.
-- 844 × 390 landscape: compact split layout keeps the complete value statement, both actions, and the full screenshot inside a 390 px hero.
-- 640 × 360 (200% zoom proxy): menu remains available, the page has no horizontal overflow, and the next section stays below the opening.
+- 390 × 844 keeps the full poster, value statement, both actions, and proof line in the opening view.
+- 320 × 568 keeps the full poster and primary installation action; secondary copy and the redundant jump link are omitted.
+- 844 × 390 keeps the complete poster and both actions in a compact landscape composition.
 
 ## Visual review
 
-- Desktop and laptop: balanced editorial copy/screenshot split, intact diagonal seam, complete CTA hierarchy, and no clipping.
-- Tablet: intentionally stacked copy and product-proof stages; the workspace image remains legible and uncropped.
-- Tall mobile: complete headline, explanation, actions, proof line, and product image in one opening view.
-- Short mobile: a deliberate center crop emphasizes the source/preview relationship instead of shrinking the full editor to unreadable size.
-- Full page: alternating paper, ink, and cobalt chapters preserve a clear long-form rhythm; compact mobile dossier rows reduce the longest cream passage.
+- Desktop and laptop: the 1200 × 630 social artwork is uncropped, centered in an ink field, and paired with a two-column product dock.
+- Tablet and phone: the poster preserves its original composition and scales proportionally rather than being cropped into an unreadable fragment.
+- Product proof: the genuine VS Code workspace capture now appears after the workflow section in a large editorial frame with source/output registration marks.
+- Mobile product proof: the real workspace remains complete and uncropped; its caption simplifies to the two most useful labels.
+- Full page: the poster hero, interactive trace, workflow runway, actual-workspace spread, technical dossier, modes, privacy, and install chapters retain the existing paper/ink/cobalt rhythm.
 - Anti-pattern review: passed. The interface avoids generic card grids, glass surfaces, gradient text, glow effects, and decorative terminal clichés.
 
 ## Interaction and accessibility evidence
 
+- The visual headline is duplicated as a visually hidden `h1`, so the image does not become the only accessible source of the page title.
 - Skip link is first in keyboard order and moves focus to `#main`.
-- Mobile menu opens from the keyboard, closes with Escape, restores focus, closes after navigation, and is removed from focus order while hidden.
-- All six workbench tabs support click, Arrow keys, Home, and End with roving `tabindex`.
-- Source-line selection exposes one `aria-pressed="true"` line, one current preview line, and an atomic live status naming the source and preview ranges.
-- LaTeX mode reports `report.latexjet` → `report.tex` and updates its mapping status correctly.
-- Intended interactive targets measured at least 44 × 44 CSS pixels on mobile.
-- Keyboard focus uses a solid 3 px cobalt ring on paper and the context signal color on dark surfaces.
-- Forced-colors mode retains a solid 3 px focus indicator and visible content.
-- Reduced-motion mode leaves all reveal content visible and manual workbench interaction functional.
+- Mobile menu opens from the keyboard, exposes its navigation, closes after navigation, and returns to its compact state.
+- All six workbench tabs remain operable; the LaTeX tab reports `report.latexjet` → `report.tex` and updates its live mapping status.
+- Intended interactive targets remain at least 44 × 44 CSS pixels on mobile.
+- Reduced-motion and forced-colors fallbacks remain intact.
 
 ## Failure-mode and runtime evidence
 
-- JavaScript disabled, desktop and mobile: navigation remains visible, static Java source/preview content remains present, reveal content stays opaque, and there is no horizontal overflow.
-- Runtime requests: no off-origin request, failed request, page error, or console error during the viewport and interaction passes.
-- Hero image response: HTTP 200, `image/webp`, 1320 × 768 intrinsic dimensions, 59,672 bytes.
-- Local reference audit: 25 unique IDs, seven valid fragment targets, and four existing local assets.
-- HTML diagnostics: legacy macOS Tidy reports only its known lack of HTML5-element recognition; with those legacy notices filtered, it reports no additional diagnostics.
-- `node --check script.js`, `xmllint --noout sitemap.xml`, and `git diff --check`: passed.
-- `npm run verify`: passed, including TypeScript compilation, unit tests, JSON validation, package-hygiene checks, and VSIX packaging.
+- Runtime requests for the page, versioned CSS/JavaScript, icon, social-card header, and lazily loaded workspace image returned HTTP 200.
+- Browser console reported no errors or warnings.
+- `assets/og-image.png` retained its 1200 × 630 social-card dimensions.
+- `assets/jetforge-workspace-preview.webp` retained its 1320 × 768 intrinsic dimensions and descriptive alternative text.
+- Seven checked viewport compositions had no horizontal overflow.
+- `node --check script.js`, `git diff --check`, and `npm run verify`: passed.
 
 ## Scope not exercised
 
-- Physical iOS/Android devices and Safari, Firefox, and Edge were not available in this environment. Responsive behavior was driven in Chromium with desktop, touch-sized, portrait, landscape, reduced-motion, JavaScript-disabled, forced-colors, and zoom-proxy contexts.
+- Physical iOS/Android devices and Safari, Firefox, and Edge were not available in this environment. Responsive behavior was driven in Chromium with desktop, tablet, portrait-phone, short-phone, and landscape-phone contexts.
 
 ## Final result
 

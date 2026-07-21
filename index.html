@@ -63,7 +63,7 @@
       }
     </script>
     <script>document.documentElement.classList.add("js")</script>
-    <link rel="stylesheet" href="styles.css?v=20260718">
+    <link rel="stylesheet" href="styles.css?v=20260722">
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -93,33 +93,29 @@
 
     <main id="main" tabindex="-1">
       <section class="hero" id="top" aria-labelledby="hero-title">
-        <div class="hero-grid">
-          <div class="hero-copy reveal">
-            <p class="hero-eyebrow"><span>TXTJET + ECLIPSE JET</span><span>VS CODE / 0.0.21</span></p>
-            <div class="hero-message">
-              <h1 id="hero-title">Your template is only <em>half the story.</em></h1>
-              <p class="hero-lede">JetForge puts source, local previews, and project relationships in one editor—so unfamiliar generation systems become navigable.</p>
-            </div>
-            <div class="hero-footer">
-              <div class="hero-actions">
-                <a class="button button-primary" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install JetForge <span aria-hidden="true">↗</span></a>
-                <a class="trace-link" href="#workbench">Trace source to preview <span aria-hidden="true">↓</span></a>
-              </div>
-              <ul class="hero-proof" aria-label="JetForge at a glance">
-                <li>Free &amp; open source</li>
-                <li>6 output modes</li>
-                <li>No telemetry</li>
-              </ul>
-            </div>
+        <div class="hero-stage">
+          <div class="hero-poster-shell">
+            <figure class="hero-poster reveal">
+              <img src="assets/og-image.png" alt="" width="1200" height="630" fetchpriority="high">
+            </figure>
           </div>
 
-          <figure class="hero-visual reveal">
-            <div class="hero-registration" aria-hidden="true"><span>JF / SOURCE</span><i></i><span>OUTPUT / LOCAL</span></div>
-            <div class="hero-screen">
-              <img src="assets/jetforge-workspace-preview.webp" alt="JetForge in Visual Studio Code showing a TxtJet template beside its local generated-output preview" width="1320" height="768" fetchpriority="high">
+          <div class="hero-dock reveal">
+            <div class="hero-dock-copy">
+              <p class="hero-eyebrow"><span>TXTJET + ECLIPSE JET</span><span>VS CODE / 0.0.21</span></p>
+              <h1 class="visually-hidden" id="hero-title">See the code behind the template.</h1>
+              <p class="hero-lede">Source, local previews, and project relationships in one editor—so unfamiliar generation systems become navigable.</p>
             </div>
-            <figcaption><span>Actual JetForge workspace</span><span>Template source ↔ local preview</span></figcaption>
-          </figure>
+            <div class="hero-actions">
+              <a class="button button-primary" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install JetForge <span aria-hidden="true">↗</span></a>
+              <a class="trace-link" href="#workbench">Explore the workflow <span aria-hidden="true">↓</span></a>
+            </div>
+            <ul class="hero-proof" aria-label="JetForge at a glance">
+              <li>Free &amp; open source</li>
+              <li>6 output modes</li>
+              <li>No telemetry</li>
+            </ul>
+          </div>
         </div>
       </section>
 
@@ -188,6 +184,21 @@
           <li class="reveal"><span>03</span><div><p class="runway-verb">Check</p><h3>Bring failures home.</h3><p>Local checks and configured compiler diagnostics map parseable problems back to source.</p></div><b>Validate</b></li>
           <li class="reveal"><span>04</span><div><p class="runway-verb">Make</p><h3>Generate with context.</h3><p>Preview, compare, and write output while known ranges keep both sides aligned.</p></div><b>Generate</b></li>
         </ol>
+      </section>
+
+      <section class="workspace-proof" aria-labelledby="workspace-proof-title">
+        <div class="workspace-proof-heading reveal">
+          <p class="workspace-proof-label">Actual product / no mockup</p>
+          <h2 id="workspace-proof-title">The whole system, in sight.</h2>
+          <p>JetForge keeps the template, its include graph, and the generated result close enough to reason about together. This is the real extension running in VS Code.</p>
+        </div>
+        <figure class="workspace-visual reveal">
+          <div class="workspace-registration" aria-hidden="true"><span>JF / SOURCE</span><i></i><span>OUTPUT / LOCAL</span></div>
+          <div class="workspace-screen">
+            <img src="assets/jetforge-workspace-preview.webp" alt="JetForge in Visual Studio Code showing a TxtJet template beside its local generated-output preview" width="1320" height="768" loading="lazy">
+          </div>
+          <figcaption><span>Include-aware workspace</span><span>Template source ↔ local preview</span><span>VS Code / JetForge 0.0.21</span></figcaption>
+        </figure>
       </section>
 
       <section class="capabilities" id="capabilities" aria-labelledby="capabilities-title">
@@ -294,6 +305,6 @@
       <nav aria-label="Footer navigation"><a href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Marketplace</a><a href="https://github.com/Elsyvien/JetForge#readme">Docs</a><a href="https://github.com/Elsyvien/JetForge/blob/main/CHANGELOG.md">Changelog</a><a href="https://github.com/Elsyvien/JetForge/blob/main/SUPPORT.md">Support</a><a href="https://github.com/Elsyvien/JetForge/issues">Issues</a><a href="#top">Back to top ↑</a></nav>
     </footer>
 
-    <script src="script.js?v=20260718"></script>
+    <script src="script.js?v=20260722"></script>
   </body>
 </html>
