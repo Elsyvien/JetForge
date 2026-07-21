@@ -187,6 +187,53 @@ function initWorkbench() {
   workbench.classList.add("is-ready");
 }
 
+function initHeroMarkMotion() {
+  const mark = document.querySelector(".hero-mark");
+  const stage = document.querySelector(".hero-j-stage");
+  if (!mark || !stage) return;
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+  let animationFrame = 0;
+  let pointerX = 0;
+  let pointerY = 0;
+
+  function render() {
+    animationFrame = 0;
+    mark.style.setProperty("--j-x", `${pointerX * 12}px`);
+    mark.style.setProperty("--j-y", `${pointerY * 9}px`);
+    mark.style.setProperty("--j-rx", `${pointerY * -2.6}deg`);
+    mark.style.setProperty("--j-ry", `${pointerX * 4.2}deg`);
+    mark.style.setProperty("--trace-x", `${pointerX * -5}px`);
+    mark.style.setProperty("--trace-y", `${pointerY * -3}px`);
+  }
+
+  function queueRender() {
+    if (!animationFrame) animationFrame = requestAnimationFrame(render);
+  }
+
+  function reset() {
+    pointerX = 0;
+    pointerY = 0;
+    queueRender();
+  }
+
+  mark.addEventListener("pointermove", event => {
+    if (reducedMotion.matches || !finePointer.matches) return;
+    const bounds = mark.getBoundingClientRect();
+    pointerX = ((event.clientX - bounds.left) / bounds.width - .5) * 2;
+    pointerY = ((event.clientY - bounds.top) / bounds.height - .5) * 2;
+    queueRender();
+  }, { passive: true });
+  mark.addEventListener("pointerleave", reset, { passive: true });
+  window.addEventListener("pointermove", event => {
+    if (!mark.contains(event.target)) reset();
+  }, { passive: true });
+  window.addEventListener("blur", reset);
+  reducedMotion.addEventListener("change", reset);
+  finePointer.addEventListener("change", reset);
+}
+
 function initMenu() {
   const header = document.querySelector("[data-header]");
   const toggle = document.querySelector(".menu-toggle");
@@ -294,7 +341,7 @@ function initHeaderState() {
   window.addEventListener("scroll", update, { passive: true });
 }
 
-[initWorkbench, initMenu, initReveal, initActiveNavigation, initHeaderState].forEach(initialize => {
+[initWorkbench, initHeroMarkMotion, initMenu, initReveal, initActiveNavigation, initHeaderState].forEach(initialize => {
   try {
     initialize();
   } catch (error) {

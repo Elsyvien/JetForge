@@ -1,54 +1,49 @@
 # JetForge Landing Page Design QA
 
 - Design direction: editorial/industrial “generation trace”
-- Live hero: native HTML/CSS composition with paper/ink split, typographic headline, generated `J`, and source traces
-- Social card: `assets/og-image.png`, retained for Open Graph, Twitter, and structured metadata only
-- Product visual: `assets/jetforge-workspace-preview.webp`, shown unframed in the real-workspace section
+- Visual source of truth: `/var/folders/zw/dpc00g_j087dzk52hdhbsvkm0000gn/T/codex-clipboard-4f25c316-ce32-470c-b53a-ca5a63694aef.png`
+- Implemented artwork: `assets/hero-j.webp`, isolated from the reference rather than embedding the complete social card
+- Social card: `assets/og-image.png`, retained for Open Graph, Twitter, and structured metadata
 - Verification date: 2026-07-22
-- Runtime: deployment-shaped static artifact served over local HTTP and driven in headless Chromium
+- Runtime: deployment-shaped static artifact served over local HTTP and inspected in the Codex in-app browser
 
-## Opening view
+## Reference comparison
 
-The desktop-first hero is a live layout rather than an embedded social card. Its real heading, value statement, install action, demo link, and proof line fit in the opening desktop viewport. The diagonal split and generated `J` carry the same visual idea as the social card without duplicating the raster asset on the page.
+- Desktop viewport: 1440 × 900
+- Narrow viewport: 390 × 844
+- Final desktop capture: `/tmp/jetforge-design-qa/hero-desktop-final.png`
+- Full comparison: `/tmp/jetforge-design-qa/full-comparison.png`
+- Focused J comparison: `/tmp/jetforge-design-qa/j-comparison.png`
 
-At 390 × 844, the content and artwork stack deliberately. The primary action remains in the opening view and the CSS artwork continues below it instead of squeezing the desktop composition into a miniature poster.
+The reference and implementation were reviewed together in both full-layout and focused artwork comparisons. The implementation preserves the reference J’s angled top cap, straight stem, rounded hook, lavender edge, violet material, and deep lower shading. The live page retains its tighter desktop-first composition and uses native copy, controls, traces, and layout instead of rasterizing the complete card.
 
-The checked 1440 × 900 and 390 × 844 compositions had no horizontal overflow.
+## Motion review
 
-## Distilled structure
+- The J compiles into place once with a short scale/translation entrance.
+- Two clipped, screen-blended phase echoes travel in opposite directions during the entrance, then disappear completely.
+- Fine-pointer movement applies restrained 3D rotation and translation to the J while the circuit traces counter-shift at a shallower depth.
+- Pointer exit and window blur restore the neutral transform.
+- Reduced-motion mode hides the phase echoes, reduces animation duration to 0.01 ms, and keeps the J transform static.
 
-The page now has four decisions: understand the promise, try the mapping demo, inspect the real workspace, and install. The six-row feature dossier, standalone output-mode chapter, standalone privacy chapter, three-step install route, and two footer links were removed. Essential feature coverage remains in three short proof points, one output-mode line, and the documentation link.
+## Layout and runtime evidence
 
-The desktop page is 4,017 CSS pixels tall at 1440 × 900. The demo heading and full interactive workbench fit together in one viewport.
+- The 1440 × 900 hero matches the card’s split-paper composition without introducing a frame around the J.
+- The 390 × 844 layout stacks cleanly, keeps the primary action visible, and introduces no horizontal overflow.
+- The J asset loaded at its expected 1536 × 1024 intrinsic size.
+- Desktop pointer motion produced a non-zero 3D transform and returned to the identity transform on exit.
+- Browser console: no warnings or errors.
+- `document.documentElement.scrollWidth === document.documentElement.clientWidth` at both checked widths.
+- Social metadata continues to reference `assets/og-image.png`.
 
-## Visual review
+## Accessibility evidence
 
-- Desktop: the typographic statement is the focal point; one generated `J`, two traces, and the diagonal seam reinforce source-to-output transformation without competing with the copy.
-- Product proof: the genuine VS Code capture sits directly on the paper grid. The former dark wrapper, purple inset outline, and blue offset shadow were removed.
-- Social sharing: the existing 1200 × 630 social card remains referenced by Open Graph, Twitter, and schema metadata.
-- Full page: duplicate workflow exposition and dedicated secondary chapters were removed. The page now moves directly from proposition to demo, workspace proof, and installation.
-- Anti-pattern review: passed. The page avoids generic card grids, glass surfaces, decorative terminal clichés, and a rasterized text hero.
-
-## Interaction and accessibility evidence
-
-- The visual headline is a real `h1`; the hero does not depend on an image to communicate its title.
-- Hero elements enter once with staggered opacity/transform motion; two trace lines draw toward the generated mark.
-- Workbench mode changes and source-line mappings use brief transform/opacity feedback.
-- Button press feedback is immediate and uses a subtle scale change.
-- Skip-link, mobile-menu keyboard behavior, workbench tabs, live mapping status, and 44 × 44 CSS-pixel interactive targets remain intact.
-- Reduced-motion mode reports zero animations longer than 10 ms.
-
-## Runtime evidence
-
-- Page assets returned successfully over local HTTP and the browser console reported no errors.
-- The hero contains no image while `og:image` continues to reference `assets/og-image.png`.
-- The workspace screenshot has no outer shadow, border, or generated inset frame.
-- Desktop, narrow, normal-motion interaction, and reduced-motion Playwright checks passed.
-- `git diff --check` and `npm run verify`: passed.
+- The hero message remains a real `h1`; the decorative J images use empty alternative text.
+- Skip-link, mobile-menu keyboard behavior, workbench tabs, live mapping status, and minimum target sizing remain intact.
+- Reduced-motion behavior was exercised through the browser media emulation and passed.
 
 ## Scope not exercised
 
-Physical mobile devices and Safari, Firefox, and Edge were not available. Responsive behavior was driven in Chromium.
+Physical mobile devices and Safari, Firefox, and Edge were not available. Responsive behavior was checked in Chromium through the Codex in-app browser.
 
 ## Final result
 
