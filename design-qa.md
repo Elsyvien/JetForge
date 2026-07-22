@@ -1,50 +1,46 @@
 # JetForge Landing Page Design QA
 
-- Design direction: editorial/industrial “generation trace”
-- Visual source of truth: `/var/folders/zw/dpc00g_j087dzk52hdhbsvkm0000gn/T/codex-clipboard-4f25c316-ce32-470c-b53a-ca5a63694aef.png`
-- Implemented artwork: `assets/hero-j.webp`, isolated from the reference rather than embedding the complete social card
-- Social card: `assets/og-image.png`, retained for Open Graph, Twitter, and structured metadata
-- Verification date: 2026-07-22
-- Runtime: deployment-shaped static artifact served over local HTTP and inspected in the Codex in-app browser
+## Comparison target
 
-## Reference comparison
+- Source visual truth: `assets/og-image.png` (1200 × 630 px)
+- User-reported divider state: `/var/folders/zw/dpc00g_j087dzk52hdhbsvkm0000gn/T/TemporaryItems/NSIRD_screencaptureui_oYkMsU/Bildschirmfoto 2026-07-22 um 01.58.09.png`
+- Implementation URL: `http://127.0.0.1:4173/`
+- Settled implementation capture: `/tmp/jetforge-design-qa-2/circuit-1200x630.png`
+- Active-motion capture: `/tmp/jetforge-design-qa-2/circuit-active-final.png`
+- Full comparison: `/tmp/jetforge-design-qa-2/circuit-full-comparison.png`
+- Focused J comparison: `/tmp/jetforge-design-qa-2/circuit-focused-comparison.png`
+- Browser viewport: 1200 × 630 CSS px, desktop, normal motion, top of page
+- Captured implementation: 1185 × 622 px; the 1200 × 630 source was normalized to 1185 × 622 for the comparison because the in-app browser reserved scrollbar space
 
-- Desktop viewport: 1440 × 900
-- Narrow viewport: 390 × 844
-- Final desktop capture: `/tmp/jetforge-design-qa/hero-desktop-final.png`
-- Full comparison: `/tmp/jetforge-design-qa/full-comparison.png`
-- Focused J comparison: `/tmp/jetforge-design-qa/j-comparison.png`
+## Findings
 
-The reference and implementation were reviewed together in both full-layout and focused artwork comparisons. The implementation preserves the reference J’s angled top cap, straight stem, rounded hook, lavender edge, violet material, and deep lower shading. The live page retains its tighter desktop-first composition and uses native copy, controls, traces, and layout instead of rasterizing the complete card.
+No actionable P0, P1, or P2 findings remain.
 
-## Motion review
+- Fonts and typography: the implementation retains the source’s editorial serif/sans hierarchy and italic blue emphasis. The runtime header and narrower copy column are intentional website adaptations.
+- Spacing and layout rhythm: the diagonal split, J scale, and vertical output label follow the source. At 1200 × 630 the website header consumes vertical space that does not exist in the social card; the focused artwork comparison therefore carries more weight than the full-view crop.
+- Colors and visual tokens: the hero underlay and artwork panel both resolve to `rgb(4, 4, 20)`. The former dark divider strip is gone.
+- Image quality and asset fidelity: the base J keeps the exact beveled violet card artwork. A separate transparent WebP is used only for animated phase echoes, preventing rectangular background flashes. The left trace bundle, right bracket, and lower tail are transparent crops of the actual social-card artwork rather than CSS approximations.
+- Copy and content: the live hero keeps the current product promise and actions; the social card is used as visual and motion direction rather than rasterized wholesale.
+- Motion: the J has a slow material-breathing cycle, recurring three-phase compile slices, pointer-reactive depth, and a faster retrace when the pointer enters the artwork. The card-derived trace bundle draws left-to-right, the bracket resolves top-to-bottom, and the lower tail follows as the outgoing signal. All motion uses transforms, opacity, clip paths, and filters.
+- Responsive behavior: 390 × 844 has zero horizontal overflow and keeps the primary CTA visible before the artwork.
+- Accessibility: reduced-motion mode hides all echoes, reduces animation duration to 0.01 ms, and locks the 3D stage to a static transform.
 
-- The J compiles into place once with a short scale/translation entrance.
-- Two clipped, screen-blended phase echoes travel in opposite directions during the entrance, then disappear completely.
-- Fine-pointer movement applies restrained 3D rotation and translation to the J while the circuit traces counter-shift at a shallower depth.
-- Pointer exit and window blur restore the neutral transform.
-- Reduced-motion mode hides the phase echoes, reduces animation duration to 0.01 ms, and keeps the J transform static.
+## Comparison history
 
-## Layout and runtime evidence
+- [P2] Divider color mismatch. Evidence: the user screenshot showed a vertical navy strip between the paper diagonal and the black artwork field. Fix: introduced one `--hero-ink` token and applied it to the hero underlay, mark panel, and trace nodes. Post-fix evidence: both browser-computed backgrounds are `rgb(4, 4, 20)` and the settled capture shows a continuous field.
+- [P2] Opaque phase echoes exposed rectangular image bands during the pointer-triggered pass. Fix: generated `assets/hero-j-alpha.webp` from the supplied J artwork and assigned it only to the three echo layers. Post-fix evidence: `/tmp/jetforge-design-qa-2/hero-active-final.png` shows the active state without rectangular seams.
+- [P2] The first animation pass used generic straight traces and did not carry over the social card's distinctive brackets. Fix: extracted three transparent circuit assets from `assets/og-image.png`, positioned them around the live J, and animated their source-to-output reveal. Post-fix evidence: `/tmp/jetforge-design-qa-2/circuit-focused-comparison.png` shows the real source bracket and line language in both views.
 
-- The 1440 × 900 hero matches the card’s split-paper composition without introducing a frame around the J.
-- The 390 × 844 layout stacks cleanly, keeps the primary action visible, and introduces no horizontal overflow.
-- The J asset loaded at its expected 1536 × 1024 intrinsic size.
-- Desktop pointer motion produced a non-zero 3D transform and returned to the identity transform on exit.
-- Browser console: no warnings or errors.
-- `document.documentElement.scrollWidth === document.documentElement.clientWidth` at both checked widths.
-- Social metadata continues to reference `assets/og-image.png`.
+## Verification
 
-## Accessibility evidence
-
-- The hero message remains a real `h1`; the decorative J images use empty alternative text.
-- Skip-link, mobile-menu keyboard behavior, workbench tabs, live mapping status, and minimum target sizing remain intact.
-- Reduced-motion behavior was exercised through the browser media emulation and passed.
-
-## Scope not exercised
-
-Physical mobile devices and Safari, Firefox, and Edge were not available. Responsive behavior was checked in Chromium through the Codex in-app browser.
+- Desktop and narrow browser captures: passed
+- Pointer-enter compile pass and pointer-exit reset: passed
+- Card-derived bracket and trace reveal: passed
+- Console warnings/errors: none
+- Horizontal overflow at checked widths: none
+- Reduced-motion emulation: passed
+- `git diff --check` and `node --check script.js`: passed
 
 ## Final result
 
-Final result: passed.
+Final result: passed

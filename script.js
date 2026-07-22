@@ -194,6 +194,8 @@ function initHeroMarkMotion() {
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   const finePointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+  const echoes = [...mark.querySelectorAll(".hero-j-echo")];
+  const circuits = [...mark.querySelectorAll(".hero-circuit")];
   let animationFrame = 0;
   let pointerX = 0;
   let pointerY = 0;
@@ -218,6 +220,40 @@ function initHeroMarkMotion() {
     queueRender();
   }
 
+  function retrace() {
+    if (reducedMotion.matches) return;
+    const movements = [
+      ["-1.4rem", "0", ".7rem", "0"],
+      ["1.2rem", "0", "-.55rem", "0"],
+      ["0", "-1rem", "0", "1rem"]
+    ];
+    echoes.forEach((echo, index) => {
+      const [fromX, fromY, toX, toY] = movements[index];
+      echo.animate([
+        { opacity: 0, transform: `translate3d(${fromX}, ${fromY}, 0)` },
+        { opacity: index === 0 ? .62 : .44, offset: .42 },
+        { opacity: 0, transform: `translate3d(${toX}, ${toY}, 0)` }
+      ], {
+        delay: index * 70,
+        duration: 620,
+        easing: "cubic-bezier(.16, 1, .3, 1)"
+      });
+    });
+    const circuitFrames = [
+      [{ clipPath: "inset(0 100% 0 0)", opacity: .18, transform: "translate3d(-.7rem, 0, 0)" }, { clipPath: "inset(0)", opacity: 1, transform: "none" }],
+      [{ clipPath: "inset(0 0 100% 0)", opacity: .16, transform: "translate3d(0, -.7rem, 0)" }, { clipPath: "inset(0)", opacity: 1, transform: "none" }],
+      [{ clipPath: "inset(0 100% 0 0)", opacity: .15, transform: "translate3d(-.45rem, 0, 0)" }, { clipPath: "inset(0)", opacity: 1, transform: "none" }]
+    ];
+    circuits.forEach((circuit, index) => {
+      circuit.animate(circuitFrames[index], {
+        delay: 90 + index * 90,
+        duration: 680,
+        easing: "cubic-bezier(.16, 1, .3, 1)"
+      });
+    });
+  }
+
+  mark.addEventListener("pointerenter", retrace, { passive: true });
   mark.addEventListener("pointermove", event => {
     if (reducedMotion.matches || !finePointer.matches) return;
     const bounds = mark.getBoundingClientRect();
