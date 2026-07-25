@@ -5,6 +5,7 @@ GOAL.md
 design-qa.md
 .playwright-cli/**
 .antigravitycli/**
+.claude/**
 index.html
 styles.css
 script.js

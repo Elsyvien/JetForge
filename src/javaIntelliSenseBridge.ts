@@ -11,6 +11,12 @@ import {
   TxtJetRange,
   parseTxtJetTemplate
 } from "./templateModel";
+import {
+  activeParameterIndex,
+  innermostOpenParen,
+  maskJavaCommentsAndStrings,
+  signatureParameterCount
+} from "./javaSyntax";
 
 export interface TxtJetJavaBridgeProjection {
   preview: TxtJetGeneratedPreview;
@@ -488,7 +494,7 @@ function javaInvocationAt(
 ): { name: string; activeParameter: number } | undefined {
   const masked = maskJavaCommentsAndStrings(block.content);
   const localOffset = clamp(sourceOffset - block.contentRange.start, 0, masked.length);
-  const open = innermostOpenParenBefore(masked, localOffset);
+  const open = innermostOpenParen(masked, localOffset);
   if (open === undefined) {
     return undefined;
   }
@@ -515,43 +521,6 @@ function javaInvocationAt(
     name: masked.slice(nameStart, nameEnd),
     activeParameter: activeParameterIndex(masked.slice(open + 1, localOffset))
   };
-}
-
-function innermostOpenParenBefore(content: string, offset: number): number | undefined {
-  let depth = 0;
-  for (let index = Math.min(offset - 1, content.length - 1); index >= 0; index -= 1) {
-    const char = content[index];
-    if (char === ")") {
-      depth += 1;
-      continue;
-    }
-    if (char === "(") {
-      if (depth === 0) {
-        return index;
-      }
-      depth -= 1;
-    }
-  }
-  return undefined;
-}
-
-function activeParameterIndex(argumentText: string): number {
-  let depth = 0;
-  let parameter = 0;
-  for (const char of argumentText) {
-    if (char === "(" || char === "[" || char === "{") {
-      depth += 1;
-      continue;
-    }
-    if (char === ")" || char === "]" || char === "}") {
-      depth = Math.max(0, depth - 1);
-      continue;
-    }
-    if (char === "," && depth === 0) {
-      parameter += 1;
-    }
-  }
-  return parameter;
 }
 
 function javaIdentifierAt(content: string, offset: number, sourceBase = 0): { name: string; range: TxtJetRange } | undefined {
@@ -606,69 +575,6 @@ function javaMethodSignatureFromMatch(content: string, match: RegExpExecArray): 
     .slice(match.index, signatureEnd)
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function signatureParameterCount(signature: string): number {
-  const params = signature.match(/\((.*)\)/)?.[1].trim();
-  return params ? params.split(",").length : 0;
-}
-
-function maskJavaCommentsAndStrings(content: string): string {
-  const chars = content.split("");
-  let index = 0;
-  while (index < chars.length) {
-    const char = chars[index];
-    const next = chars[index + 1];
-    if (char === "\"" || char === "'") {
-      const quote = char;
-      chars[index] = " ";
-      index += 1;
-      let escaped = false;
-      while (index < chars.length) {
-        const current = chars[index];
-        chars[index] = " ";
-        if (escaped) {
-          escaped = false;
-        } else if (current === "\\") {
-          escaped = true;
-        } else if (current === quote) {
-          index += 1;
-          break;
-        }
-        index += 1;
-      }
-      continue;
-    }
-    if (char === "/" && next === "/") {
-      chars[index] = " ";
-      chars[index + 1] = " ";
-      index += 2;
-      while (index < chars.length && chars[index] !== "\n") {
-        chars[index] = " ";
-        index += 1;
-      }
-      continue;
-    }
-    if (char === "/" && next === "*") {
-      chars[index] = " ";
-      chars[index + 1] = " ";
-      index += 2;
-      while (index < chars.length) {
-        const current = chars[index];
-        const following = chars[index + 1];
-        chars[index] = " ";
-        if (current === "*" && following === "/") {
-          chars[index + 1] = " ";
-          index += 2;
-          break;
-        }
-        index += 1;
-      }
-      continue;
-    }
-    index += 1;
-  }
-  return chars.join("");
 }
 
 function isJavaIdentifierStart(char: string | undefined): boolean {

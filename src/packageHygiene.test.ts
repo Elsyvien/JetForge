@@ -16,6 +16,7 @@ const expectedRuntimeModules = readdirSync("src")
 
 const forbidden = [
   /^\.DS_Store$/,
+  /^\.claude\//,
   /^\.playwright-cli\//,
   /^src\//,
   /^test-fixtures\//,

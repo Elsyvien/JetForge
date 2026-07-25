@@ -1,4 +1,10 @@
 import { normalize } from "node:path";
+import {
+  activeParameterIndex,
+  innermostOpenParen,
+  maskJavaCommentsAndStrings,
+  signatureParameterCount
+} from "./javaSyntax";
 import { parseTxtJetTemplate, TxtJetBlock, TxtJetRange } from "./templateModel";
 
 export interface TxtJetJavaWorkspaceSource {
@@ -625,93 +631,6 @@ function attributeValueRange(text: string, attributeRange: TxtJetRange, value: s
   return offset === -1
     ? attributeRange
     : { start: attributeRange.start + offset, end: attributeRange.start + offset + value.length };
-}
-
-function innermostOpenParen(content: string, offset: number): number | undefined {
-  let depth = 0;
-  for (let index = Math.min(offset - 1, content.length - 1); index >= 0; index -= 1) {
-    if (content[index] === ")") {
-      depth += 1;
-    } else if (content[index] === "(") {
-      if (depth === 0) {
-        return index;
-      }
-      depth -= 1;
-    }
-  }
-  return undefined;
-}
-
-function activeParameterIndex(argumentText: string): number {
-  let depth = 0;
-  let parameter = 0;
-  for (const char of argumentText) {
-    if (char === "(" || char === "[" || char === "{") {
-      depth += 1;
-    } else if (char === ")" || char === "]" || char === "}") {
-      depth = Math.max(0, depth - 1);
-    } else if (char === "," && depth === 0) {
-      parameter += 1;
-    }
-  }
-  return parameter;
-}
-
-function signatureParameterCount(signature: string): number {
-  const parameters = signature.match(/\((.*)\)/)?.[1].trim();
-  return parameters ? parameters.split(",").length : 0;
-}
-
-function maskJavaCommentsAndStrings(content: string): string {
-  const chars = content.split("");
-  let index = 0;
-  while (index < chars.length) {
-    const char = chars[index];
-    const next = chars[index + 1];
-    if (char === "/" && next === "/") {
-      const start = index;
-      index += 2;
-      while (index < chars.length && chars[index] !== "\n") {
-        index += 1;
-      }
-      mask(chars, start, index);
-    } else if (char === "/" && next === "*") {
-      const start = index;
-      index += 2;
-      while (index < chars.length && !(chars[index] === "*" && chars[index + 1] === "/")) {
-        index += 1;
-      }
-      index = Math.min(chars.length, index + 2);
-      mask(chars, start, index);
-    } else if (char === "\"" || char === "'") {
-      const quote = char;
-      const start = index;
-      index += 1;
-      while (index < chars.length) {
-        if (chars[index] === "\\") {
-          index += 2;
-          continue;
-        }
-        if (chars[index] === quote) {
-          index += 1;
-          break;
-        }
-        index += 1;
-      }
-      mask(chars, start, Math.min(index, chars.length));
-    } else {
-      index += 1;
-    }
-  }
-  return chars.join("");
-}
-
-function mask(chars: string[], start: number, end: number): void {
-  for (let index = start; index < end; index += 1) {
-    if (chars[index] !== "\n" && chars[index] !== "\r") {
-      chars[index] = " ";
-    }
-  }
 }
 
 function isIdentifierPart(value: string | undefined): boolean {

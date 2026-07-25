@@ -17,3 +17,4 @@ private-examples/
 .DS_Store
 *.log
 /.antigravitycli
+/.claude
