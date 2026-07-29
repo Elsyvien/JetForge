@@ -69,7 +69,7 @@ This checks release metadata, runs the unit/package gate and a real VS Code Exte
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.21.vsix
+code --install-extension txtjet-syntax-0.0.22.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.

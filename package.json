@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "JetForge — TxtJet & Eclipse JET",
   "description": "Local-first TxtJet and Eclipse JET tooling for VS Code: highlighting, previews, diagnostics, navigation, and generation.",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",

@@ -7,8 +7,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `npm ci` to reproduce the locked dependency tree.
 - Run `npm run check:release-metadata` and confirm package, lockfile, changelog, README, QA, tag, and VSIX version references agree.
 - Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate, source Extension Host smoke test, packaging, and clean-profile installed-VSIX smoke test pass at the declared VS Code floor.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.21.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.21`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.22.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.22`.
 - Reload VSCode after install.
 
 ## First-Run Experience
