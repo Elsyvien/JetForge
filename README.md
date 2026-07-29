@@ -36,9 +36,10 @@ Java completion, hover, and definition forwarding requires compatible installed 
 - Subtle visual differentiation for template markers, directives, embedded Java, and generated-output regions.
 - Basic brackets, pairs, comments, snippets, diagnostics, and completions.
 - Read-only generated output and generated Java template previews.
+- Per-line generated preview provenance markers for root templates, expanded includes, expressions, skeleton content, and unmapped output, with hover details and Go to Definition.
 - Optional synchronized reveal between visible templates and generated previews where source maps are deterministic.
 - On-demand generated-output writing and previous-generation diffing.
-- Optional IP-XACT preview, generation, diff, validation, snippets, completions, and workspace indexing behind `txtjet.ipxact.enabled`.
+- Optional IP-XACT preview, generation, diff, validation, snippets, workspace indexing, and local-XSD schema intelligence behind `txtjet.ipxact.enabled`.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
 - Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `JetForge Workspace` Explorer view.
@@ -110,6 +111,9 @@ If the VSCode language selector is inconvenient, use the TxtJet commands:
 - `TxtJet: Clear Remembered Target Language`
 - `TxtJet: Clear All Remembered Target Languages`
 - `TxtJet: Toggle Region Background Coloring`
+- `TxtJet: Toggle Generated Preview Provenance Lens`
+- `TxtJet: Show Source for This Output Line`
+- `TxtJet: Show All Contributions for This Output Line`
 
 TxtJet files also show a clickable status bar item for selecting the target language.
 
@@ -169,7 +173,7 @@ The extension reports lightweight TxtJet syntax diagnostics:
 - malformed or empty directives
 - unterminated quoted strings inside directives
 
-Completions are available for template markers after typing `<`, plus directive names, common directive attributes, configured project metadata attributes, and directive values inside `<%@ ... %>` blocks. Directive value completions suggest local include files, skeleton files, common Java imports, reasonable `@jet` package/class values, and `ipxact` metadata values without scanning broadly outside the template directory and configured resolution paths. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Local helper methods declared in `<%! ... %>` blocks also support Find All References, conservative Rename Symbol, and Signature Help for direct helper calls and `this.helper(...)` calls. Generated-output regions get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches. Matched IP-XACT generated-output regions also offer local XML node snippets for common IP-XACT elements.
+Completions are available for template markers after typing `<`, plus directive names, common directive attributes, configured project metadata attributes, and directive values inside `<%@ ... %>` blocks. Directive value completions suggest local include files, skeleton files, common Java imports, reasonable `@jet` package/class values, and `ipxact` metadata values without scanning broadly outside the template directory and configured resolution paths. Inside scriptlet, expression, and declaration blocks, JetForge forwards completion, hover, and Go to Definition requests through the generated Java preview to installed Java tooling, with local fallback completions when external Java tooling does not answer virtual preview documents. Local helper methods declared in `<%! ... %>` blocks also support Find All References, conservative Rename Symbol, and Signature Help for direct helper calls and `this.helper(...)` calls. Generated-output regions get local fallback suggestions for Java, Python, and C/C++ when the selected or detected output mode matches. Matched IP-XACT generated-output regions also offer local XML node snippets for common IP-XACT elements. When `txtjet.ipxact.schemaPaths` points to local XSD files or directories, completions narrow to schema-permitted child elements and attributes, include XSD documentation, preserve a typed namespace prefix, and navigate to declarations with Go to Definition.
 Hover text identifies whether the current region is generated output, a TxtJet marker, directive syntax, or embedded template Java.
 
 Quick Fix actions are available for common diagnostics, including unexpected closing delimiters, missing closing delimiters, empty or malformed directive names, and unterminated directive strings. Missing-reference file creation is limited to the current workspace or explicitly configured include/skeleton roots.
@@ -208,6 +212,19 @@ IP-XACT support is disabled by default. Enable `txtjet.ipxact.enabled`, then mat
 <%@ jet ipxact="true" package="demo.ipxact" class="ComponentTemplate" %>
 ```
 
+For optional schema intelligence, point JetForge at project-owned local XSD files or directories:
+
+```json
+{
+  "txtjet.ipxact.enabled": true,
+  "txtjet.ipxact.schemaPaths": [
+    "${workspaceFolder}/schemas/ieee-1685"
+  ]
+}
+```
+
+JetForge reads at most 256 `.xsd` files from the configured bundle, caches the resulting structural index, and never downloads schemas. Element/attribute completions and documentation are derived from global elements, named or inline complex types, child declarations, attributes, and XSD documentation. Go to Definition works from matched template output regions and the read-only IP-XACT preview. The preview Outline exposes named components, bus interfaces, memory maps, address blocks, registers, and fields as a navigable hierarchy. Recognized validator messages are rewritten with a concise explanation and actionable guidance while retaining the original validator text; related schema declarations are attached when available.
+
 When enabled, these commands become available:
 
 - `TxtJet: Open IP-XACT Preview`
@@ -216,7 +233,7 @@ When enabled, these commands become available:
 - `TxtJet: Validate IP-XACT Output`
 - `TxtJet: Open IP-XACT Template`
 
-IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`; validation runs `txtjet.ipxact.validation.command` against an isolated temporary XML output so overlapping runs cannot overwrite the canonical generated file. The validation command supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic.
+IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`; validation runs `txtjet.ipxact.validation.command` against an isolated temporary XML output so overlapping runs cannot overwrite the canonical generated file. The validation command supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic. Schema indexing supplies editor intelligence and explanations; it is intentionally not a replacement XSD validation engine.
 
 ## Preview And Navigation
 
@@ -238,6 +255,8 @@ TxtJet can open local, read-only preview documents for the active template:
 - `TxtJet: Validate Template With External Compiler`
 
 The generated output preview preserves outer template text, expands relative includes, keeps directives, scriptlets, and declarations visible as language-appropriate comments/placeholders, and renders expressions as readable or syntax-friendly placeholders. Open unsaved include buffers take precedence over their on-disk contents, and already-open root previews refresh when an included file changes. The preview language follows the selected or detected generated-output mode.
+
+Every generated output, generated Java, and IP-XACT preview line has a provenance marker: `R` for root template, `I` for expanded include, `E` for expression, `S` for skeleton token/layout, and `?` for generated or compiler output without a deterministic source range. External-compiler files opened by `TxtJet: Compile Template With External Compiler` inherit origins only for uniquely matching approximation lines; evaluated, repeated, or otherwise ambiguous lines stay honestly unmapped. Hover a marker or output line for its mapping confidence and contributing files; run Go to Definition or `TxtJet: Show Source for This Output Line` to open the primary source. `TxtJet: Show All Contributions for This Output Line` exposes composite origins in a picker. Disable the markers and overview heatmap with `TxtJet: Toggle Generated Preview Provenance Lens` or `txtjet.previews.provenanceLens.enabled`.
 
 The generated Java template preview approximates the Java class that a template compiler would produce. It uses `@jet package`, `class`, and `imports` attributes when present, turns declarations into class members, scriptlets into method-body Java, expressions into `stringBuffer.append(...)`, and outer text into escaped append calls. If `@jet skeleton="..."` points to a local `.skeleton` file, the preview renders through explicit skeleton tokens: `${packageDeclaration}`, `${imports}`, `${class}`, `${members}`, and `${generateMethod}`; open unsaved skeleton buffers take precedence over disk and refresh dependent previews immediately. It is intended for editor inspection and future mapping work, not as a byte-for-byte Eclipse JET compiler output.
 
@@ -270,6 +289,7 @@ VSCode document formatting and format selection also normalize directive attribu
 ## Development Notes
 
 Version 1 does not implement a full Java parser or type checker. Workspace cross-class IntelliSense is a deterministic local index of `@jet class` templates and methods declared in `<%! ... %>` blocks; external `.java` dependencies and advanced Java expressions still depend on installed Java tooling. Java IntelliSense forwarding only runs where a TxtJet source position can be mapped into the generated Java preview. Local helper References and Rename Symbol remain intentionally conservative and only cover helper declarations in `<%! ... %>` plus direct or `this.` call sites. Generated-output suggestions for Java, Python, and C/C++ are local fallbacks, not full language-server results. Auto Detect target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
+The IP-XACT schema index is a deterministic authoring aid for common XSD element, complex-type, child, attribute, and documentation declarations; external validators remain authoritative for full XSD semantics.
 Visual differentiation is parser-backed and local to the editor; it does not change generated output or replace target-language language servers.
 
 Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
@@ -294,6 +314,7 @@ Settings:
 - `txtjet.previews.openBeside`
 - `txtjet.previews.generatedJava.enabled`
 - `txtjet.previews.synchronizedReveal.enabled`
+- `txtjet.previews.provenanceLens.enabled`
 - `txtjet.navigation.includeDefinitions.enabled`
 - `txtjet.resolution.includePaths`
 - `txtjet.resolution.skeletonPaths`
@@ -304,6 +325,7 @@ Settings:
 - `txtjet.compiler.timeoutMs`
 - `txtjet.ipxact.enabled`
 - `txtjet.ipxact.templateGlobs`
+- `txtjet.ipxact.schemaPaths`
 - `txtjet.ipxact.outputDirectory`
 - `txtjet.ipxact.generation.autoOpen`
 - `txtjet.ipxact.validation.command`
@@ -316,6 +338,7 @@ Privacy:
 - The extension runs locally inside VSCode.
 - It does not send source files, template content, diagnostics, or usage data anywhere.
 - Configured external compiler and validator commands run only in trusted workspaces.
+- Configured schema bundles are read locally and are never uploaded or downloaded; external schema paths are disabled in Restricted Mode.
 - Previous-generation diffs retain at most 20 local workspace snapshots per workflow, with a 1 MB limit per snapshot; `TxtJet: Clear Generated Output Snapshots` removes them immediately.
 
 ## Example Files

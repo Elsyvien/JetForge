@@ -9,6 +9,14 @@ export interface TxtJetIpxactMatchOptions {
 export interface TxtJetMappedIpxactProblem extends TxtJetCompilerProblem {
   sourceRange: TxtJetRange;
   mappedFrom: "generated-output";
+  explanation?: TxtJetIpxactValidationExplanation;
+}
+
+export interface TxtJetIpxactValidationExplanation {
+  summary: string;
+  guidance: string;
+  elementName?: string;
+  expectedElements?: string[];
 }
 
 export const DEFAULT_IPXACT_PROBLEM_MATCHER =
@@ -59,9 +67,72 @@ export function mapIpxactProblemsToSource(
       { start: previewOffset, end: previewOffset }
     );
     return sourceRange
-      ? [{ ...problem, sourceRange, mappedFrom: "generated-output" }]
+      ? [{
+        ...problem,
+        sourceRange,
+        mappedFrom: "generated-output",
+        explanation: explainIpxactValidationMessage(problem.message)
+      }]
       : [];
   });
+}
+
+export function explainIpxactValidationMessage(
+  message: string
+): TxtJetIpxactValidationExplanation | undefined {
+  const unexpected = message.match(
+    /(?:Invalid content was found starting with element|Element)\s+['"]([^'"]+)['"]/i
+  );
+  if (unexpected && /(?:Invalid content|This element is not expected)/i.test(message)) {
+    const expectedText = message.match(/One of\s+['"]?(.+?)['"]?\s+is expected/i)?.[1]
+      ?? message.match(/Expected is\s*\(?\s*(.+?)\s*\)?\.?$/i)?.[1]
+      ?? "";
+    const expectedElements = xmlNamesFromValidatorText(expectedText);
+    return {
+      summary: `Element <${localName(unexpected[1])}> is not allowed at this position.`,
+      guidance: expectedElements.length > 0
+        ? `Use one of the schema-permitted children here: ${expectedElements.map((name) => `<${name}>`).join(", ")}.`
+        : "Check the parent element's permitted child order in the configured IP-XACT schema.",
+      elementName: localName(unexpected[1]),
+      expectedElements
+    };
+  }
+
+  const disallowedAttribute = message.match(
+    /Attribute\s+['"]([^'"]+)['"]\s+is not allowed(?: to appear)?(?: in element\s+['"]([^'"]+)['"])?/i
+  );
+  if (disallowedAttribute) {
+    const elementName = localName(disallowedAttribute[2] ?? "");
+    return {
+      summary: `Attribute ${localName(disallowedAttribute[1])} is not permitted${elementName ? ` on <${elementName}>` : ""}.`,
+      guidance: "Remove the attribute or use one declared for this element by the configured IP-XACT schema.",
+      elementName: elementName || undefined
+    };
+  }
+
+  const invalidValue = message.match(
+    /['"]([^'"]+)['"]\s+is not a valid value for\s+['"]([^'"]+)['"]/i
+  );
+  if (invalidValue) {
+    return {
+      summary: `Value “${invalidValue[1]}” does not match schema type ${localName(invalidValue[2])}.`,
+      guidance: "Replace it with a value accepted by the element or attribute type in the configured schema."
+    };
+  }
+
+  const missingDeclaration = message.match(
+    /(?:Cannot find the declaration of element|No matching global declaration available for the validation root)\s+['"]?([^'".\s]+)['"]?/i
+  );
+  if (missingDeclaration) {
+    const elementName = localName(missingDeclaration[1]);
+    return {
+      summary: `No schema declaration was found for <${elementName}>.`,
+      guidance: "Check the element namespace and confirm that the configured schema bundle matches this IP-XACT version.",
+      elementName
+    };
+  }
+
+  return undefined;
 }
 
 export function globMatchesPath(pattern: string, fileName: string): boolean {
@@ -150,4 +221,21 @@ function lineColumnOffset(text: string, line: number, column: number): number {
 function lineEndOffset(text: string, lineStart: number): number {
   const end = text.indexOf("\n", lineStart);
   return end === -1 ? text.length : end;
+}
+
+function xmlNamesFromValidatorText(value: string): string[] {
+  const names = new Set<string>();
+  const pattern = /(?:\{[^}]*\})?([A-Za-z_][\w.-]*(?::[A-Za-z_][\w.-]*)?)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value))) {
+    const name = localName(match[1]);
+    if (!["one", "of", "is", "expected"].includes(name.toLowerCase())) {
+      names.add(name);
+    }
+  }
+  return [...names].slice(0, 8);
+}
+
+function localName(value: string): string {
+  return value.slice(value.lastIndexOf(":") + 1).replace(/[{}(),]/g, "");
 }

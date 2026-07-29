@@ -39,7 +39,8 @@ assert.deepEqual(untrustedWorkspaces?.restrictedConfigurations, [
   "txtjet.generation.outputDirectory",
   "txtjet.ipxact.validation.command",
   "txtjet.ipxact.validation.runOnSave",
-  "txtjet.ipxact.outputDirectory"
+  "txtjet.ipxact.outputDirectory",
+  "txtjet.ipxact.schemaPaths"
 ]);
 for (const command of [
   "txtjet.compileTemplate",
@@ -100,6 +101,7 @@ assert.ok(contributes.configuration.properties["txtjet.previews.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.openBeside"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.generatedJava.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.previews.synchronizedReveal.enabled"]);
+assert.ok(contributes.configuration.properties["txtjet.previews.provenanceLens.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.navigation.includeDefinitions.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.resolution.includePaths"]);
 assert.ok(contributes.configuration.properties["txtjet.resolution.skeletonPaths"]);
@@ -111,6 +113,7 @@ assert.ok(contributes.configuration.properties["txtjet.compiler.timeoutMs"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.directiveMetadata"]);
 assert.ok(contributes.configuration.properties["txtjet.ipxact.enabled"]);
 assert.ok(contributes.configuration.properties["txtjet.ipxact.templateGlobs"]);
+assert.ok(contributes.configuration.properties["txtjet.ipxact.schemaPaths"]);
 assert.ok(contributes.configuration.properties["txtjet.ipxact.outputDirectory"]);
 assert.ok(contributes.configuration.properties["txtjet.ipxact.generation.autoOpen"]);
 assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.command"]);
@@ -138,6 +141,7 @@ for (const setting of [
   "txtjet.diagnostics.compiler.problemMatcher",
   "txtjet.ipxact.enabled",
   "txtjet.ipxact.templateGlobs",
+  "txtjet.ipxact.schemaPaths",
   "txtjet.ipxact.outputDirectory",
   "txtjet.ipxact.validation.command"
 ]) {
@@ -146,6 +150,14 @@ for (const setting of [
 assert.ok(contributedCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(commandPaletteCommands.has("txtjet.toggleVisualDifferentiation"));
 assert.ok(activationEvents.has("onCommand:txtjet.toggleVisualDifferentiation"));
+assert.ok(contributedCommands.has("txtjet.togglePreviewProvenanceLens"));
+assert.ok(commandPaletteCommands.has("txtjet.togglePreviewProvenanceLens"));
+assert.ok(activationEvents.has("onCommand:txtjet.togglePreviewProvenanceLens"));
+for (const command of ["txtjet.showPreviewLineSource", "txtjet.showPreviewLineContributions"]) {
+  assert.ok(contributedCommands.has(command));
+  assert.ok(commandPaletteCommands.has(command));
+  assert.ok(activationEvents.has(`onCommand:${command}`));
+}
 
 for (const item of contributes.menus.commandPalette as Array<{ command: string; when?: string }>) {
   if (item.when?.includes("resourceExtname")) {
@@ -156,6 +168,9 @@ for (const item of contributes.menus.commandPalette as Array<{ command: string; 
 
 for (const command of [
   "txtjet.openGeneratedOutputPreview",
+  "txtjet.togglePreviewProvenanceLens",
+  "txtjet.showPreviewLineSource",
+  "txtjet.showPreviewLineContributions",
   "txtjet.openGeneratedJavaPreview",
   "txtjet.openPreviewBesideSource",
   "txtjet.openRegionInGeneratedPreview",

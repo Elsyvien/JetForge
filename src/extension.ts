@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute as isAbsolutePath, join, normalize, relative } from "node:path";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
@@ -37,8 +37,22 @@ import {
   DEFAULT_IPXACT_PROBLEM_MATCHER,
   IPXACT_NODE_COMPLETIONS,
   isIpxactTemplate,
-  mapIpxactProblemsToSource
+  mapIpxactProblemsToSource,
+  TxtJetMappedIpxactProblem
 } from "./ipxact";
+import {
+  buildIpxactSchemaIndex,
+  ipxactGeneratedStructures,
+  ipxactXmlContextAt,
+  ipxactXmlNameAt,
+  schemaAttributesFor,
+  schemaChildrenFor,
+  schemaElementsNamed,
+  TxtJetIpxactSchemaAttribute,
+  TxtJetIpxactSchemaElement,
+  TxtJetIpxactSchemaIndex,
+  TxtJetIpxactStructure
+} from "./ipxactSchema";
 import {
   effectiveCompletionTarget,
   isJavaKeywordCompletionName,
@@ -63,6 +77,12 @@ import {
 import { synchronizedPreviewRange } from "./previewSync";
 import { VersionedPreviewCache } from "./previewCache";
 import {
+  buildCompilerOutputProvenance,
+  previewLineProvenance,
+  primaryProvenance,
+  provenanceAtPreviewOffset
+} from "./provenance";
+import {
   classifyTxtJetRegionAt,
   classifyTxtJetRegions,
   previewKindForTxtJetRegion,
@@ -83,6 +103,8 @@ import {
   TxtJetBlock,
   TxtJetDirective,
   TxtJetGeneratedPreview,
+  TxtJetProvenance,
+  TxtJetProvenanceKind,
   TxtJetRange
 } from "./templateModel";
 import {
@@ -137,6 +159,8 @@ let activeWorkspaceModel: TxtJetWorkspaceModel | undefined;
 let requestWorkspaceModelRefresh: ((invalidate?: boolean, immediate?: boolean) => Promise<boolean>) | undefined;
 let workspaceModelGeneration = 0;
 let javaWorkspaceIndexCache: { key: string; index: TxtJetJavaWorkspaceIndex } | undefined;
+const ipxactSchemaIndexCache = new Map<string, TxtJetIpxactSchemaIndex>();
+const compilerOutputSources = new Map<string, string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   activeWorkspaceModel = undefined;
@@ -154,6 +178,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const previewProvider = new TxtJetPreviewProvider();
   const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
   const visualDifferentiator = new TxtJetVisualDifferentiator();
+  const provenanceLens = new TxtJetProvenanceLens();
   const previewSynchronizer = new TxtJetPreviewSynchronizer();
   const workspaceTreeProvider = new TxtJetWorkspaceTreeProvider();
   const workspaceTreeView = vscode.window.createTreeView("txtjetWorkspace", {
@@ -163,6 +188,7 @@ export function activate(context: vscode.ExtensionContext): void {
   workspaceTreeView.message = "Indexing TxtJet workspace files…";
   context.subscriptions.push(
     visualDifferentiator,
+    provenanceLens,
     previewSynchronizer,
     previewProvider,
     generatedDiffProvider,
@@ -325,6 +351,29 @@ export function activate(context: vscode.ExtensionContext): void {
       await config.update("visualDifferentiation.enabled", nextEnabled, target);
       visualDifferentiator.refreshAll();
       vscode.window.setStatusBarMessage(`TxtJet region background coloring ${nextEnabled ? "enabled" : "disabled"}.`, 4000);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.togglePreviewProvenanceLens", async () => {
+      const activeDocument = vscode.window.activeTextEditor?.document;
+      const provenance = activeDocument ? provenanceContext(activeDocument) : undefined;
+      const resource = provenance?.sourceDocument.uri ?? activeDocument?.uri;
+      const config = vscode.workspace.getConfiguration(CONFIG_SECTION, resource);
+      const nextEnabled = !config.get<boolean>("previews.provenanceLens.enabled", true);
+      const target = vscode.workspace.workspaceFolders?.length
+        ? vscode.ConfigurationTarget.Workspace
+        : vscode.ConfigurationTarget.Global;
+      await config.update("previews.provenanceLens.enabled", nextEnabled, target);
+      provenanceLens.refreshAll();
+      vscode.window.setStatusBarMessage(`TxtJet generated preview provenance lens ${nextEnabled ? "enabled" : "disabled"}.`, 4000);
+    })
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("txtjet.showPreviewLineSource", async () => {
+      await showPreviewLineSource();
+    }),
+    vscode.commands.registerCommand("txtjet.showPreviewLineContributions", async () => {
+      await showPreviewLineContributions();
     })
   );
   context.subscriptions.push(
@@ -627,6 +676,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerCodeLensProvider());
   context.subscriptions.push(registerDefinitionProvider());
   context.subscriptions.push(registerHoverProvider());
+  context.subscriptions.push(registerPreviewProvenanceProviders());
+  context.subscriptions.push(registerIpxactPreviewSchemaProviders());
   context.subscriptions.push(registerReferenceProvider());
   context.subscriptions.push(registerRenameProvider());
   context.subscriptions.push(registerSignatureHelpProvider());
@@ -642,12 +693,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       updateStatusBar(statusBar, editor?.document, context);
       visualDifferentiator.refreshEditor(editor);
+      provenanceLens.refreshEditor(editor);
     })
   );
   context.subscriptions.push(
     vscode.window.onDidChangeVisibleTextEditors((editors) => {
       for (const editor of editors) {
         visualDifferentiator.refreshEditor(editor);
+        provenanceLens.refreshEditor(editor);
       }
     })
   );
@@ -1143,6 +1196,103 @@ function outputDecoration(backgroundColor: string, overviewRulerColor: string): 
   });
 }
 
+class TxtJetProvenanceLens implements vscode.Disposable {
+  private readonly decorations: Record<TxtJetProvenanceKind, vscode.TextEditorDecorationType> = {
+    root: provenanceDecoration("R", new vscode.ThemeColor("editorCodeLens.foreground"), "rgba(86, 156, 214, 0.38)"),
+    include: provenanceDecoration("I", new vscode.ThemeColor("charts.orange"), "rgba(206, 145, 120, 0.55)"),
+    expression: provenanceDecoration("E", new vscode.ThemeColor("charts.green"), "rgba(78, 201, 176, 0.55)"),
+    skeleton: provenanceDecoration("S", new vscode.ThemeColor("charts.purple"), "rgba(197, 134, 192, 0.55)"),
+    unmapped: provenanceDecoration("?", new vscode.ThemeColor("disabledForeground"), "rgba(128, 128, 128, 0.35)")
+  };
+  private readonly disposable: vscode.Disposable;
+
+  constructor() {
+    this.disposable = vscode.Disposable.from(
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        if (isPreviewDocument(event.document) || isCompilerOutputDocument(event.document) || isTxtJetFile(event.document)) {
+          this.refreshAll();
+        }
+      }),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration(`${CONFIG_SECTION}.previews.provenanceLens.enabled`)) {
+          this.refreshAll();
+        }
+      })
+    );
+  }
+
+  refreshAll(): void {
+    for (const editor of vscode.window.visibleTextEditors) {
+      this.refreshEditor(editor);
+    }
+  }
+
+  refreshEditor(editor?: vscode.TextEditor): void {
+    if (!editor) {
+      return;
+    }
+    const context = provenanceContext(editor.document);
+    if (!context) {
+      return;
+    }
+    const config = vscode.workspace.getConfiguration(CONFIG_SECTION, context?.sourceDocument.uri);
+    if (!context || !config.get<boolean>("previews.provenanceLens.enabled", true)) {
+      this.clearEditor(editor);
+      return;
+    }
+
+    const grouped: Record<TxtJetProvenanceKind, vscode.DecorationOptions[]> = {
+      root: [],
+      include: [],
+      expression: [],
+      skeleton: [],
+      unmapped: []
+    };
+    for (const line of previewLineProvenance(context.preview)) {
+      const primary = primaryProvenance(line.origins) ?? line.origins[0];
+      grouped[primary.kind].push({
+        range: new vscode.Range(new vscode.Position(line.line, 0), new vscode.Position(line.line, 0)),
+        hoverMessage: provenanceMarkdown(line.origins)
+      });
+    }
+    for (const kind of Object.keys(grouped) as TxtJetProvenanceKind[]) {
+      editor.setDecorations(this.decorations[kind], grouped[kind]);
+    }
+  }
+
+  dispose(): void {
+    this.disposable.dispose();
+    for (const decoration of Object.values(this.decorations)) {
+      decoration.dispose();
+    }
+  }
+
+  private clearEditor(editor: vscode.TextEditor): void {
+    for (const decoration of Object.values(this.decorations)) {
+      editor.setDecorations(decoration, []);
+    }
+  }
+}
+
+function provenanceDecoration(
+  marker: string,
+  color: vscode.ThemeColor,
+  overviewRulerColor: string
+): vscode.TextEditorDecorationType {
+  return vscode.window.createTextEditorDecorationType({
+    rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+    before: {
+      contentText: `${marker}  `,
+      color,
+      fontStyle: "normal",
+      fontWeight: "600",
+      margin: "0 0.7rem 0 0"
+    },
+    overviewRulerColor,
+    overviewRulerLane: vscode.OverviewRulerLane.Left
+  });
+}
+
 class TxtJetPreviewSynchronizer implements vscode.Disposable {
   private readonly disposable: vscode.Disposable;
   private readonly previews = new VersionedPreviewCache<TxtJetGeneratedPreview>();
@@ -1242,6 +1392,114 @@ function buildPreviewForVisiblePreview(sourceDocument: vscode.TextDocument, prev
     return buildIpxactPreviewForDocument(sourceDocument);
   }
   return buildPreviewForDocument(sourceDocument, "output");
+}
+
+function provenanceContext(
+  document: vscode.TextDocument
+): { sourceDocument: vscode.TextDocument; preview: TxtJetGeneratedPreview } | undefined {
+  const source = isPreviewDocument(document)
+    ? sourceUriFromPreview(document.uri)
+    : compilerOutputSource(document);
+  const sourceDocument = source
+    ? vscode.workspace.textDocuments.find((document) => document.uri.toString() === source.toString())
+    : undefined;
+  if (!sourceDocument) {
+    return undefined;
+  }
+  return {
+    sourceDocument,
+    preview: isPreviewDocument(document)
+      ? buildPreviewForVisiblePreview(sourceDocument, document.uri)
+      : buildCompilerOutputProvenance(
+        document.getText(),
+        buildPreviewForDocument(sourceDocument, "output")
+      )
+  };
+}
+
+function rememberCompilerOutput(output: vscode.Uri, source: vscode.Uri): void {
+  compilerOutputSources.delete(output.toString());
+  compilerOutputSources.set(output.toString(), source.toString());
+  while (compilerOutputSources.size > 32) {
+    const oldest = compilerOutputSources.keys().next().value;
+    if (typeof oldest !== "string") {
+      break;
+    }
+    compilerOutputSources.delete(oldest);
+  }
+}
+
+function compilerOutputSource(document: vscode.TextDocument): vscode.Uri | undefined {
+  const source = compilerOutputSources.get(document.uri.toString());
+  if (!source) {
+    return undefined;
+  }
+  try {
+    return vscode.Uri.parse(source);
+  } catch {
+    return undefined;
+  }
+}
+
+function isCompilerOutputDocument(document: vscode.TextDocument): boolean {
+  return compilerOutputSources.has(document.uri.toString());
+}
+
+function provenanceMarkdown(origins: TxtJetProvenance[]): vscode.MarkdownString {
+  const markdown = new vscode.MarkdownString();
+  markdown.appendMarkdown("**Generated output provenance**\n\n");
+  for (const origin of origins) {
+    markdown.appendMarkdown(`- **${provenanceKindLabel(origin.kind)}** · ${provenanceConfidenceLabel(origin.confidence)}`);
+    if (origin.label) {
+      markdown.appendMarkdown(` — ${escapeMarkdownInline(origin.label)}`);
+    }
+    if (origin.sourceFileName) {
+      markdown.appendMarkdown(`\n  \`${escapeMarkdownInline(workspaceRelativeLabel(origin.sourceFileName))}\``);
+    }
+    markdown.appendMarkdown("\n");
+  }
+  if (origins.every((origin) => !origin.sourceFileName || !origin.source)) {
+    markdown.appendMarkdown("\nNo deterministic source range is available for this preview segment.");
+  } else {
+    markdown.appendMarkdown("\nUse **Go to Definition** to open the contributing source.");
+  }
+  return markdown;
+}
+
+function provenanceKindLabel(kind: TxtJetProvenanceKind): string {
+  switch (kind) {
+    case "root":
+      return "Root template";
+    case "include":
+      return "Included template";
+    case "expression":
+      return "TxtJet expression";
+    case "skeleton":
+      return "Skeleton token or layout";
+    case "unmapped":
+    default:
+      return "Unmapped generated/compiler output";
+  }
+}
+
+function provenanceConfidenceLabel(confidence: TxtJetProvenance["confidence"]): string {
+  switch (confidence) {
+    case "direct":
+      return "direct mapping";
+    case "include-expanded":
+      return "include-expanded mapping";
+    case "skeleton-rendered":
+      return "skeleton-rendered mapping";
+    case "approximate":
+      return "approximate generated text";
+    case "unmapped":
+    default:
+      return "unmapped";
+  }
+}
+
+function escapeMarkdownInline(value: string): string {
+  return value.replace(/[\\`*_{}[\]()#+\-.!|>]/g, "\\$&");
 }
 
 function emptyDecorationGroups(): {
@@ -1405,7 +1663,22 @@ function buildOutputPreviewForDocument(
         start: mapping.preview.start + header.length,
         end: mapping.preview.end + header.length
       }
-    }))
+    })),
+    provenance: [
+      {
+        preview: { start: 0, end: header.length },
+        kind: "unmapped",
+        confidence: "unmapped",
+        label: "JetForge preview header"
+      },
+      ...preview.provenance.map((entry) => ({
+        ...entry,
+        preview: {
+          start: entry.preview.start + header.length,
+          end: entry.preview.end + header.length
+        }
+      }))
+    ]
   };
 }
 
@@ -1420,7 +1693,22 @@ function buildIpxactPreviewForDocument(document: vscode.TextDocument): TxtJetGen
         start: mapping.preview.start + header.length,
         end: mapping.preview.end + header.length
       }
-    }))
+    })),
+    provenance: [
+      {
+        preview: { start: 0, end: header.length },
+        kind: "unmapped",
+        confidence: "unmapped",
+        label: "JetForge preview header"
+      },
+      ...preview.provenance.map((entry) => ({
+        ...entry,
+        preview: {
+          start: entry.preview.start + header.length,
+          end: entry.preview.end + header.length
+        }
+      }))
+    ]
   };
 }
 
@@ -1495,6 +1783,129 @@ function configuredReferencePathsForFileName(fileName: string, uri: vscode.Uri, 
   return vscode.workspace.isTrusted
     ? resolvedPaths
     : resolvedPaths.filter((entry) => isPathInsideAnyRoot(entry, [baseRoot]));
+}
+
+function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxactSchemaIndex | undefined {
+  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
+  const configured = config.get<string[]>("ipxact.schemaPaths", []);
+  if (configured.length === 0) {
+    return undefined;
+  }
+  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+  const baseRoot = workspaceFolder?.uri.fsPath ?? dirname(document.fileName);
+  const roots = configured
+    .filter((entry) => entry.trim().length > 0)
+    .map((entry) => resolveWorkspaceConfiguredPath(entry, baseRoot))
+    .filter((entry) => vscode.workspace.isTrusted || isPathInsideAnyRoot(entry, [baseRoot]));
+  const files: string[] = [];
+  const visited = new Set<string>();
+  for (const root of roots) {
+    collectIpxactSchemaFiles(root, root, files, visited);
+    if (files.length >= 256) {
+      break;
+    }
+  }
+  if (files.length === 0) {
+    return undefined;
+  }
+  files.sort();
+  const sources = files.flatMap((fileName) => {
+    const openDocument = vscode.workspace.textDocuments.find((candidate) =>
+      normalize(candidate.fileName) === normalize(fileName)
+    );
+    try {
+      return [{
+        fileName,
+        openDocument,
+        version: openDocument ? `open:${openDocument.version}` : fileVersion(fileName)
+      }];
+    } catch {
+      return [];
+    }
+  });
+  if (sources.length === 0) {
+    return undefined;
+  }
+  const key = sources.map((entry) => `${entry.fileName}\0${entry.version}`).join("\n");
+  const cached = ipxactSchemaIndexCache.get(key);
+  if (cached) {
+    return cached;
+  }
+  const documents = sources.flatMap((source) => {
+    try {
+      return [{
+        fileName: source.fileName,
+        text: source.openDocument?.getText() ?? readFileSync(source.fileName, "utf8")
+      }];
+    } catch {
+      return [];
+    }
+  });
+  if (documents.length === 0) {
+    return undefined;
+  }
+  const index = buildIpxactSchemaIndex(documents);
+  ipxactSchemaIndexCache.set(key, index);
+  while (ipxactSchemaIndexCache.size > 8) {
+    const oldest = ipxactSchemaIndexCache.keys().next().value;
+    if (typeof oldest !== "string") {
+      break;
+    }
+    ipxactSchemaIndexCache.delete(oldest);
+  }
+  return index;
+}
+
+function collectIpxactSchemaFiles(
+  candidate: string,
+  root: string,
+  files: string[],
+  visited: Set<string>
+): void {
+  const normalized = normalize(candidate);
+  if (
+    files.length >= 256
+    || visited.has(normalized)
+    || !isPathInsideAnyRoot(normalized, [root])
+  ) {
+    return;
+  }
+  visited.add(normalized);
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(normalized);
+  } catch {
+    return;
+  }
+  if (stat.isFile()) {
+    if (normalized.toLowerCase().endsWith(".xsd")) {
+      files.push(normalized);
+    }
+    return;
+  }
+  if (!stat.isDirectory() || isExcludedTxtJetWorkspacePath(normalized)) {
+    return;
+  }
+  let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+  try {
+    entries = readdirSync(normalized, { withFileTypes: true }) as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() && !entry.isFile()) {
+      continue;
+    }
+    collectIpxactSchemaFiles(join(normalized, entry.name), root, files, visited);
+    if (files.length >= 256) {
+      return;
+    }
+  }
+}
+
+function fileVersion(fileName: string): string {
+  const stat = statSync(fileName);
+  return `${stat.mtimeMs}:${stat.size}`;
 }
 
 async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
@@ -2374,7 +2785,8 @@ async function validateIpxactTemplate(
     const matcher = config.get<string>("ipxact.validation.problemMatcher", DEFAULT_IPXACT_PROBLEM_MATCHER);
     const problems = parseCompilerProblems([result.stdout, result.stderr].filter(Boolean).join("\n"), matcher);
     const mappedProblems = mapIpxactProblemsToSource(problems, generated, outputPath, workspaceFolder);
-    const mappedDiagnostics = mappedProblems.map((problem) => ipxactProblemToDiagnostic(document, problem.message, problem.severity, problem.sourceRange));
+    const schema = configuredIpxactSchemaIndex(document);
+    const mappedDiagnostics = mappedProblems.map((problem) => ipxactProblemToDiagnostic(document, problem, schema));
     if (mappedDiagnostics.length > 0) {
       ipxactDiagnosticsBySource.set(source, mappedDiagnostics);
     } else {
@@ -2806,6 +3218,7 @@ async function compileTemplateWithExternalTool(): Promise<void> {
       appendOutputLog("stderr", stderr);
     }
     if (existsSync(outputPath)) {
+      rememberCompilerOutput(outputUri, editor.document.uri);
       await vscode.window.showTextDocument(vscode.Uri.file(outputPath), { preview: false, viewColumn: vscode.ViewColumn.Beside });
     } else {
       vscode.window.showWarningMessage("Compile command finished, but no output file was found at txtjet.generation.outputDirectory.");
@@ -3087,17 +3500,38 @@ function compilerProblemToDiagnostic(
 
 function ipxactProblemToDiagnostic(
   document: vscode.TextDocument,
-  message: string,
-  severity: TxtJetCompilerDiagnosticSeverity,
-  sourceRange: TxtJetRange
+  problem: TxtJetMappedIpxactProblem,
+  schema: TxtJetIpxactSchemaIndex | undefined
 ): vscode.Diagnostic {
+  const message = problem.explanation
+    ? `${problem.explanation.summary} ${problem.explanation.guidance}\n\nValidator: ${problem.message}`
+    : problem.message;
   const diagnostic = new vscode.Diagnostic(
-    vscodeRangeFor(document, sourceRange),
+    vscodeRangeFor(document, problem.sourceRange),
     `IP-XACT: ${message}`,
-    compilerDiagnosticSeverity(severity)
+    compilerDiagnosticSeverity(problem.severity)
   );
   diagnostic.source = `${DIAGNOSTIC_SOURCE}.ipxact`;
   diagnostic.code = "ipxact";
+  const relatedNames = uniqueStrings([
+    problem.explanation?.elementName ?? "",
+    ...(problem.explanation?.expectedElements ?? [])
+  ].filter(Boolean));
+  const related = schema
+    ? relatedNames.flatMap((name) =>
+      schemaElementsNamed(schema, name)
+        .slice(0, 1)
+        .map((element) => schemaLocation(element.location))
+        .filter((location): location is vscode.Location => Boolean(location))
+        .map((location) => new vscode.DiagnosticRelatedInformation(
+          location,
+          `IP-XACT schema declaration for <${name}>`
+        ))
+    )
+    : [];
+  if (related.length > 0) {
+    diagnostic.relatedInformation = related;
+  }
   return diagnostic;
 }
 
@@ -3662,6 +4096,10 @@ function registerDefinitionProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       async provideDefinition(document, position) {
+        const schemaDefinitions = ipxactSchemaDefinitionLocations(document, position);
+        if (schemaDefinitions.length > 0) {
+          return schemaDefinitions;
+        }
         const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
         if (!config.get<boolean>("navigation.includeDefinitions.enabled", true)) {
           return javaDefinitions(document, position);
@@ -3711,12 +4149,13 @@ function registerHoverProvider(): vscode.Disposable {
         const model = parseTxtJetTemplate(text);
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
+          const schemaHover = ipxactSchemaHover(document, position);
           const javaHover = javaBridgeEnabled(document)
             ? await workspaceJavaHover(document, position)
               ?? await javaBridgeHover(document, position)
               ?? localJavaHover(document, position)
             : undefined;
-          return javaHover ?? regionHover(document, text, offset);
+          return schemaHover ?? javaHover ?? regionHover(document, text, offset);
         }
 
         const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
@@ -3734,6 +4173,323 @@ function registerHoverProvider(): vscode.Disposable {
       }
     }
   );
+}
+
+function ipxactSchemaDefinitionLocations(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): vscode.Location[] {
+  if (!isIpxactGeneratedOutputPosition(document, position)) {
+    return [];
+  }
+  const schema = configuredIpxactSchemaIndex(document);
+  const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
+  if (!schema || !name) {
+    return [];
+  }
+  if (name.kind === "element") {
+    return schemaElementsNamed(schema, name.name)
+      .map((element) => schemaLocation(element.location))
+      .filter((location): location is vscode.Location => Boolean(location));
+  }
+  return schemaAttributesFor(schema, name.element)
+    .filter((attribute) => attribute.name === name.name)
+    .map((attribute) => schemaLocation(attribute.location))
+    .filter((location): location is vscode.Location => Boolean(location));
+}
+
+function ipxactSchemaHover(
+  document: vscode.TextDocument,
+  position: vscode.Position
+): vscode.Hover | undefined {
+  if (!isIpxactGeneratedOutputPosition(document, position)) {
+    return undefined;
+  }
+  const schema = configuredIpxactSchemaIndex(document);
+  const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
+  if (!schema || !name) {
+    return undefined;
+  }
+  const definition = name.kind === "element"
+    ? schemaElementsNamed(schema, name.name)[0]
+    : schemaAttributesFor(schema, name.element).find((attribute) => attribute.name === name.name);
+  if (!definition) {
+    return undefined;
+  }
+  const markdown = new vscode.MarkdownString();
+  markdown.appendMarkdown(`**IP-XACT schema ${name.kind}** \`${escapeMarkdownInline(name.name)}\`\n\n`);
+  if (definition.documentation) {
+    markdown.appendMarkdown(`${definition.documentation}\n\n`);
+  }
+  if ("children" in definition && definition.children.length > 0) {
+    markdown.appendMarkdown(`Permitted children: ${definition.children.map((child) => `\`<${escapeMarkdownInline(child)}>\``).join(", ")}\n\n`);
+  }
+  if ("required" in definition) {
+    markdown.appendMarkdown(definition.required ? "Required attribute.\n\n" : "Optional attribute.\n\n");
+  }
+  markdown.appendMarkdown(`Defined in \`${escapeMarkdownInline(workspaceRelativeLabel(definition.location.fileName))}\`.`);
+  return new vscode.Hover(
+    markdown,
+    new vscode.Range(document.positionAt(name.range.start), document.positionAt(name.range.end))
+  );
+}
+
+function schemaLocation(location: { fileName: string; range: TxtJetRange }): vscode.Location | undefined {
+  let text = openDocumentText(location.fileName);
+  if (text === undefined) {
+    try {
+      text = readFileSync(location.fileName, "utf8");
+    } catch {
+      return undefined;
+    }
+  }
+  return new vscode.Location(
+    vscode.Uri.file(location.fileName),
+    new vscode.Range(positionAtSourceOffset(text, location.range.start), positionAtSourceOffset(text, location.range.end))
+  );
+}
+
+function registerPreviewProvenanceProviders(): vscode.Disposable {
+  const selector: vscode.DocumentSelector = [
+    { scheme: OUTPUT_PREVIEW_SCHEME },
+    { scheme: JAVA_PREVIEW_SCHEME },
+    { scheme: IPXACT_PREVIEW_SCHEME },
+    { scheme: "file" }
+  ];
+  return vscode.Disposable.from(
+    vscode.languages.registerHoverProvider(selector, {
+      provideHover(document, position) {
+        const context = provenanceContext(document);
+        if (!context) {
+          return undefined;
+        }
+        const origins = provenanceAtPreviewOffset(context.preview, document.offsetAt(position));
+        return origins.length > 0 ? new vscode.Hover(provenanceMarkdown(origins)) : undefined;
+      }
+    }),
+    vscode.languages.registerDefinitionProvider(selector, {
+      provideDefinition(document, position) {
+        const context = provenanceContext(document);
+        if (!context) {
+          return undefined;
+        }
+        return provenanceAtPreviewOffset(context.preview, document.offsetAt(position))
+          .map(provenanceLocation)
+          .filter((location): location is vscode.Location => Boolean(location));
+      }
+    })
+  );
+}
+
+function registerIpxactPreviewSchemaProviders(): vscode.Disposable {
+  const selector: vscode.DocumentSelector = [{ scheme: IPXACT_PREVIEW_SCHEME, language: "xml" }];
+  return vscode.Disposable.from(
+    vscode.languages.registerDocumentSymbolProvider(selector, {
+      provideDocumentSymbols(document) {
+        return ipxactGeneratedStructures(document.getText())
+          .map((structure) => ipxactStructureSymbol(document, structure));
+      }
+    }),
+    vscode.languages.registerHoverProvider(selector, {
+      provideHover(document, position) {
+        const sourceDocument = sourceDocumentForPreview(document);
+        const schema = sourceDocument ? configuredIpxactSchemaIndex(sourceDocument) : undefined;
+        const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
+        if (!sourceDocument || !schema || !name) {
+          return undefined;
+        }
+        return ipxactSchemaHoverForName(document, name, schema);
+      }
+    }),
+    vscode.languages.registerDefinitionProvider(selector, {
+      provideDefinition(document, position) {
+        const sourceDocument = sourceDocumentForPreview(document);
+        const schema = sourceDocument ? configuredIpxactSchemaIndex(sourceDocument) : undefined;
+        const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
+        if (!schema || !name) {
+          return undefined;
+        }
+        return name.kind === "element"
+          ? schemaElementsNamed(schema, name.name)
+            .map((element) => schemaLocation(element.location))
+            .filter((location): location is vscode.Location => Boolean(location))
+          : schemaAttributesFor(schema, name.element)
+            .filter((attribute) => attribute.name === name.name)
+            .map((attribute) => schemaLocation(attribute.location))
+            .filter((location): location is vscode.Location => Boolean(location));
+      }
+    })
+  );
+}
+
+function ipxactStructureSymbol(
+  document: vscode.TextDocument,
+  structure: TxtJetIpxactStructure
+): vscode.DocumentSymbol {
+  const label = structure.name
+    ? `${ipxactStructureKindLabel(structure.kind)}: ${structure.name}`
+    : ipxactStructureKindLabel(structure.kind);
+  const symbol = new vscode.DocumentSymbol(
+    label,
+    `IP-XACT ${structure.kind}`,
+    ipxactStructureSymbolKind(structure.kind),
+    new vscode.Range(document.positionAt(structure.range.start), document.positionAt(structure.range.end)),
+    new vscode.Range(document.positionAt(structure.selectionRange.start), document.positionAt(structure.selectionRange.end))
+  );
+  symbol.children = structure.children.map((child) => ipxactStructureSymbol(document, child));
+  return symbol;
+}
+
+function ipxactStructureKindLabel(kind: TxtJetIpxactStructure["kind"]): string {
+  switch (kind) {
+    case "busInterface":
+      return "Bus interface";
+    case "memoryMap":
+      return "Memory map";
+    case "addressBlock":
+      return "Address block";
+    case "register":
+      return "Register";
+    case "field":
+      return "Field";
+    case "component":
+    default:
+      return "Component";
+  }
+}
+
+function ipxactStructureSymbolKind(kind: TxtJetIpxactStructure["kind"]): vscode.SymbolKind {
+  switch (kind) {
+    case "component":
+      return vscode.SymbolKind.Module;
+    case "busInterface":
+      return vscode.SymbolKind.Interface;
+    case "memoryMap":
+      return vscode.SymbolKind.Namespace;
+    case "addressBlock":
+      return vscode.SymbolKind.Object;
+    case "register":
+      return vscode.SymbolKind.Struct;
+    case "field":
+    default:
+      return vscode.SymbolKind.Field;
+  }
+}
+
+function sourceDocumentForPreview(document: vscode.TextDocument): vscode.TextDocument | undefined {
+  const source = sourceUriFromPreview(document.uri);
+  return source
+    ? vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === source.toString())
+    : undefined;
+}
+
+function ipxactSchemaHoverForName(
+  document: vscode.TextDocument,
+  name: NonNullable<ReturnType<typeof ipxactXmlNameAt>>,
+  schema: TxtJetIpxactSchemaIndex
+): vscode.Hover | undefined {
+  const definition = name.kind === "element"
+    ? schemaElementsNamed(schema, name.name)[0]
+    : schemaAttributesFor(schema, name.element).find((attribute) => attribute.name === name.name);
+  if (!definition) {
+    return undefined;
+  }
+  const markdown = schemaDocumentation(definition.documentation, definition.location.fileName);
+  return new vscode.Hover(
+    markdown,
+    new vscode.Range(document.positionAt(name.range.start), document.positionAt(name.range.end))
+  );
+}
+
+function provenanceLocation(origin: TxtJetProvenance): vscode.Location | undefined {
+  if (!origin.sourceFileName) {
+    return undefined;
+  }
+  const uri = vscode.Uri.file(origin.sourceFileName);
+  const openDocument = vscode.workspace.textDocuments.find((document) =>
+    document.uri.toString() === uri.toString()
+  );
+  const source = origin.source ?? { start: 0, end: 0 };
+  if (openDocument) {
+    return new vscode.Location(
+      uri,
+      new vscode.Range(openDocument.positionAt(source.start), openDocument.positionAt(source.end))
+    );
+  }
+  if (!existsSync(origin.sourceFileName)) {
+    return undefined;
+  }
+  const text = readFileSync(origin.sourceFileName, "utf8");
+  return new vscode.Location(
+    uri,
+    new vscode.Range(positionAtSourceOffset(text, source.start), positionAtSourceOffset(text, source.end))
+  );
+}
+
+async function showPreviewLineSource(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  const context = editor ? provenanceContext(editor.document) : undefined;
+  if (!editor || !context) {
+    vscode.window.showInformationMessage("Open a TxtJet generated preview or compiler output and place the cursor on an output line first.");
+    return;
+  }
+  const origins = provenanceAtPreviewOffset(context.preview, editor.document.offsetAt(editor.selection.active));
+  const origin = primaryProvenance(origins.filter((entry) => entry.sourceFileName && entry.source));
+  const location = origin ? provenanceLocation(origin) : undefined;
+  if (!location) {
+    vscode.window.showInformationMessage("This preview line has no deterministic source range.");
+    return;
+  }
+  await showProvenanceLocation(location);
+}
+
+async function showPreviewLineContributions(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  const context = editor ? provenanceContext(editor.document) : undefined;
+  if (!editor || !context) {
+    vscode.window.showInformationMessage("Open a TxtJet generated preview or compiler output and place the cursor on an output line first.");
+    return;
+  }
+  const origins = provenanceAtPreviewOffset(context.preview, editor.document.offsetAt(editor.selection.active));
+  if (origins.length === 0) {
+    vscode.window.showInformationMessage("This preview line has no recorded contributions.");
+    return;
+  }
+  const selected = await vscode.window.showQuickPick(
+    origins.map((origin, index) => ({
+      label: `$(${origin.kind === "unmapped" ? "question" : "symbol-file"}) ${provenanceKindLabel(origin.kind)}`,
+      description: provenanceConfidenceLabel(origin.confidence),
+      detail: [
+        origin.sourceFileName ? workspaceRelativeLabel(origin.sourceFileName) : "No source file",
+        origin.label
+      ].filter(Boolean).join(" · "),
+      origin,
+      index
+    })),
+    {
+      title: "Generated preview line contributions",
+      placeHolder: "Select a deterministic contribution to open its source"
+    }
+  );
+  if (!selected) {
+    return;
+  }
+  const location = provenanceLocation(selected.origin);
+  if (!selected.origin.source || !location) {
+    vscode.window.showInformationMessage("The selected contribution has no deterministic source range.");
+    return;
+  }
+  await showProvenanceLocation(location);
+}
+
+async function showProvenanceLocation(location: vscode.Location): Promise<void> {
+  const document = await vscode.workspace.openTextDocument(location.uri);
+  const editor = await vscode.window.showTextDocument(document, {
+    preview: false,
+    viewColumn: vscode.ViewColumn.Beside
+  });
+  editor.selection = new vscode.Selection(location.range.start, location.range.end);
+  editor.revealRange(location.range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }
 
 function localJavaHover(document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined {
@@ -4090,11 +4846,11 @@ function registerCompletionProvider(): vscode.Disposable {
         if (range) {
           const markers = markerCompletions(range);
           return isIpxactGeneratedOutputPosition(document, position)
-            ? new vscode.CompletionList([...ipxactNodeCompletions(range).items, ...markers], false)
+            ? new vscode.CompletionList([...ipxactNodeCompletions(document, position, range).items, ...markers], false)
             : markers;
         }
         return isIpxactGeneratedOutputPosition(document, position)
-          ? ipxactNodeCompletions(xmlCompletionRange(document, position))
+          ? ipxactNodeCompletions(document, position, xmlCompletionRange(document, position))
           : [];
       }
     },
@@ -4682,7 +5438,36 @@ function isIpxactGeneratedOutputPosition(document: vscode.TextDocument, position
   return region?.kind === "generated-output";
 }
 
-function ipxactNodeCompletions(range: vscode.Range): vscode.CompletionList {
+function ipxactNodeCompletions(
+  document: vscode.TextDocument,
+  position: vscode.Position,
+  range: vscode.Range
+): vscode.CompletionList {
+  const schema = configuredIpxactSchemaIndex(document);
+  const context = schema
+    ? ipxactXmlContextAt(document.getText(), document.offsetAt(position))
+    : undefined;
+  if (schema && context?.kind === "element") {
+    const candidates = schemaChildrenFor(schema, context.parentElement)
+      .filter((element) => !context.prefix || element.name.toLowerCase().startsWith(context.prefix.toLowerCase()));
+    if (!context.parentElement || schemaElementsNamed(schema, context.parentElement).length > 0) {
+      return new vscode.CompletionList(
+        candidates.map((element) => ipxactSchemaElementCompletion(element, range, context.namespacePrefix)),
+        false
+      );
+    }
+  }
+  if (schema && context?.kind === "attribute") {
+    const candidates = schemaAttributesFor(schema, context.element)
+      .filter((attribute) => !context.prefix || attribute.name.toLowerCase().startsWith(context.prefix.toLowerCase()));
+    if (context.element && schemaElementsNamed(schema, context.element).length > 0) {
+      return new vscode.CompletionList(
+        candidates.map((attribute) => ipxactSchemaAttributeCompletion(attribute, range)),
+        false
+      );
+    }
+  }
+
   const items = IPXACT_NODE_COMPLETIONS.map((nodeName) => {
     const item = new vscode.CompletionItem(nodeName, vscode.CompletionItemKind.Snippet);
     item.detail = "TxtJet IP-XACT node";
@@ -4691,6 +5476,52 @@ function ipxactNodeCompletions(range: vscode.Range): vscode.CompletionList {
     return item;
   });
   return new vscode.CompletionList(items, false);
+}
+
+function ipxactSchemaElementCompletion(
+  element: TxtJetIpxactSchemaElement,
+  range: vscode.Range,
+  namespacePrefix?: string
+): vscode.CompletionItem {
+  const qualifiedName = namespacePrefix ? `${namespacePrefix}:${element.name}` : element.name;
+  const item = new vscode.CompletionItem(element.name, vscode.CompletionItemKind.Snippet);
+  item.detail = element.type
+    ? `IP-XACT schema element · ${element.type}`
+    : "IP-XACT schema element";
+  item.documentation = schemaDocumentation(element.documentation, element.location.fileName);
+  item.insertText = new vscode.SnippetString(`<${qualifiedName}>\n\t$0\n</${qualifiedName}>`);
+  item.range = range;
+  item.sortText = `0_${element.name}`;
+  return item;
+}
+
+function ipxactSchemaAttributeCompletion(
+  attribute: TxtJetIpxactSchemaAttribute,
+  range: vscode.Range
+): vscode.CompletionItem {
+  const item = new vscode.CompletionItem(attribute.name, vscode.CompletionItemKind.Property);
+  item.detail = [
+    "IP-XACT schema attribute",
+    attribute.type,
+    attribute.required ? "required" : undefined
+  ].filter(Boolean).join(" · ");
+  item.documentation = schemaDocumentation(attribute.documentation, attribute.location.fileName);
+  item.insertText = new vscode.SnippetString(`${attribute.name}="$1"`);
+  item.range = range;
+  item.sortText = `${attribute.required ? "0" : "1"}_${attribute.name}`;
+  return item;
+}
+
+function schemaDocumentation(
+  documentation: string | undefined,
+  fileName: string
+): vscode.MarkdownString {
+  const markdown = new vscode.MarkdownString();
+  if (documentation) {
+    markdown.appendMarkdown(`${documentation}\n\n`);
+  }
+  markdown.appendMarkdown(`Schema: \`${escapeMarkdownInline(workspaceRelativeLabel(fileName))}\``);
+  return markdown;
 }
 
 function xmlCompletionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range {

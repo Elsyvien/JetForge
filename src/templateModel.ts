@@ -32,6 +32,18 @@ export interface TxtJetMapping {
   kind: TxtJetBlockKind | "placeholder" | "append";
 }
 
+export type TxtJetProvenanceKind = "root" | "include" | "expression" | "skeleton" | "unmapped";
+export type TxtJetProvenanceConfidence = "direct" | "include-expanded" | "skeleton-rendered" | "approximate" | "unmapped";
+
+export interface TxtJetProvenance {
+  preview: TxtJetRange;
+  kind: TxtJetProvenanceKind;
+  confidence: TxtJetProvenanceConfidence;
+  source?: TxtJetRange;
+  sourceFileName?: string;
+  label?: string;
+}
+
 export interface TxtJetTemplateModel {
   blocks: TxtJetBlock[];
   directives: TxtJetDirective[];
@@ -42,6 +54,7 @@ export interface TxtJetTemplateModel {
 export interface TxtJetGeneratedPreview {
   text: string;
   mappings: TxtJetMapping[];
+  provenance: TxtJetProvenance[];
 }
 
 export interface TxtJetOutputPreviewOptions {
@@ -50,6 +63,7 @@ export interface TxtJetOutputPreviewOptions {
   readInclude?: (path: string) => string | undefined;
   includePaths?: string[];
   includeStack?: string[];
+  originKind?: "root" | "include";
 }
 
 export interface TxtJetJavaPreviewOptions {
@@ -161,6 +175,7 @@ export function buildGeneratedOutputPreview(
   const model = parseTxtJetTemplate(text);
   const output = new PreviewTextBuilder();
   const mappings: TxtJetMapping[] = [];
+  const provenance: TxtJetProvenance[] = [];
 
   for (let index = 0; index < model.blocks.length; index += 1) {
     const block = model.blocks[index];
@@ -168,19 +183,45 @@ export function buildGeneratedOutputPreview(
     if (block.kind === "outer") {
       output.append(block.content);
       mappings.push({ source: block.range, preview: { start, end: start + block.content.length }, kind: "outer" });
+      provenance.push({
+        source: block.range,
+        sourceFileName: options.sourceFileName,
+        preview: { start, end: start + block.content.length },
+        kind: options.originKind ?? "root",
+        confidence: options.originKind === "include" ? "include-expanded" : "direct"
+      });
       continue;
     }
 
-    const replacement = outputPlaceholder(block, targetLanguage, options, expressionContextFor(model.blocks, index));
-    output.append(replacement);
+    const replacement = block.kind === "directive" && block.directive?.name === "include"
+      ? includePreview(block.directive, targetLanguage, options)
+      : {
+        text: outputPlaceholder(block, targetLanguage, options, expressionContextFor(model.blocks, index)),
+        provenance: [] as TxtJetProvenance[]
+      };
+    output.append(replacement.text);
     mappings.push({
       source: block.range,
-      preview: { start, end: start + replacement.length },
+      preview: { start, end: start + replacement.text.length },
       kind: block.kind === "expression" ? "placeholder" : block.kind
     });
+    if (replacement.provenance.length > 0) {
+      appendOffsetProvenance(provenance, replacement.provenance, start);
+    } else {
+      provenance.push({
+        source: block.range,
+        sourceFileName: options.sourceFileName,
+        preview: { start, end: start + replacement.text.length },
+        kind: block.kind === "expression" ? "expression" : options.originKind ?? "root",
+        confidence: block.kind === "expression"
+          ? "approximate"
+          : options.originKind === "include" ? "include-expanded" : "approximate",
+        label: block.kind === "expression" ? trimExpression(block.content) : undefined
+      });
+    }
   }
 
-  return { text: output.toString(), mappings };
+  return { text: output.toString(), mappings, provenance };
 }
 
 export function buildGeneratedJavaPreview(
@@ -202,7 +243,8 @@ export function buildGeneratedJavaPreview(
       className,
       imports,
       members: sections.members,
-      generateMethod: sections.generateMethod
+      generateMethod: sections.generateMethod,
+      skeletonFileName: skeleton.resolved
     });
   }
 
@@ -226,7 +268,11 @@ export function buildGeneratedJavaPreview(
   appendSection(output, mappings, sections.generateMethod);
   output.append("}\n");
 
-  return { text: output.toString(), mappings };
+  return {
+    text: output.toString(),
+    mappings,
+    provenance: provenanceFromMappings(mappings, options.sourceFileName ?? sourceName)
+  };
 }
 
 export function targetPreviewLanguage(languageId: TxtJetTargetLanguage): string {
@@ -437,11 +483,63 @@ function appendSection(output: PreviewTextBuilder, mappings: TxtJetMapping[], se
   }
 }
 
+function appendOffsetProvenance(
+  target: TxtJetProvenance[],
+  entries: TxtJetProvenance[],
+  offset: number
+): void {
+  for (const entry of entries) {
+    target.push({
+      ...entry,
+      preview: {
+        start: entry.preview.start + offset,
+        end: entry.preview.end + offset
+      }
+    });
+  }
+}
+
+function provenanceFromMappings(
+  mappings: TxtJetMapping[],
+  sourceFileName: string
+): TxtJetProvenance[] {
+  return mappings.map((mapping) => ({
+    preview: mapping.preview,
+    source: mapping.source,
+    sourceFileName,
+    kind: mapping.kind === "expression" || mapping.kind === "placeholder" ? "expression" : "root",
+    confidence: mapping.kind === "expression" || mapping.kind === "placeholder" ? "approximate" : "direct"
+  }));
+}
+
+function appendSkeletonText(
+  output: PreviewTextBuilder,
+  provenance: TxtJetProvenance[],
+  text: string,
+  sourceFileName: string | undefined,
+  label: string,
+  source?: TxtJetRange
+): void {
+  if (text.length === 0) {
+    return;
+  }
+  const start = output.length;
+  output.append(text);
+  provenance.push({
+    preview: { start, end: start + text.length },
+    kind: "skeleton",
+    confidence: "skeleton-rendered",
+    sourceFileName,
+    label,
+    source
+  });
+}
+
 function readSkeletonTemplate(
   model: TxtJetTemplateModel,
   sourceName: string,
   options: TxtJetJavaPreviewOptions
-): { text: string; status: string; usesTokens: boolean } | undefined {
+): { text: string; status: string; usesTokens: boolean; resolved?: string } | undefined {
   const skeletonFile = model.jetDirective?.attributes.skeleton;
   if (!skeletonFile || !options.readSkeleton) {
     return skeletonFile ? { text: "", status: "not loaded", usesTokens: false } : undefined;
@@ -458,10 +556,15 @@ function readSkeletonTemplate(
   }
 
   if (skeleton.text === undefined) {
-    return { text: "", status: "unresolved", usesTokens: false };
+    return { text: "", status: "unresolved", usesTokens: false, resolved: skeleton.resolved };
   }
 
-  return { text: skeleton.text, status: "loaded", usesTokens: hasSkeletonTokens(skeleton.text) };
+  return {
+    text: skeleton.text,
+    status: "loaded",
+    usesTokens: hasSkeletonTokens(skeleton.text),
+    resolved: skeleton.resolved
+  };
 }
 
 function hasSkeletonTokens(text: string): boolean {
@@ -478,10 +581,12 @@ function buildSkeletonJavaPreview(
     imports: string[];
     members: JavaPreviewSection;
     generateMethod: JavaPreviewSection;
+    skeletonFileName?: string;
   }
 ): TxtJetGeneratedPreview {
   const output = new PreviewTextBuilder();
   const mappings: TxtJetMapping[] = [];
+  const skeletonProvenance: TxtJetProvenance[] = [];
   output.append(`// TxtJet generated Java template preview for ${data.sourceName}\n`);
   output.append("// This is an editor approximation rendered through the referenced skeleton.\n\n");
   if (data.model.jetDirective?.attributes.skeleton) {
@@ -501,21 +606,49 @@ function buildSkeletonJavaPreview(
   let offset = 0;
   let match: RegExpExecArray | null;
   while ((match = tokenPattern.exec(skeletonText))) {
-    output.append(skeletonText.slice(offset, match.index));
+    appendSkeletonText(
+      output,
+      skeletonProvenance,
+      skeletonText.slice(offset, match.index),
+      data.skeletonFileName,
+      "skeleton layout",
+      { start: offset, end: match.index }
+    );
     const replacement = replacements[match[1]];
     if (typeof replacement === "string") {
-      output.append(replacement);
+      appendSkeletonText(
+        output,
+        skeletonProvenance,
+        replacement,
+        data.skeletonFileName,
+        `\${${match[1]}}`,
+        { start: match.index, end: match.index + match[0].length }
+      );
     } else {
       appendSection(output, mappings, replacement);
     }
     offset = match.index + match[0].length;
   }
-  output.append(skeletonText.slice(offset));
+  appendSkeletonText(
+    output,
+    skeletonProvenance,
+    skeletonText.slice(offset),
+    data.skeletonFileName,
+    "skeleton layout",
+    { start: offset, end: skeletonText.length }
+  );
   if (!skeletonText.endsWith("\n")) {
-    output.append("\n");
+    appendSkeletonText(output, skeletonProvenance, "\n", data.skeletonFileName, "skeleton layout");
   }
 
-  return { text: output.toString(), mappings };
+  return {
+    text: output.toString(),
+    mappings,
+    provenance: [
+      ...skeletonProvenance,
+      ...provenanceFromMappings(mappings, data.sourceName)
+    ]
+  };
 }
 
 function appendSkeletonReference(
@@ -540,7 +673,7 @@ function outputPlaceholder(
   switch (block.kind) {
     case "directive":
       if (block.directive?.name === "include") {
-        return includePlaceholder(block.directive, targetLanguage, options);
+        return includePreview(block.directive, targetLanguage, options).text;
       }
       return commentPlaceholder(`txtjet directive: ${trimBlockContent(block.content)}`, targetLanguage);
     case "expression":
@@ -555,44 +688,103 @@ function outputPlaceholder(
   }
 }
 
-function includePlaceholder(
+function includePreview(
   directive: TxtJetDirective,
   targetLanguage: TxtJetTargetLanguage,
   options: TxtJetOutputPreviewOptions
-): string {
+): TxtJetGeneratedPreview {
   const includeFile = directive.attributes.file;
   if (!includeFile || !options.expandIncludes || !options.sourceFileName || !options.readInclude) {
-    return commentPlaceholder(`txtjet include: ${includeFile || "missing file"}`, targetLanguage);
+    return syntheticPreview(
+      commentPlaceholder(`txtjet include: ${includeFile || "missing file"}`, targetLanguage),
+      options,
+      directive.nameRange
+    );
   }
 
   const include = readFirstReference(options.sourceFileName, includeFile, options.includePaths, options.readInclude);
   if (!include.resolved) {
-    return commentPlaceholder(`txtjet include skipped: ${includeFile}`, targetLanguage);
+    return syntheticPreview(
+      commentPlaceholder(`txtjet include skipped: ${includeFile}`, targetLanguage),
+      options,
+      directive.nameRange
+    );
   }
 
   const includeStack = options.includeStack ?? [normalize(options.sourceFileName)];
   if (includeStack.includes(include.resolved)) {
-    return commentPlaceholder(`txtjet include skipped circular reference: ${includeFile}`, targetLanguage);
+    return syntheticPreview(
+      commentPlaceholder(`txtjet include skipped circular reference: ${includeFile}`, targetLanguage),
+      options,
+      directive.nameRange
+    );
   }
   if (includeStack.length > MAX_INCLUDE_DEPTH) {
-    return commentPlaceholder(`txtjet include skipped max depth: ${includeFile}`, targetLanguage);
+    return syntheticPreview(
+      commentPlaceholder(`txtjet include skipped max depth: ${includeFile}`, targetLanguage),
+      options,
+      directive.nameRange
+    );
   }
 
   if (include.text === undefined) {
-    return commentPlaceholder(`txtjet include unresolved: ${includeFile}`, targetLanguage);
+    return syntheticPreview(
+      commentPlaceholder(`txtjet include unresolved: ${includeFile}`, targetLanguage),
+      options,
+      directive.nameRange
+    );
   }
 
   const nested = buildGeneratedOutputPreview(include.text, targetLanguage, {
     ...options,
     sourceFileName: include.resolved,
-    includeStack: [...includeStack, include.resolved]
-  }).text;
-  return [
-    commentPlaceholder(`txtjet include begin: ${includeFile}`, targetLanguage),
-    nested,
-    nested.endsWith("\n") ? "" : "\n",
-    commentPlaceholder(`txtjet include end: ${includeFile}`, targetLanguage)
-  ].join("");
+    includeStack: [...includeStack, include.resolved],
+    originKind: "include"
+  });
+  const begin = commentPlaceholder(`txtjet include begin: ${includeFile}`, targetLanguage);
+  const separator = nested.text.endsWith("\n") ? "" : "\n";
+  const end = commentPlaceholder(`txtjet include end: ${includeFile}`, targetLanguage);
+  const provenance: TxtJetProvenance[] = [{
+    preview: { start: 0, end: begin.length },
+    kind: "include",
+    confidence: "include-expanded",
+    sourceFileName: include.resolved,
+    label: includeFile
+  }];
+  appendOffsetProvenance(provenance, nested.provenance, begin.length);
+  provenance.push({
+    preview: {
+      start: begin.length + nested.text.length,
+      end: begin.length + nested.text.length + separator.length + end.length
+    },
+    kind: "include",
+    confidence: "include-expanded",
+    sourceFileName: include.resolved,
+    label: includeFile
+  });
+  return {
+    text: begin + nested.text + separator + end,
+    mappings: [],
+    provenance
+  };
+}
+
+function syntheticPreview(
+  text: string,
+  options: TxtJetOutputPreviewOptions,
+  source: TxtJetRange
+): TxtJetGeneratedPreview {
+  return {
+    text,
+    mappings: [],
+    provenance: [{
+      preview: { start: 0, end: text.length },
+      source,
+      sourceFileName: options.sourceFileName,
+      kind: options.originKind ?? "root",
+      confidence: options.originKind === "include" ? "include-expanded" : "approximate"
+    }]
+  };
 }
 
 export function previewHeader(kind: "output" | "java", sourceName: string, targetLanguage?: TxtJetTargetLanguage): string {

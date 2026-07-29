@@ -2,6 +2,9 @@
 
 ## 0.0.21
 
+- Added a generated preview provenance lens that marks every line as root template, include, expression, skeleton, or unmapped output; confidence-aware hovers, Go to Definition, dedicated source/contribution commands, and conservative exact-line provenance for real compiler output make contributing ranges inspectable without guessing.
+- Added optional local-XSD IP-XACT schema intelligence with context-aware element and attribute completions, schema documentation hovers, Go to Definition from templates and IP-XACT previews, a generated-structure Outline, and human-readable validator explanations with related schema declarations.
+- Kept schema support local and opt-in through resource-scoped `txtjet.ipxact.schemaPaths`; schema bundles are never downloaded and external schema paths remain restricted in untrusted workspaces.
 - Added a generated LaTeX target mode with `.texjet`/`.latexjet` recognition, filename and content detection, LaTeX highlighting, previews, generation, workspace indexing, and a sanitized example.
 - Reduced the TxtJet editor context menu to target-mode selection and generated-output preview; advanced actions remain available from the Command Palette and Workspace view.
 - Reintroduced the product as JetForge across the extension, documentation, and website while preserving the existing `elsyvien.txtjet-syntax` extension ID and upgrade path.
