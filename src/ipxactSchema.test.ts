@@ -60,6 +60,75 @@ const crossDocumentIndex = buildIpxactSchemaIndex([
 ]);
 assert.equal(schemaAttributesFor(crossDocumentIndex, "component")[0]?.location.fileName, sharedTypesFile);
 
+const inheritanceSchema = `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:t="urn:test" targetNamespace="urn:test">
+  <xs:group name="commonChildren">
+    <xs:sequence><xs:element name="vendor" type="xs:string"/></xs:sequence>
+  </xs:group>
+  <xs:attributeGroup name="commonAttributes">
+    <xs:attribute name="version" type="xs:string" use="required"/>
+  </xs:attributeGroup>
+  <xs:complexType name="baseType">
+    <xs:sequence>
+      <xs:element name="baseChild" type="xs:string"/>
+      <xs:group ref="t:commonChildren"/>
+    </xs:sequence>
+    <xs:attributeGroup ref="t:commonAttributes"/>
+  </xs:complexType>
+  <xs:complexType name="derivedType">
+    <xs:complexContent>
+      <xs:extension base="t:baseType">
+        <xs:sequence><xs:element name="derivedChild" type="xs:string"/></xs:sequence>
+        <xs:attribute name="local" type="xs:string"/>
+      </xs:extension>
+    </xs:complexContent>
+  </xs:complexType>
+  <xs:element name="component" type="t:derivedType"/>
+</xs:schema>`;
+const inheritanceIndex = buildIpxactSchemaIndex([{
+  fileName: "/workspace/schemas/inheritance.xsd",
+  text: inheritanceSchema
+}]);
+assert.deepEqual(
+  schemaChildrenFor(inheritanceIndex, "component").map((element) => element.name),
+  ["baseChild", "vendor", "derivedChild"]
+);
+assert.deepEqual(
+  schemaAttributesFor(inheritanceIndex, "component").map((attribute) => [attribute.name, attribute.required]),
+  [["version", true], ["local", false]]
+);
+
+const namespaceIndex = buildIpxactSchemaIndex([
+  {
+    fileName: "/workspace/schemas/a.xsd",
+    text: `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:a="urn:a" targetNamespace="urn:a">
+      <xs:complexType name="sharedType"><xs:sequence><xs:element name="aChild"/></xs:sequence></xs:complexType>
+      <xs:element name="aRoot" type="a:sharedType"/>
+    </xs:schema>`
+  },
+  {
+    fileName: "/workspace/schemas/b.xsd",
+    text: `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:b="urn:b" targetNamespace="urn:b">
+      <xs:complexType name="sharedType"><xs:sequence><xs:element name="bChild"/></xs:sequence></xs:complexType>
+      <xs:element name="bRoot" type="b:sharedType"/>
+    </xs:schema>`
+  }
+]);
+assert.deepEqual(schemaElementsNamed(namespaceIndex, "aRoot")[0]?.children, ["aChild"]);
+assert.deepEqual(schemaElementsNamed(namespaceIndex, "bRoot")[0]?.children, ["bChild"]);
+
+const referenceIndex = buildIpxactSchemaIndex([{
+  fileName: "/workspace/schemas/references.xsd",
+  text: `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:t="urn:refs" targetNamespace="urn:refs">
+    <xs:complexType name="componentType"><xs:sequence><xs:element ref="t:item"/></xs:sequence></xs:complexType>
+    <xs:element name="component" type="t:componentType"/>
+    <xs:element name="item"><xs:annotation><xs:documentation>Global item.</xs:documentation></xs:annotation></xs:element>
+  </xs:schema>`
+}]);
+const referencedItem = schemaChildrenFor(referenceIndex, "component")[0];
+assert.equal(referencedItem?.global, true);
+assert.match(referencedItem?.documentation ?? "", /Global item/);
+
 const elementTemplate = "<component>\n  <mem";
 const elementContext = ipxactXmlContextAt(elementTemplate, elementTemplate.length);
 assert.equal(elementContext?.kind, "element");

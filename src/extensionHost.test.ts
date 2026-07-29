@@ -152,6 +152,15 @@ export async function run(): Promise<void> {
     );
     assert.ok(includeDefinitions.some((location) => location.uri.fsPath === topologyInclude.fsPath),
       "expanded include preview definition must open the contributing include");
+    const includeMarkerOffset = topologyPreview.getText().indexOf("txtjet include begin");
+    assert.ok(includeMarkerOffset >= 0, "expanded include preview must expose a begin marker");
+    const includeMarkerDefinitions = await vscode.commands.executeCommand<vscode.Location[]>(
+      "vscode.executeDefinitionProvider",
+      topologyPreview.uri,
+      topologyPreview.positionAt(includeMarkerOffset)
+    );
+    assert.equal(includeMarkerDefinitions.length, 0,
+      "include boundary markers without a deterministic source range must not fabricate offset-zero definitions");
 
     const compilerSource = vscode.Uri.joinPath(topologyRoot, "compiler-output.txtjet");
     await vscode.workspace.fs.writeFile(

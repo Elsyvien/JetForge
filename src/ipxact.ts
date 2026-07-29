@@ -237,5 +237,9 @@ function xmlNamesFromValidatorText(value: string): string[] {
 }
 
 function localName(value: string): string {
-  return value.slice(value.lastIndexOf(":") + 1).replace(/[{}(),]/g, "");
+  const clarkNamespaceEnd = value.lastIndexOf("}");
+  const local = clarkNamespaceEnd >= 0
+    ? value.slice(clarkNamespaceEnd + 1)
+    : value.slice(value.lastIndexOf(":") + 1);
+  return local.replace(/[{}(),]/g, "");
 }

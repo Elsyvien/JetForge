@@ -46,7 +46,7 @@ export function provenanceAtPreviewOffset(
 ): TxtJetProvenance[] {
   const safeOffset = Math.max(0, Math.min(offset, preview.text.length));
   return uniqueProvenance(preview.provenance.filter((entry) =>
-    entry.preview.start <= safeOffset && safeOffset <= entry.preview.end
+    rangeContainsOffset(entry.preview, safeOffset, preview.text.length)
   ));
 }
 
@@ -67,7 +67,7 @@ export function buildCompilerOutputProvenance(
   const sourceByText = occurrencesByLineText(approximatePreview.text, sourceLines.map((line) => line.preview));
   const compilerByText = occurrencesByLineText(compilerText, compilerLines);
   const provenance = compilerLines.flatMap((range) => {
-    const lineText = compilerText.slice(range.start, range.end);
+    const lineText = canonicalLineText(compilerText.slice(range.start, range.end));
     const sourceMatches = sourceByText.get(lineText) ?? [];
     const compilerMatches = compilerByText.get(lineText) ?? [];
     if (lineText.trim().length === 0 || sourceMatches.length !== 1 || compilerMatches.length !== 1) {
@@ -108,12 +108,29 @@ function occurrencesByLineText(
 ): Map<string, number[]> {
   const occurrences = new Map<string, number[]>();
   ranges.forEach((range, index) => {
-    const lineText = text.slice(range.start, range.end);
+    const lineText = canonicalLineText(text.slice(range.start, range.end));
     const matches = occurrences.get(lineText) ?? [];
     matches.push(index);
     occurrences.set(lineText, matches);
   });
   return occurrences;
+}
+
+function canonicalLineText(value: string): string {
+  return value.endsWith("\r") ? value.slice(0, -1) : value;
+}
+
+function rangeContainsOffset(
+  range: TxtJetRange,
+  offset: number,
+  documentLength: number
+): boolean {
+  if (range.start <= offset && offset < range.end) {
+    return true;
+  }
+  return offset === documentLength
+    && range.end === documentLength
+    && range.start < range.end;
 }
 
 function unmappedCompilerProvenance(preview: TxtJetRange): TxtJetProvenance {

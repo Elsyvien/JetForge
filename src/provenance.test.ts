@@ -75,4 +75,18 @@ assert.equal(compilerLines[2].origins[0].kind, "unmapped");
 assert.equal(compilerLines[3].origins[0].kind, "root");
 assert.ok(compilerLines.every((line) => line.origins.length > 0));
 
+const boundaryPreview = buildGeneratedOutputPreview("foo<%= x %>bar", "txtjet", {
+  sourceFileName: root
+});
+const barOffset = boundaryPreview.text.indexOf("bar");
+assert.equal(primaryProvenance(provenanceAtPreviewOffset(boundaryPreview, barOffset))?.kind, "root");
+assert.equal(primaryProvenance(provenanceAtPreviewOffset(boundaryPreview, boundaryPreview.text.length))?.kind, "root");
+
+const crlfPreview = buildGeneratedOutputPreview("alpha\r\nomega\r\n", "txtjet", {
+  sourceFileName: root
+});
+const lfCompilerPreview = buildCompilerOutputProvenance("alpha\nomega\n", crlfPreview);
+assert.equal(previewLineProvenance(lfCompilerPreview)[0].origins[0].kind, "root");
+assert.equal(previewLineProvenance(lfCompilerPreview)[1].origins[0].kind, "root");
+
 console.log("provenance tests ok");

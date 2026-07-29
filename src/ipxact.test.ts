@@ -106,6 +106,11 @@ const unexpectedExplanation = explainIpxactValidationMessage(
 assert.match(unexpectedExplanation?.summary ?? "", /<register>/);
 assert.deepEqual(unexpectedExplanation?.expectedElements, ["addressBlock", "memoryMap"]);
 assert.match(unexpectedExplanation?.guidance ?? "", /<addressBlock>/);
+const clarkExplanation = explainIpxactValidationMessage(
+  "Invalid content was found starting with element '{http://www.accellera.org/XMLSchema/IPXACT/1685-2022}register'. One of '{http://www.accellera.org/XMLSchema/IPXACT/1685-2022}addressBlock' is expected."
+);
+assert.match(clarkExplanation?.summary ?? "", /<register>/);
+assert.deepEqual(clarkExplanation?.expectedElements, ["addressBlock"]);
 
 const attributeExplanation = explainIpxactValidationMessage(
   "cvc-complex-type.3.2.2: Attribute 'legacy' is not allowed to appear in element 'component'."

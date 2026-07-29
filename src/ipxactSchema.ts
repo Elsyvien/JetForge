@@ -20,9 +20,13 @@ export interface TxtJetIpxactSchemaAttribute {
 
 export interface TxtJetIpxactSchemaElement {
   name: string;
+  namespace?: string;
+  schemaKey: string;
+  global: boolean;
   type?: string;
   documentation?: string;
   children: string[];
+  childKeys: string[];
   attributes: TxtJetIpxactSchemaAttribute[];
   location: TxtJetIpxactSchemaLocation;
 }
@@ -83,29 +87,41 @@ interface XmlNode {
   sourceText: string;
 }
 
+interface SchemaContext {
+  document: TxtJetIpxactSchemaDocument;
+  schema: XmlNode;
+  targetNamespace: string;
+  namespaces: Map<string, string>;
+}
+
+interface SchemaDeclaration {
+  context: SchemaContext;
+  node: XmlNode;
+  key: string;
+}
+
+interface SchemaDeclarations {
+  complexTypes: Map<string, SchemaDeclaration>;
+  groups: Map<string, SchemaDeclaration>;
+  attributeGroups: Map<string, SchemaDeclaration>;
+  globalElements: Map<string, SchemaDeclaration>;
+  globalAttributes: Map<string, SchemaDeclaration>;
+}
+
 export function buildIpxactSchemaIndex(
   documents: TxtJetIpxactSchemaDocument[]
 ): TxtJetIpxactSchemaIndex {
-  const roots = documents.flatMap((document) =>
-    scanXmlNodes(document.text).map((node) => ({ document, node }))
+  const contexts = documents.flatMap((document) =>
+    scanXmlNodes(document.text)
+      .filter((node) => node.localName === "schema")
+      .map((schema) => schemaContext(document, schema))
   );
-  const complexTypes = new Map<string, { document: TxtJetIpxactSchemaDocument; node: XmlNode }>();
-  for (const entry of roots) {
-    walkNodes(entry.node, (node) => {
-      if (node.localName !== "complexType") {
-        return;
-      }
-      const name = attributeValue(node, "name");
-      if (name && !complexTypes.has(name)) {
-        complexTypes.set(name, { document: entry.document, node });
-      }
-    });
-  }
+  const declarations = collectSchemaDeclarations(contexts);
 
   const elements: TxtJetIpxactSchemaElement[] = [];
   const globalElements = new Set<string>();
-  for (const entry of roots) {
-    walkNodes(entry.node, (node) => {
+  for (const context of contexts) {
+    walkNodes(context.schema, (node) => {
       if (node.localName !== "element") {
         return;
       }
@@ -117,21 +133,33 @@ export function buildIpxactSchemaIndex(
       if (isGlobal) {
         globalElements.add(name);
       }
-      const type = localQName(attributeValue(node, "type"));
-      const inlineContent = inlineSchemaContent(node);
-      const namedContent = type ? complexTypes.get(type) : undefined;
+      const refKey = resolveSchemaQName(attributeValue(node, "ref"), context);
+      const referenced = refKey ? declarations.globalElements.get(refKey) : undefined;
+      const definition = referenced ?? { context, node, key: schemaElementKey(node, context) };
+      const typeValue = attributeValue(definition.node, "type");
+      const typeKey = resolveSchemaQName(typeValue, definition.context);
+      const inlineContent = inlineSchemaContent(definition.node);
+      const namedContent = typeKey ? declarations.complexTypes.get(typeKey) : undefined;
       const content = inlineContent
-        ? { document: entry.document, node: inlineContent }
+        ? { context: definition.context, node: inlineContent, key: `${definition.key}\0inline` }
         : namedContent;
+      const children = content
+        ? resolvedSchemaChildren(content, declarations)
+        : [];
+      const namespace = schemaKeyNamespace(refKey ?? schemaElementKey(node, context));
       elements.push({
         name,
-        type,
-        documentation: schemaDocumentation(node),
-        children: content ? schemaChildElementNames(content.node) : [],
+        namespace: namespace || undefined,
+        schemaKey: refKey ?? schemaElementKey(node, context),
+        global: isGlobal,
+        type: localQName(typeValue),
+        documentation: schemaDocumentation(node) ?? (referenced ? schemaDocumentation(referenced.node) : undefined),
+        children: children.map((child) => child.name),
+        childKeys: children.map((child) => child.key),
         attributes: content
-          ? schemaAttributes(content.node, content.document.fileName)
+          ? resolvedSchemaAttributes(content, declarations)
           : [],
-        location: schemaNodeLocation(entry.document.fileName, node, "name", "ref")
+        location: schemaNodeLocation(context.document.fileName, node, "name", "ref")
       });
     });
   }
@@ -148,7 +176,9 @@ export function schemaElementsNamed(
   name: string
 ): TxtJetIpxactSchemaElement[] {
   const local = localQName(name);
-  return index.elements.filter((element) => element.name === local);
+  return index.elements
+    .filter((element) => element.name === local)
+    .sort((left, right) => Number(right.global) - Number(left.global));
 }
 
 export function schemaChildrenFor(
@@ -162,8 +192,13 @@ export function schemaChildrenFor(
   if (!parent) {
     return [];
   }
-  return uniqueStrings(parent.children)
-    .flatMap((name) => schemaElementsNamed(index, name).slice(0, 1));
+  return uniqueStrings(parent.childKeys)
+    .flatMap((key) => {
+      const exact = index.elements
+        .filter((element) => element.schemaKey === key)
+        .sort((left, right) => Number(right.global) - Number(left.global))[0];
+      return exact ? [exact] : schemaElementsNamed(index, schemaKeyLocalName(key)).slice(0, 1);
+    });
 }
 
 export function schemaAttributesFor(
@@ -365,58 +400,209 @@ function walkNodes(node: XmlNode, visit: (node: XmlNode) => void): void {
   }
 }
 
+function schemaContext(
+  document: TxtJetIpxactSchemaDocument,
+  schema: XmlNode
+): SchemaContext {
+  const namespaces = new Map<string, string>();
+  for (const attribute of schema.attributes) {
+    if (attribute.name === "xmlns") {
+      namespaces.set("", attribute.value);
+    } else if (attribute.name.startsWith("xmlns:")) {
+      namespaces.set(attribute.name.slice("xmlns:".length), attribute.value);
+    }
+  }
+  return {
+    document,
+    schema,
+    targetNamespace: attributeValue(schema, "targetNamespace") ?? "",
+    namespaces
+  };
+}
+
+function collectSchemaDeclarations(contexts: SchemaContext[]): SchemaDeclarations {
+  const declarations: SchemaDeclarations = {
+    complexTypes: new Map(),
+    groups: new Map(),
+    attributeGroups: new Map(),
+    globalElements: new Map(),
+    globalAttributes: new Map()
+  };
+  for (const context of contexts) {
+    for (const node of context.schema.children) {
+      const name = attributeValue(node, "name");
+      if (!name) {
+        continue;
+      }
+      const declaration: SchemaDeclaration = {
+        context,
+        node,
+        key: schemaNameKey(context.targetNamespace, name)
+      };
+      const target = declarationMapFor(node.localName, declarations);
+      if (target && !target.has(declaration.key)) {
+        target.set(declaration.key, declaration);
+      }
+    }
+  }
+  return declarations;
+}
+
+function declarationMapFor(
+  localName: string,
+  declarations: SchemaDeclarations
+): Map<string, SchemaDeclaration> | undefined {
+  switch (localName) {
+    case "complexType":
+      return declarations.complexTypes;
+    case "group":
+      return declarations.groups;
+    case "attributeGroup":
+      return declarations.attributeGroups;
+    case "element":
+      return declarations.globalElements;
+    case "attribute":
+      return declarations.globalAttributes;
+    default:
+      return undefined;
+  }
+}
+
 function inlineSchemaContent(node: XmlNode): XmlNode | undefined {
   return node.children.find((child) => child.localName === "complexType");
 }
 
-function schemaChildElementNames(container: XmlNode): string[] {
-  const names: string[] = [];
-  function visit(node: XmlNode): void {
+function resolvedSchemaChildren(
+  content: SchemaDeclaration,
+  declarations: SchemaDeclarations
+): Array<{ name: string; key: string }> {
+  const children = new Map<string, { name: string; key: string }>();
+  const seen = new Set<string>([`complexType:${content.key}`]);
+
+  function visitChildren(node: XmlNode, context: SchemaContext): void {
     for (const child of node.children) {
       if (child.localName === "element") {
         const name = schemaElementName(child);
-        if (name) {
-          names.push(name);
+        if (!name) {
+          continue;
+        }
+        const key = resolveSchemaQName(attributeValue(child, "ref"), context)
+          ?? schemaNameKey(context.targetNamespace, name);
+        children.set(key, { name, key });
+        continue;
+      }
+      if (child.localName === "group") {
+        const key = resolveSchemaQName(attributeValue(child, "ref"), context);
+        const declaration = key ? declarations.groups.get(key) : undefined;
+        if (declaration) {
+          visitDeclaration(declaration, "group");
+        } else {
+          visitChildren(child, context);
         }
         continue;
       }
-      if (child.localName !== "documentation" && child.localName !== "attribute") {
-        visit(child);
+      if (child.localName === "extension" || child.localName === "restriction") {
+        const key = resolveSchemaQName(attributeValue(child, "base"), context);
+        const declaration = key ? declarations.complexTypes.get(key) : undefined;
+        if (declaration) {
+          visitDeclaration(declaration, "complexType");
+        }
+        visitChildren(child, context);
+        continue;
+      }
+      if (!["documentation", "attribute", "attributeGroup"].includes(child.localName)) {
+        visitChildren(child, context);
       }
     }
   }
-  visit(container);
-  return uniqueStrings(names);
+
+  function visitDeclaration(
+    declaration: SchemaDeclaration,
+    kind: "complexType" | "group"
+  ): void {
+    const seenKey = `${kind}:${declaration.key}`;
+    if (seen.has(seenKey)) {
+      return;
+    }
+    seen.add(seenKey);
+    visitChildren(declaration.node, declaration.context);
+  }
+
+  visitChildren(content.node, content.context);
+  return [...children.values()];
 }
 
-function schemaAttributes(
-  container: XmlNode,
-  fileName: string
+function resolvedSchemaAttributes(
+  content: SchemaDeclaration,
+  declarations: SchemaDeclarations
 ): TxtJetIpxactSchemaAttribute[] {
-  const attributes: TxtJetIpxactSchemaAttribute[] = [];
-  function visit(node: XmlNode): void {
+  const attributes = new Map<string, TxtJetIpxactSchemaAttribute>();
+  const seen = new Set<string>([`complexType:${content.key}`]);
+
+  function visitChildren(node: XmlNode, context: SchemaContext): void {
     for (const child of node.children) {
       if (child.localName === "element") {
         continue;
       }
       if (child.localName === "attribute") {
+        const refKey = resolveSchemaQName(attributeValue(child, "ref"), context);
+        const referenced = refKey ? declarations.globalAttributes.get(refKey) : undefined;
+        const definition = referenced?.node ?? child;
+        const definitionContext = referenced?.context ?? context;
         const name = localQName(attributeValue(child, "name") ?? attributeValue(child, "ref"));
         if (name) {
-          attributes.push({
+          attributes.set(name, {
             name,
-            type: localQName(attributeValue(child, "type")),
-            required: attributeValue(child, "use") === "required",
-            documentation: schemaDocumentation(child),
-            location: schemaNodeLocation(fileName, child, "name", "ref")
+            type: localQName(attributeValue(definition, "type")),
+            required: (attributeValue(child, "use") ?? attributeValue(definition, "use")) === "required",
+            documentation: schemaDocumentation(child) ?? (referenced ? schemaDocumentation(referenced.node) : undefined),
+            location: schemaNodeLocation(
+              definitionContext.document.fileName,
+              definition,
+              "name",
+              "ref"
+            )
           });
         }
         continue;
       }
-      visit(child);
+      if (child.localName === "attributeGroup") {
+        const key = resolveSchemaQName(attributeValue(child, "ref"), context);
+        const declaration = key ? declarations.attributeGroups.get(key) : undefined;
+        if (declaration) {
+          visitDeclaration(declaration, "attributeGroup");
+        } else {
+          visitChildren(child, context);
+        }
+        continue;
+      }
+      if (child.localName === "extension" || child.localName === "restriction") {
+        const key = resolveSchemaQName(attributeValue(child, "base"), context);
+        const declaration = key ? declarations.complexTypes.get(key) : undefined;
+        if (declaration) {
+          visitDeclaration(declaration, "complexType");
+        }
+        visitChildren(child, context);
+        continue;
+      }
+      visitChildren(child, context);
     }
   }
-  visit(container);
-  return attributes;
+
+  function visitDeclaration(
+    declaration: SchemaDeclaration,
+    kind: "complexType" | "attributeGroup"
+  ): void {
+    const seenKey = `${kind}:${declaration.key}`;
+    if (seen.has(seenKey)) {
+      return;
+    }
+    seen.add(seenKey);
+    visitChildren(declaration.node, declaration.context);
+  }
+
+  visitChildren(content.node, content.context);
+  return [...attributes.values()];
 }
 
 function schemaDocumentation(node: XmlNode): string | undefined {
@@ -458,6 +644,50 @@ function schemaNodeLocation(
 
 function schemaElementName(node: XmlNode): string | undefined {
   return localQName(attributeValue(node, "name") ?? attributeValue(node, "ref"));
+}
+
+function schemaElementKey(node: XmlNode, context: SchemaContext): string {
+  return resolveSchemaQName(attributeValue(node, "ref"), context)
+    ?? schemaNameKey(context.targetNamespace, attributeValue(node, "name") ?? "");
+}
+
+function resolveSchemaQName(
+  value: string | undefined,
+  context: SchemaContext
+): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  if (value.startsWith("{")) {
+    const namespaceEnd = value.indexOf("}");
+    if (namespaceEnd > 0 && namespaceEnd < value.length - 1) {
+      return schemaNameKey(value.slice(1, namespaceEnd), value.slice(namespaceEnd + 1));
+    }
+  }
+  const separator = value.indexOf(":");
+  if (separator >= 0) {
+    const prefix = value.slice(0, separator);
+    const namespace = context.namespaces.get(prefix);
+    return namespace === undefined
+      ? undefined
+      : schemaNameKey(namespace, value.slice(separator + 1));
+  }
+  const namespace = context.namespaces.get("") ?? context.targetNamespace;
+  return schemaNameKey(namespace, value);
+}
+
+function schemaNameKey(namespace: string, localName: string): string {
+  return `${namespace}\0${localName}`;
+}
+
+function schemaKeyNamespace(key: string): string {
+  const separator = key.indexOf("\0");
+  return separator === -1 ? "" : key.slice(0, separator);
+}
+
+function schemaKeyLocalName(key: string): string {
+  const separator = key.indexOf("\0");
+  return separator === -1 ? key : key.slice(separator + 1);
 }
 
 function attributeValue(node: XmlNode, name: string): string | undefined {

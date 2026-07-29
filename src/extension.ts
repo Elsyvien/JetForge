@@ -160,11 +160,23 @@ let requestWorkspaceModelRefresh: ((invalidate?: boolean, immediate?: boolean) =
 let workspaceModelGeneration = 0;
 let javaWorkspaceIndexCache: { key: string; index: TxtJetJavaWorkspaceIndex } | undefined;
 const ipxactSchemaIndexCache = new Map<string, TxtJetIpxactSchemaIndex>();
+const ipxactSchemaDiscoveryCache = new Map<string, string[]>();
+const ipxactSchemaWatchers = new Map<string, vscode.Disposable>();
 const compilerOutputSources = new Map<string, string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   activeWorkspaceModel = undefined;
+  invalidateIpxactSchemaCaches();
   context.subscriptions.push(outputChannel);
+  context.subscriptions.push({
+    dispose() {
+      for (const watcher of ipxactSchemaWatchers.values()) {
+        watcher.dispose();
+      }
+      ipxactSchemaWatchers.clear();
+      invalidateIpxactSchemaCaches();
+    }
+  });
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
   context.subscriptions.push(statusBar);
@@ -655,6 +667,9 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       visualDifferentiator.refreshAll();
       previewSynchronizer.invalidate();
+      if (event.affectsConfiguration(`${CONFIG_SECTION}.ipxact.schemaPaths`)) {
+        invalidateIpxactSchemaCaches();
+      }
       void workspaceRefresh.request(true);
     })
   );
@@ -1797,18 +1812,27 @@ function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxac
     .filter((entry) => entry.trim().length > 0)
     .map((entry) => resolveWorkspaceConfiguredPath(entry, baseRoot))
     .filter((entry) => vscode.workspace.isTrusted || isPathInsideAnyRoot(entry, [baseRoot]));
-  const files: string[] = [];
-  const visited = new Set<string>();
   for (const root of roots) {
-    collectIpxactSchemaFiles(root, root, files, visited);
-    if (files.length >= 256) {
-      break;
+    ensureIpxactSchemaWatcher(root);
+  }
+  const discoveryKey = roots.map((root) => normalize(root)).sort().join("\0");
+  let files = ipxactSchemaDiscoveryCache.get(discoveryKey);
+  if (!files) {
+    const discovered: string[] = [];
+    const visited = new Set<string>();
+    for (const root of roots) {
+      collectIpxactSchemaFiles(root, root, discovered, visited);
+      if (discovered.length >= 256) {
+        break;
+      }
     }
+    discovered.sort();
+    files = discovered;
+    ipxactSchemaDiscoveryCache.set(discoveryKey, files);
   }
   if (files.length === 0) {
     return undefined;
   }
-  files.sort();
   const sources = files.flatMap((fileName) => {
     const openDocument = vscode.workspace.textDocuments.find((candidate) =>
       normalize(candidate.fileName) === normalize(fileName)
@@ -1854,6 +1878,35 @@ function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxac
     ipxactSchemaIndexCache.delete(oldest);
   }
   return index;
+}
+
+function ensureIpxactSchemaWatcher(root: string): void {
+  const normalized = normalize(root);
+  if (ipxactSchemaWatchers.has(normalized)) {
+    return;
+  }
+  let stat: ReturnType<typeof statSync>;
+  try {
+    stat = statSync(normalized);
+  } catch {
+    return;
+  }
+  const pattern = stat.isDirectory()
+    ? new vscode.RelativePattern(normalized, "**/*.xsd")
+    : new vscode.RelativePattern(dirname(normalized), basename(normalized));
+  const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+  const invalidate = () => invalidateIpxactSchemaCaches();
+  ipxactSchemaWatchers.set(normalized, vscode.Disposable.from(
+    watcher,
+    watcher.onDidCreate(invalidate),
+    watcher.onDidChange(invalidate),
+    watcher.onDidDelete(invalidate)
+  ));
+}
+
+function invalidateIpxactSchemaCaches(): void {
+  ipxactSchemaDiscoveryCache.clear();
+  ipxactSchemaIndexCache.clear();
 }
 
 function collectIpxactSchemaFiles(
@@ -4402,14 +4455,14 @@ function ipxactSchemaHoverForName(
 }
 
 function provenanceLocation(origin: TxtJetProvenance): vscode.Location | undefined {
-  if (!origin.sourceFileName) {
+  if (!origin.sourceFileName || !origin.source) {
     return undefined;
   }
   const uri = vscode.Uri.file(origin.sourceFileName);
   const openDocument = vscode.workspace.textDocuments.find((document) =>
     document.uri.toString() === uri.toString()
   );
-  const source = origin.source ?? { start: 0, end: 0 };
+  const source = origin.source;
   if (openDocument) {
     return new vscode.Location(
       uri,
