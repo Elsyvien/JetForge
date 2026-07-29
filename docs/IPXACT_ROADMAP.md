@@ -22,16 +22,21 @@ IP-XACT support in TxtJet is optional, opt-in tooling that helps author and vali
    - Shared snippets include `component`, `busInterface`, `memoryMap`, `addressBlock`, `register`, and `field`.
    - Matched IP-XACT generated-output regions offer local node snippet completions.
    - `@jet ipxact="true"` is accepted by diagnostics and offered as metadata.
+   - Optional `txtjet.ipxact.schemaPaths` entries load project-owned local XSD files or directories.
+   - Schema-aware completions offer permitted child elements and attributes from inline/named complex types, preserve typed namespace prefixes, and surface XSD documentation.
 
 3. IP-XACT validation
    - `TxtJet: Validate IP-XACT Output` writes generated XML and runs `txtjet.ipxact.validation.command`.
    - Validation supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders.
    - Diagnostics use `txtjet.ipxact.validation.problemMatcher` and map to template locations where generated-output source maps allow it.
+   - Recognized XSD validator messages include a concise explanation, corrective guidance, the original validator text, and related configured-schema declarations where available.
    - Validation never runs when disabled.
 
 4. Navigation / indexing
    - The workspace model exposes `ipxactTemplates` and the Explorer shows an IP-XACT group.
    - `TxtJet: Open IP-XACT Template` opens a quick-pick over matched templates.
+   - Go to Definition and Hover resolve generated-output element/attribute names to local XSD declarations from both the template and IP-XACT preview.
+   - The IP-XACT preview Outline parses generated XML into a lightweight hierarchy of named components, bus interfaces, memory maps, address blocks, registers, and fields.
    - Indexing runs only when the setting is enabled.
 
 5. Generated output workflows
@@ -41,6 +46,6 @@ IP-XACT support in TxtJet is optional, opt-in tooling that helps author and vali
 
 ## Non-Goals (Near Term)
 
-- Full semantic IP-XACT authoring or schema-aware refactors inside mixed TxtJet files.
+- Full XSD validation, identity constraints, substitution-group inference, or schema-aware refactors inside mixed TxtJet files.
 - Background validation or indexing when the user has not explicitly enabled it.
 - Forcing IP-XACT naming conventions or file extensions.

@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-JetForge currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, guided external-compiler setup and compiler-backed diagnostics, Quick Fixes, completions for TxtJet constructs and configured project metadata, generated-output language modes, read-only generated previews, synchronized reveal for deterministic preview mappings, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, workspace-aware cross-class method completion/navigation/signatures, local generated-output fallback suggestions for Java, Python, and C/C++, optional IP-XACT workflows, and workspace-wide TxtJet indexing for templates, includes, skeletons, IP-XACT templates, unresolved references, and generated targets. It does not implement a full Java parser/type checker or provide full generated target-language language-server behavior inside `.txtjet` files.
+JetForge currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, guided external-compiler setup and compiler-backed diagnostics, Quick Fixes, completions for TxtJet constructs and configured project metadata, generated-output language modes, read-only generated previews, per-line preview provenance, synchronized reveal for deterministic preview mappings, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, workspace-aware cross-class method completion/navigation/signatures, local generated-output fallback suggestions for Java, Python, and C/C++, optional local-XSD IP-XACT intelligence, and workspace-wide TxtJet indexing for templates, includes, skeletons, IP-XACT templates, unresolved references, and generated targets. It does not implement a full Java parser/type checker or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -32,6 +32,9 @@ VSCode language servers generally operate on one coherent language document. A `
 - Source mapping foundation
   - The transformation layer returns source-to-preview ranges for generated output and generated Java previews.
   - Current mappings support tests, preview refresh behavior, region-aware preview commands, reveal commands between source and preview, synchronized reveal between visible source/preview editors, compiler/IP-XACT diagnostic mapping, and optional generated-Java diagnostic mapping.
+  - Every preview line also carries provenance for root-template text, expanded includes, expressions, skeleton tokens/layout, or intentionally unmapped compiler output.
+  - The preview lens renders those origins as `R`, `I`, `E`, `S`, and `?`; hover explains direct, include-expanded, skeleton-rendered, approximate, and unmapped confidence, while dedicated source/contribution commands navigate composite lines.
+  - Real external-compiler output inherits provenance only when a non-empty line has one unique exact match in the approximation; repeated, evaluated, and compiler-only lines remain visibly unmapped.
 
 - IntelliSense-adjacent editor support
   - Outline symbols summarize directives, declarations, scriptlets, expressions, and generated-output regions.
@@ -73,6 +76,8 @@ VSCode language servers generally operate on one coherent language document. A `
   - `txtjet.ipxact.enabled` gates IP-XACT preview, generation, diff, validation, snippets, completions, and workspace indexing.
   - Templates can opt in through `@jet ipxact="true"` or configured globs.
   - Validation runs an external command and maps generated XML diagnostics back to source only where generated-output mappings are deterministic.
+  - Optional resource-scoped `txtjet.ipxact.schemaPaths` index local XSD files and directories for permitted-child and attribute completions, XSD documentation hovers, and Go to Definition from templates and previews.
+  - Recognized validator messages gain a short schema-focused explanation and corrective guidance while preserving the original validator output.
 
 ## Remaining Future Direction
 

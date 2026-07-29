@@ -25,6 +25,7 @@ const forbidden = [
   /^generated\//,
   /^generated-ipxact\//,
   /^index\.html$/,
+  /^feature-roadmap\.html$/,
   /^styles\.css$/,
   /^script\.js$/,
   /^package-lock\.json$/,
@@ -40,6 +41,8 @@ const forbidden = [
   /^examples\/private[-/]/,
   /^private-examples\//,
   /^.*\.vsix$/,
+  /^.*\.vsix\.sha256$/,
+  /^tmp\//,
   /^.*\.log$/
 ];
 

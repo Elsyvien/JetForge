@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { join, resolve } from "node:path";
 import {
+  explainIpxactValidationMessage,
   globMatchesPath,
   hasIpxactMetadata,
   isIpxactTemplate,
@@ -98,5 +99,28 @@ const unmapped = mapIpxactProblemsToSource(
   workspace
 );
 assert.equal(unmapped.length, 0);
+
+const unexpectedExplanation = explainIpxactValidationMessage(
+  "cvc-complex-type.2.4.a: Invalid content was found starting with element 'ipxact:register'. One of '{ipxact:addressBlock, ipxact:memoryMap}' is expected."
+);
+assert.match(unexpectedExplanation?.summary ?? "", /<register>/);
+assert.deepEqual(unexpectedExplanation?.expectedElements, ["addressBlock", "memoryMap"]);
+assert.match(unexpectedExplanation?.guidance ?? "", /<addressBlock>/);
+const clarkExplanation = explainIpxactValidationMessage(
+  "Invalid content was found starting with element '{http://www.accellera.org/XMLSchema/IPXACT/1685-2022}register'. One of '{http://www.accellera.org/XMLSchema/IPXACT/1685-2022}addressBlock' is expected."
+);
+assert.match(clarkExplanation?.summary ?? "", /<register>/);
+assert.deepEqual(clarkExplanation?.expectedElements, ["addressBlock"]);
+
+const attributeExplanation = explainIpxactValidationMessage(
+  "cvc-complex-type.3.2.2: Attribute 'legacy' is not allowed to appear in element 'component'."
+);
+assert.match(attributeExplanation?.summary ?? "", /legacy/);
+assert.equal(attributeExplanation?.elementName, "component");
+
+const valueExplanation = explainIpxactValidationMessage(
+  "cvc-datatype-valid.1.2.1: 'four' is not a valid value for 'integer'."
+);
+assert.match(valueExplanation?.summary ?? "", /schema type integer/);
 
 console.log("ipxact tests ok");

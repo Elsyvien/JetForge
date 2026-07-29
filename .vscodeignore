@@ -7,6 +7,7 @@ design-qa.md
 .antigravitycli/**
 .claude/**
 index.html
+feature-roadmap.html
 styles.css
 script.js
 scripts/**
@@ -34,5 +35,7 @@ example.txtjet
 example.txtjet.txt
 private-examples/**
 *.vsix
+*.vsix.sha256
 *.log
+tmp/**
 .DS_Store

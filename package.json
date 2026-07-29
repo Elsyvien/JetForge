@@ -31,7 +31,8 @@
         "txtjet.generation.outputDirectory",
         "txtjet.ipxact.validation.command",
         "txtjet.ipxact.validation.runOnSave",
-        "txtjet.ipxact.outputDirectory"
+        "txtjet.ipxact.outputDirectory",
+        "txtjet.ipxact.schemaPaths"
       ]
     }
   },
@@ -295,6 +296,18 @@
       {
         "command": "txtjet.toggleVisualDifferentiation",
         "title": "TxtJet: Toggle Region Background Coloring"
+      },
+      {
+        "command": "txtjet.togglePreviewProvenanceLens",
+        "title": "TxtJet: Toggle Generated Preview Provenance Lens"
+      },
+      {
+        "command": "txtjet.showPreviewLineSource",
+        "title": "TxtJet: Show Source for This Output Line"
+      },
+      {
+        "command": "txtjet.showPreviewLineContributions",
+        "title": "TxtJet: Show All Contributions for This Output Line"
       },
       {
         "command": "txtjet.openGeneratedOutputPreview",
@@ -649,6 +662,11 @@
           "default": false,
           "description": "Synchronize selections between visible TxtJet source templates and generated preview documents where source maps are deterministic."
         },
+        "txtjet.previews.provenanceLens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a per-line provenance marker in generated previews for root template text, includes, expressions, skeleton content, and unmapped output."
+        },
         "txtjet.completions.directiveMetadata": {
           "type": "object",
           "default": {},
@@ -676,6 +694,15 @@
             "type": "string"
           },
           "description": "Workspace-relative template globs treated as IP-XACT when txtjet.ipxact.enabled is true. Templates can also opt in with @jet ipxact=\"true\".",
+          "scope": "resource"
+        },
+        "txtjet.ipxact.schemaPaths": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "markdownDescription": "Optional local `.xsd` files or directories used for schema-aware IP-XACT element/attribute completions, documentation, validation explanations, and Go to Definition. Supports `${workspaceFolder}`. No schemas are downloaded.",
           "scope": "resource"
         },
         "txtjet.ipxact.outputDirectory": {
@@ -805,6 +832,15 @@
         {
           "command": "txtjet.toggleVisualDifferentiation",
           "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.togglePreviewProvenanceLens"
+        },
+        {
+          "command": "txtjet.showPreviewLineSource"
+        },
+        {
+          "command": "txtjet.showPreviewLineContributions"
         },
         {
           "command": "txtjet.compileTemplate",
@@ -974,6 +1010,9 @@
     "onCommand:txtjet.clearLanguage.all",
     "onCommand:txtjet.clearGeneratedSnapshots",
     "onCommand:txtjet.toggleVisualDifferentiation",
+    "onCommand:txtjet.togglePreviewProvenanceLens",
+    "onCommand:txtjet.showPreviewLineSource",
+    "onCommand:txtjet.showPreviewLineContributions",
     "onCommand:txtjet.openGeneratedOutputPreview",
     "onCommand:txtjet.openGeneratedJavaPreview",
     "onCommand:txtjet.openPreviewBesideSource",
@@ -1008,7 +1047,7 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "npm run clean && tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/workspaceModel.test.js && node out/asyncRefresh.test.js && node out/regionClassifier.test.js && node out/javaSyntax.test.js && node out/javaIntelliSenseBridge.test.js && node out/javaWorkspaceIntelligence.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/compilerToolchain.test.js && node out/ipxact.test.js && node out/previewSync.test.js && node out/previewCache.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/provenance.test.js && node out/workspaceModel.test.js && node out/asyncRefresh.test.js && node out/regionClassifier.test.js && node out/javaSyntax.test.js && node out/javaIntelliSenseBridge.test.js && node out/javaWorkspaceIntelligence.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/compilerToolchain.test.js && node out/ipxact.test.js && node out/ipxactSchema.test.js && node out/previewSync.test.js && node out/previewCache.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
     "test:extension": "npm run compile && node scripts/run-extension-host-tests.js",
     "test:vsix": "node scripts/run-installed-vsix-tests.js",
     "check:release-metadata": "node scripts/check-release-metadata.js",
@@ -1021,7 +1060,7 @@
   "devDependencies": {
     "@types/node": "^20.12.12",
     "@types/vscode": "1.85.0",
-    "@vscode/test-electron": "3.0.0",
+    "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "3.9.2",
     "typescript": "^5.4.5"
   }
