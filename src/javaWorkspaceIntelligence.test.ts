@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   createJavaWorkspaceIndex,
   referencedWorkspaceJavaClasses,
+  workspaceJavaClassDependencies,
   workspaceJavaCompletionsAt,
   workspaceJavaDefinitionsAt,
   workspaceJavaHoverAt,
@@ -76,6 +77,19 @@ const externalCompletionOffset = consumer.indexOf("external.exe") + "external.ex
 assert.deepEqual(
   workspaceJavaCompletionsAt(index, consumerFile, consumer, externalCompletionOffset).map((completion) => completion.label),
   ["execute"]
+);
+
+const transitive = `<%@ jet package="demo" class="Service" %>\n<%! private ExternalService external = new ExternalService(); %>`;
+const transitiveIndex = createJavaWorkspaceIndex([
+  { fileName: serviceFile, text: transitive },
+  { fileName: consumerFile, text: consumer },
+  { fileName: externalFile, text: external }
+]);
+assert.deepEqual(
+  workspaceJavaClassDependencies(transitiveIndex, consumerFile).map((dependency) =>
+    `${dependency.sourceClass.qualifiedName}->${dependency.targetClass.qualifiedName}`
+  ),
+  ["demo.Consumer->demo.Service", "demo.Consumer->shared.ExternalService", "demo.Service->shared.ExternalService"]
 );
 
 const definitionOffset = consumer.indexOf("service.render") + "service.".length + 2;
