@@ -68,6 +68,8 @@ import {
 import {
   createJavaWorkspaceIndex,
   referencedWorkspaceJavaClasses,
+  workspaceJavaClassDependencies,
+  TxtJetJavaWorkspaceDependency,
   TxtJetJavaWorkspaceIndex,
   workspaceJavaCompletionsAt,
   workspaceJavaDefinitionsAt,
@@ -2151,9 +2153,12 @@ async function showImpactGraph(item?: TxtJetWorkspaceTreeNode): Promise<void> {
     return;
   }
 
+  const sourceDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(fileName));
+  const javaIndex = await javaWorkspaceIndex(sourceDocument);
+  const classDependencies = workspaceJavaClassDependencies(javaIndex, fileName, sourceDocument.getText());
   const document = await vscode.workspace.openTextDocument({
     language: "markdown",
-    content: impactGraphMarkdown(model, fileName)
+    content: impactGraphMarkdown(model, fileName, classDependencies)
   });
   try {
     await vscode.commands.executeCommand("markdown.showPreview", document.uri);
@@ -2418,7 +2423,11 @@ function activeReferenceTargetFileName(model: TxtJetWorkspaceModel): string | un
     ?.resolvedFileName;
 }
 
-function impactGraphMarkdown(model: TxtJetWorkspaceModel, fileName: string): string {
+function impactGraphMarkdown(
+  model: TxtJetWorkspaceModel,
+  fileName: string,
+  classDependencies: TxtJetJavaWorkspaceDependency[] = []
+): string {
   const impact = model.impactedBy(fileName);
   const sourceLabel = workspaceRelativeLabel(fileName);
   const lines = [
@@ -2432,12 +2441,14 @@ function impactGraphMarkdown(model: TxtJetWorkspaceModel, fileName: string): str
     `- Affected templates: ${impact.affectedTemplates.length}`,
     `- Generated output targets to recheck: ${impact.generatedTargets.length}`,
     `- Dependency edges: ${impact.references.length}`,
+    `- Referenced workspace classes: ${new Set(classDependencies.map((entry) => entry.targetClass.fileName)).size}`,
+    `- Java class dependency edges: ${classDependencies.length}`,
     "",
     "## Graph",
     "",
     "```mermaid",
     "flowchart LR",
-    ...impactGraphMermaidLines(model, fileName),
+    ...impactGraphMermaidLines(model, fileName, classDependencies),
     "```",
     "",
     "## Affected Templates",
@@ -2449,15 +2460,29 @@ function impactGraphMarkdown(model: TxtJetWorkspaceModel, fileName: string): str
     ...markdownList(impact.references.map((reference) =>
       `${reference.resolvedFileName ? markdownFileLink(reference.resolvedFileName) : "Unresolved"} -> ${markdownFileLink(reference.sourceFileName)} (${reference.kind}: \`${reference.referenceFile}\`)`
     )),
+    "",
+    "## Java Class Dependencies",
+    "",
+    ...markdownList(classDependencies.map((dependency) =>
+      `${markdownFileLink(dependency.sourceClass.fileName, dependency.sourceClass.qualifiedName)} -> ${markdownFileLink(dependency.targetClass.fileName, dependency.targetClass.qualifiedName)}`
+    )),
     ""
   ];
   return lines.join("\n");
 }
 
-function impactGraphMermaidLines(model: TxtJetWorkspaceModel, fileName: string): string[] {
+function impactGraphMermaidLines(
+  model: TxtJetWorkspaceModel,
+  fileName: string,
+  classDependencies: TxtJetJavaWorkspaceDependency[] = []
+): string[] {
   const impact = model.impactedBy(fileName);
   const fileNames = new Set(impact.affectedEntries.map((entry) => entry.fileName));
   fileNames.add(fileName);
+  for (const dependency of classDependencies) {
+    fileNames.add(dependency.sourceClass.fileName);
+    fileNames.add(dependency.targetClass.fileName);
+  }
   const ids = new Map(Array.from(fileNames).sort().map((entryFileName, index) => [entryFileName, `n${index}`]));
   const lines = Array.from(fileNames).sort().map((entryFileName) => {
     const label = markdownEscaped(workspaceRelativeLabel(entryFileName));
@@ -2468,6 +2493,9 @@ function impactGraphMermaidLines(model: TxtJetWorkspaceModel, fileName: string):
       continue;
     }
     lines.push(`  ${ids.get(reference.resolvedFileName)} -->|${reference.kind}| ${ids.get(reference.sourceFileName)}`);
+  }
+  for (const dependency of classDependencies) {
+    lines.push(`  ${ids.get(dependency.sourceClass.fileName)} -->|uses ${markdownEscaped(dependency.targetClass.className)}| ${ids.get(dependency.targetClass.fileName)}`);
   }
   if (lines.length === 1) {
     lines.push(`  ${ids.get(fileName)} --> ${ids.get(fileName)}`);

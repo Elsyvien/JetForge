@@ -38,6 +38,11 @@ export interface TxtJetJavaWorkspaceIndex {
   source(fileName: string): TxtJetJavaWorkspaceSource | undefined;
 }
 
+export interface TxtJetJavaWorkspaceDependency {
+  sourceClass: TxtJetJavaWorkspaceClass;
+  targetClass: TxtJetJavaWorkspaceClass;
+}
+
 export interface TxtJetJavaWorkspaceCompletion {
   kind: "class" | "method";
   label: string;
@@ -281,6 +286,48 @@ export function referencedWorkspaceJavaClasses(
     }
   }
   return Array.from(references.values()).sort((left, right) => left.qualifiedName.localeCompare(right.qualifiedName));
+}
+
+/**
+ * Builds the real, transitive class dependency graph starting at a TxtJet
+ * template. Each edge points from the class containing the Java reference to
+ * the referenced workspace @jet class.
+ */
+export function workspaceJavaClassDependencies(
+  index: TxtJetJavaWorkspaceIndex,
+  fileName: string,
+  text?: string
+): TxtJetJavaWorkspaceDependency[] {
+  const root = index.classForFile(fileName);
+  if (!root) {
+    return [];
+  }
+  const dependencies: TxtJetJavaWorkspaceDependency[] = [];
+  const visited = new Set<string>();
+  const queue: Array<{ sourceClass: TxtJetJavaWorkspaceClass; text?: string }> = [{ sourceClass: root, text }];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (visited.has(current.sourceClass.fileName)) {
+      continue;
+    }
+    visited.add(current.sourceClass.fileName);
+    const sourceText = current.text ?? index.source(current.sourceClass.fileName)?.text;
+    if (sourceText === undefined) {
+      continue;
+    }
+    for (const targetClass of referencedWorkspaceJavaClasses(index, current.sourceClass.fileName, sourceText)) {
+      dependencies.push({ sourceClass: current.sourceClass, targetClass });
+      if (!visited.has(targetClass.fileName)) {
+        queue.push({ sourceClass: targetClass });
+      }
+    }
+  }
+
+  return dependencies.sort((left, right) =>
+    left.sourceClass.qualifiedName.localeCompare(right.sourceClass.qualifiedName)
+    || left.targetClass.qualifiedName.localeCompare(right.targetClass.qualifiedName)
+  );
 }
 
 function javaClassFromSource(source: TxtJetJavaWorkspaceSource): TxtJetJavaWorkspaceClass | undefined {
