@@ -1,0 +1,2 @@
+Hello, Ada Lovelace!
+Role: analytical engine programmer

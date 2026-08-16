@@ -13,7 +13,7 @@ body:
     id: version
     attributes:
       label: JetForge extension version
-      placeholder: "0.0.21"
+      placeholder: "0.1.0"
     validations:
       required: true
   - type: input

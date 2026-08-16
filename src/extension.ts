@@ -69,7 +69,6 @@ import {
   createJavaWorkspaceIndex,
   referencedWorkspaceJavaClasses,
   workspaceJavaClassDependencies,
-  TxtJetJavaWorkspaceDependency,
   TxtJetJavaWorkspaceIndex,
   workspaceJavaCompletionsAt,
   workspaceJavaDefinitionsAt,
@@ -123,6 +122,10 @@ import {
 } from "./workspaceModel";
 import { generatedOutputPath, isolatedValidationOutputPath } from "./generationPaths";
 import { ValidationRunCoordinator } from "./validationRuns";
+import { registerHeadlessWorkspaceCommands } from "./workspaceCommands";
+import { createImpactGraphData, showInteractiveImpactGraph } from "./impactGraphView";
+import { JetForgeRefactorPlan } from "./refactorPlans";
+import { confirmRefactorPlan, registerSafeRecipeCommands } from "./refactorCommands";
 
 const TXTJET_LANGUAGES = new Set<TxtJetTargetLanguage>([
   "txtjet",
@@ -167,6 +170,13 @@ const ipxactSchemaWatchers = new Map<string, vscode.Disposable>();
 const compilerOutputSources = new Map<string, string>();
 
 export function activate(context: vscode.ExtensionContext): void {
+  registerHeadlessWorkspaceCommands(context);
+  registerSafeRecipeCommands(context, {
+    javaWorkspaceIndex,
+    isTxtJetFile,
+    workspaceRelativeLabel,
+    vscodeRangeFor
+  });
   activeWorkspaceModel = undefined;
   invalidateIpxactSchemaCaches();
   context.subscriptions.push(outputChannel);
@@ -266,7 +276,7 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand("txtjet.openGettingStarted", async () => {
       await vscode.commands.executeCommand(
         "workbench.action.openWalkthrough",
-        { category: "elsyvien.txtjet-syntax#jetforge.gettingStarted" },
+        "elsyvien.txtjet-syntax#jetforge.gettingStarted",
         false
       );
     })
@@ -2156,15 +2166,7 @@ async function showImpactGraph(item?: TxtJetWorkspaceTreeNode): Promise<void> {
   const sourceDocument = await vscode.workspace.openTextDocument(vscode.Uri.file(fileName));
   const javaIndex = await javaWorkspaceIndex(sourceDocument);
   const classDependencies = workspaceJavaClassDependencies(javaIndex, fileName, sourceDocument.getText());
-  const document = await vscode.workspace.openTextDocument({
-    language: "markdown",
-    content: impactGraphMarkdown(model, fileName, classDependencies)
-  });
-  try {
-    await vscode.commands.executeCommand("markdown.showPreview", document.uri);
-  } catch {
-    await vscode.window.showTextDocument(document, { preview: false, viewColumn: vscode.ViewColumn.Beside });
-  }
+  showInteractiveImpactGraph(createImpactGraphData(model, fileName, classDependencies));
 }
 
 async function showReferencedJavaClasses(resource?: vscode.Uri): Promise<void> {
@@ -2236,12 +2238,26 @@ async function extractSelectionToInclude(): Promise<void> {
     vscode.window.showErrorMessage(`TxtJet include already exists: ${workspaceRelativeLabel(targetFileName)}`);
     return;
   }
+  const selectionText = document.getText(editor.selection);
+  const includeDirective = `<%@ include file="${normalizeReferenceForDirective(includeReference)}" %>`;
+  const plan: JetForgeRefactorPlan = {
+    title: "Extract selection to TxtJet include",
+    summary: `Create ${workspaceRelativeLabel(targetFileName)} and replace the selected template text with one include directive.`,
+    edits: [{
+      fileName: document.fileName,
+      range: { start: document.offsetAt(editor.selection.start), end: document.offsetAt(editor.selection.end) },
+      newText: includeDirective,
+      reason: "Replace the selection with an include directive"
+    }],
+    fileOperations: [{ kind: "create", fileName: targetFileName, content: selectionText }],
+    warnings: ["The target path is workspace-contained and does not already exist."]
+  };
+  if (!await confirmRefactorPlan(plan, workspaceRelativeLabel)) {
+    return;
+  }
   if (!await createRefactorParentDirectory(targetFileName)) {
     return;
   }
-
-  const selectionText = document.getText(editor.selection);
-  const includeDirective = `<%@ include file="${normalizeReferenceForDirective(includeReference)}" %>`;
   const edit = new vscode.WorkspaceEdit();
   const targetUri = vscode.Uri.file(targetFileName);
   edit.createFile(targetUri, { ignoreIfExists: false });
@@ -2307,12 +2323,22 @@ async function renameWorkspaceReference(item?: TxtJetWorkspaceTreeNode): Promise
       newText: relativeReferenceFromSource(reference.sourceFileName, newFileName)
     });
   }
-  const action = await vscode.window.showWarningMessage(
-    `Rename ${workspaceRelativeLabel(entry.fileName)} and update ${references.length} TxtJet reference${references.length === 1 ? "" : "s"}?`,
-    { modal: true },
-    "Apply Refactor"
-  );
-  if (action !== "Apply Refactor") {
+  const plan: JetForgeRefactorPlan = {
+    title: `Rename ${referenceKind} ${basename(entry.fileName)}`,
+    summary: `Move the file to ${workspaceRelativeLabel(newFileName)} and update ${references.length} resolved reference${references.length === 1 ? "" : "s"}.`,
+    edits: referenceEdits.map((referenceEdit) => ({
+      fileName: referenceEdit.document.fileName,
+      range: {
+        start: referenceEdit.document.offsetAt(referenceEdit.range.start),
+        end: referenceEdit.document.offsetAt(referenceEdit.range.end)
+      },
+      newText: referenceEdit.newText,
+      reason: `Update the resolved ${referenceKind} path`
+    })),
+    fileOperations: [{ kind: "rename", fileName: entry.fileName, targetFileName: newFileName }],
+    warnings: ["Only references resolved by the current workspace model are changed."]
+  };
+  if (!await confirmRefactorPlan(plan, workspaceRelativeLabel)) {
     return;
   }
   if (!await createRefactorParentDirectory(newFileName)) {
@@ -2421,99 +2447,6 @@ function activeReferenceTargetFileName(model: TxtJetWorkspaceModel): string | un
   return model.referencesFrom(editor.document.fileName, reference.kind)
     .find((candidate) => candidate.referenceFile === reference.file)
     ?.resolvedFileName;
-}
-
-function impactGraphMarkdown(
-  model: TxtJetWorkspaceModel,
-  fileName: string,
-  classDependencies: TxtJetJavaWorkspaceDependency[] = []
-): string {
-  const impact = model.impactedBy(fileName);
-  const sourceLabel = workspaceRelativeLabel(fileName);
-  const lines = [
-    "# TxtJet Impact Graph",
-    "",
-    `Source: ${markdownFileLink(fileName, sourceLabel)}`,
-    "",
-    "## Summary",
-    "",
-    `- Affected workspace files: ${impact.affectedEntries.length}`,
-    `- Affected templates: ${impact.affectedTemplates.length}`,
-    `- Generated output targets to recheck: ${impact.generatedTargets.length}`,
-    `- Dependency edges: ${impact.references.length}`,
-    `- Referenced workspace classes: ${new Set(classDependencies.map((entry) => entry.targetClass.fileName)).size}`,
-    `- Java class dependency edges: ${classDependencies.length}`,
-    "",
-    "## Graph",
-    "",
-    "```mermaid",
-    "flowchart LR",
-    ...impactGraphMermaidLines(model, fileName, classDependencies),
-    "```",
-    "",
-    "## Affected Templates",
-    "",
-    ...markdownList(impact.affectedTemplates.map((entry) => markdownFileLink(entry.fileName))),
-    "",
-    "## Direct And Transitive Reference Edges",
-    "",
-    ...markdownList(impact.references.map((reference) =>
-      `${reference.resolvedFileName ? markdownFileLink(reference.resolvedFileName) : "Unresolved"} -> ${markdownFileLink(reference.sourceFileName)} (${reference.kind}: \`${reference.referenceFile}\`)`
-    )),
-    "",
-    "## Java Class Dependencies",
-    "",
-    ...markdownList(classDependencies.map((dependency) =>
-      `${markdownFileLink(dependency.sourceClass.fileName, dependency.sourceClass.qualifiedName)} -> ${markdownFileLink(dependency.targetClass.fileName, dependency.targetClass.qualifiedName)}`
-    )),
-    ""
-  ];
-  return lines.join("\n");
-}
-
-function impactGraphMermaidLines(
-  model: TxtJetWorkspaceModel,
-  fileName: string,
-  classDependencies: TxtJetJavaWorkspaceDependency[] = []
-): string[] {
-  const impact = model.impactedBy(fileName);
-  const fileNames = new Set(impact.affectedEntries.map((entry) => entry.fileName));
-  fileNames.add(fileName);
-  for (const dependency of classDependencies) {
-    fileNames.add(dependency.sourceClass.fileName);
-    fileNames.add(dependency.targetClass.fileName);
-  }
-  const ids = new Map(Array.from(fileNames).sort().map((entryFileName, index) => [entryFileName, `n${index}`]));
-  const lines = Array.from(fileNames).sort().map((entryFileName) => {
-    const label = markdownEscaped(workspaceRelativeLabel(entryFileName));
-    return `  ${ids.get(entryFileName)}["${label}"]`;
-  });
-  for (const reference of impact.references) {
-    if (!reference.resolvedFileName || !ids.has(reference.resolvedFileName) || !ids.has(reference.sourceFileName)) {
-      continue;
-    }
-    lines.push(`  ${ids.get(reference.resolvedFileName)} -->|${reference.kind}| ${ids.get(reference.sourceFileName)}`);
-  }
-  for (const dependency of classDependencies) {
-    lines.push(`  ${ids.get(dependency.sourceClass.fileName)} -->|uses ${markdownEscaped(dependency.targetClass.className)}| ${ids.get(dependency.targetClass.fileName)}`);
-  }
-  if (lines.length === 1) {
-    lines.push(`  ${ids.get(fileName)} --> ${ids.get(fileName)}`);
-  }
-  return lines;
-}
-
-function markdownList(values: string[]): string[] {
-  return values.length > 0 ? values.map((value) => `- ${value}`) : ["- None"];
-}
-
-function markdownEscaped(value: string): string {
-  return value.replace(/["<>]/g, "_");
-}
-
-function markdownFileLink(fileName: string, label = workspaceRelativeLabel(fileName)): string {
-  const safeLabel = label.replace(/[\[\]\\]/g, "_");
-  return `[${safeLabel}](${vscode.Uri.file(fileName).toString()})`;
 }
 
 function validateReferenceInput(value: string, kind: TxtJetWorkspaceReferenceKind): string | undefined {

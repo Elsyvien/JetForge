@@ -3,8 +3,10 @@ node_modules/
 .vscode-test/
 .playwright-cli/
 out/
+coverage/
 generated/
 generated-ipxact/
+.jetforge/
 
 # Local packaging output and reference files
 *.vsix

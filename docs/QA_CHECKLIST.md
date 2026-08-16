@@ -7,8 +7,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `npm ci` to reproduce the locked dependency tree.
 - Run `npm run check:release-metadata` and confirm package, lockfile, changelog, README, QA, tag, and VSIX version references agree.
 - Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate, source Extension Host smoke test, packaging, and clean-profile installed-VSIX smoke test pass at the declared VS Code floor.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.0.22.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.0.22`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.1.0.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.1.0`.
 - Reload VSCode after install.
 
 ## First-Run Experience
@@ -139,7 +139,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Create the referenced file and confirm the unresolved tree entry and diagnostic disappear after refresh/save.
 - Keep a root preview open while creating, deleting, or newly referencing an include; confirm the preview refreshes from the rebuilt dependency topology.
 - Run `TxtJet: Validate Workspace Templates` with a sanitized compiler wrapper, cancel partway through, and confirm the summary reports processed, skipped, cancelled, and remaining templates without forcing unmappable diagnostics into source ranges.
-- Run `TxtJet: Show Impact Graph` for a template, include, and skeleton; confirm a rendered Mermaid preview opens with clickable file links, direct/transitive edges, and affected-template counts.
+- Run `TxtJet: Show Impact Graph` for a template, include, and skeleton; confirm the interactive map supports search, edge filters, source focus, neighbor isolation, pan/zoom, keyboard selection, and direct file opening.
 - With an unsaved include-reference edit, run the impact graph and confirm it reflects the current open buffer rather than the last saved model.
 - Extract a selection to the default `partials/*.jetinc` path when `partials/` does not exist; confirm the directory and include are created and no unrelated dirty editor is saved.
 - Rename or move an include/skeleton into a new workspace directory and confirm every resolved reference is updated before the file move, including a self-reference if present.
@@ -166,6 +166,18 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Start a slow IP-XACT validation, edit/save the template, and start another validation; confirm the superseded process is aborted and cannot restore stale diagnostics.
 - Confirm overlapping IP-XACT validations use isolated temporary output files and clean them after completion instead of overwriting the canonical generated XML.
 - Disable `txtjet.ipxact.enabled` and confirm IP-XACT commands are hidden/guarded.
+
+## Workspace Doctor, Golden Tests, And Headless CI
+
+- Run `JetForge: Run Workspace Doctor`; confirm configuration, templates, references, compiler placeholders, output containment, golden cases, and local validation have evidence-backed statuses and focused fixes.
+- Run `JetForge: Validate Workspace Locally` and confirm the editor report matches `node out/cli.js validate` for the same `.jetforge.json`.
+- Open VS Code’s Testing view and confirm every configured golden case appears under its workspace folder, can run independently, and reports duration plus the first differing line on failure.
+- Run `JetForge: Update Golden Output Baselines`; confirm the modal names the destructive batch operation and no baseline changes without explicit confirmation.
+- Run `JetForge: Evaluate Named Fixture`; confirm a configured command-mode case opens the real command-produced artifact in a read-only editor and never presents placeholder expressions as evaluated output.
+- Run `node out/cli.js doctor`, `validate`, `generate`, and `test`; confirm stable success/failure exit codes and workspace-contained reads/writes.
+- Run `node out/cli.js validate --format sarif` and `node out/cli.js test --format junit`; parse both reports and confirm paths, locations, case names, failures, and durations are present.
+- Change one compatibility-project template, confirm the corresponding golden case fails, restore it, and confirm all four checked-in cases pass.
+- Run `npm run coverage` and confirm the enforced 85% line/statement, 75% branch, and 90% function thresholds pass for the shared core.
 
 ## Settings And Privacy
 

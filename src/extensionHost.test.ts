@@ -44,11 +44,19 @@ export async function run(): Promise<void> {
       assert.ok(registeredLanguages.has(languageId), `language must be registered: ${languageId}`);
     }
 
-    await vscode.commands.executeCommand("txtjet.openGettingStarted");
-
     const extensionRoot = resolve(__dirname, "..");
     const sourceUri = vscode.Uri.file(resolve(extensionRoot, "examples", "sample-java.txtjet"));
     const sourceDocument = await vscode.workspace.openTextDocument(sourceUri);
+    await vscode.window.showTextDocument(sourceDocument);
+
+    await vscode.commands.executeCommand("txtjet.validateHeadlessWorkspace");
+    const headlessValidation = vscode.window.activeTextEditor?.document;
+    assert.ok(headlessValidation, "headless workspace validation must open a report");
+    assert.match(headlessValidation.getText(), /JetForge validation passed: 4 templates, 0 issues/,
+      "headless validation must use the checked-in compatibility project contract");
+    await vscode.commands.executeCommand("txtjet.runWorkspaceDoctor");
+    await vscode.commands.executeCommand("txtjet.runGoldenTests");
+
     await vscode.window.showTextDocument(sourceDocument);
 
     await vscode.commands.executeCommand("txtjet.openGeneratedOutputPreview");
@@ -347,6 +355,9 @@ export async function run(): Promise<void> {
     );
     assert.ok(codeLenses.some((lens) => lens.command?.title.includes("1 referenced workspace class")),
       "the current template must show its referenced workspace classes");
+
+    await vscode.window.showTextDocument(consumerDocument);
+    await vscode.commands.executeCommand("txtjet.showImpactGraph");
   } finally {
     if (workspaceConfiguration) {
       await workspaceConfiguration.update("ipxact.enabled", previousIpxactEnabled, vscode.ConfigurationTarget.WorkspaceFolder);

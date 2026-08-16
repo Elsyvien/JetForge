@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.0
+
+- Added a shared headless project engine and `jetforge` CLI with `doctor`, `validate`, `generate`, and `test` commands, stable exit codes, JSON/SARIF/JUnit output, workspace-contained paths, and checked-in `.jetforge.json` configuration.
+- Added golden output testing in the Command Palette and VS Code Testing view, deliberate baseline updates, readable first-difference reports, and trusted command-mode fixtures that can render real artifacts through `${file}`, `${fixture}`, `${workspaceFolder}`, and `${outputFile}`.
+- Added `JetForge: Evaluate Named Fixture` for opening the real fixture-produced artifact as a read-only editor document without pretending structural previews evaluated Java expressions.
+- Replaced the static Mermaid impact report with a local interactive dependency map supporting search, typed edge filters, source focus, direct-neighbor isolation, pan/zoom, keyboard operation, unresolved-edge reporting, and source navigation.
+- Added Workspace Doctor and shared local validation/generation commands for project configuration, reference resolution, compiler placeholders, output containment, golden cases, and template diagnostics.
+- Added reviewable change plans to include extraction and include/skeleton moves, plus conservative workspace `@jet` class rename, Java helper extraction, and directive-import cleanup recipes.
+- Added three sanitized compatibility projects for skeleton/include resolution, mixed generated languages, and real JSON fixture evaluation; the same four golden cases now gate local verification and CI.
+- Modularized headless workflows, webview rendering, refactor planning/commands, and workspace command integration out of the extension entry point.
+- Added enforced core coverage thresholds and CI artifacts for LCOV, SARIF validation, and JUnit golden tests; refreshed Extension Host coverage for the new headless workflows and interactive graph command.
+- Cleared the development dependency audit by updating vulnerable transitive packages together and refreshed pinned `actions/checkout` and `actions/setup-node` revisions.
+
 ## 0.0.22
 
 - Added a generated preview provenance lens that marks every line as root template, include, expression, skeleton, or unmapped output; confidence-aware hovers, Go to Definition, dedicated source/contribution commands, and conservative exact-line provenance for real compiler output make contributing ranges inspectable without guessing.
