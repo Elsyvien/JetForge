@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="description" content="JetForge is a free, local-first VS Code extension for understanding, navigating, validating, previewing, refactoring, and generating TxtJet and Eclipse JET templates.">
+    <meta name="description" content="JetForge is free, local-first TxtJet and Eclipse JET tooling for understanding, navigating, validating, testing, refactoring, previewing, and generating templates in VS Code and CI.">
     <meta name="author" content="Max Staneker">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="theme-color" content="#f4f1e9">
@@ -15,7 +15,7 @@
     <meta property="og:locale" content="en_US">
     <meta property="og:site_name" content="JetForge">
     <meta property="og:title" content="JetForge — TxtJet &amp; Eclipse JET Tools for VS Code">
-    <meta property="og:description" content="See template source, local previews, and project relationships together in Visual Studio Code.">
+    <meta property="og:description" content="See template source, local previews, project relationships, and golden tests together in Visual Studio Code and CI.">
     <meta property="og:url" content="https://elsyvien.github.io/JetForge/">
     <meta property="og:image" content="https://elsyvien.github.io/JetForge/assets/og-image.png">
     <meta property="og:image:width" content="1200">
@@ -23,7 +23,7 @@
     <meta property="og:image:alt" content="JetForge, TxtJet and Eclipse JET tooling for Visual Studio Code">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="JetForge — TxtJet &amp; Eclipse JET Tools for VS Code">
-    <meta name="twitter:description" content="Local-first previews, diagnostics, navigation, refactoring, and generation for TxtJet and Eclipse JET templates.">
+    <meta name="twitter:description" content="Local-first previews, diagnostics, golden tests, safe refactors, and headless CI for TxtJet and Eclipse JET templates.">
     <meta name="twitter:image" content="https://elsyvien.github.io/JetForge/assets/og-image.png">
     <meta name="twitter:image:alt" content="JetForge, TxtJet and Eclipse JET tooling for Visual Studio Code">
     <script type="application/ld+json">
@@ -33,13 +33,13 @@
         "@id": "https://elsyvien.github.io/JetForge/#software",
         "name": "JetForge",
         "alternateName": "TxtJet Syntax",
-        "description": "A free, local-first Visual Studio Code extension for TxtJet and Eclipse JET templates with syntax highlighting, previews, diagnostics, navigation, refactoring, and generation.",
+        "description": "Free, local-first TxtJet and Eclipse JET tooling with syntax highlighting, previews, diagnostics, navigation, golden tests, safe refactoring, generation, and a headless CI runner.",
         "url": "https://elsyvien.github.io/JetForge/",
         "image": "https://elsyvien.github.io/JetForge/assets/og-image.png",
         "applicationCategory": "DeveloperApplication",
         "applicationSubCategory": "Visual Studio Code Extension",
         "operatingSystem": "Windows, macOS, Linux",
-        "softwareVersion": "0.0.21",
+        "softwareVersion": "0.1.0",
         "isAccessibleForFree": true,
         "downloadUrl": "https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax",
         "codeRepository": "https://github.com/Elsyvien/JetForge",
@@ -80,6 +80,7 @@
         <nav class="site-nav" aria-label="Primary navigation">
           <a href="#workbench">Demo</a>
           <a href="#product">Features</a>
+          <a href="feature-roadmap.html">Delivery map</a>
           <a href="#install">Install</a>
         </nav>
         <div class="header-actions">
@@ -93,9 +94,9 @@
       <section class="hero" id="top" aria-labelledby="hero-title">
         <div class="hero-canvas">
           <div class="hero-copy">
-            <p class="hero-eyebrow"><span>TXTJET + ECLIPSE JET</span><span>VS CODE / 0.0.21</span></p>
+            <p class="hero-eyebrow"><span>TXTJET + ECLIPSE JET</span><span>VS CODE + CI / 0.1.0</span></p>
             <h1 id="hero-title">See the code <em>behind</em> the template.</h1>
-            <p class="hero-lede">Preview generated output, trace includes, and understand unfamiliar JET projects—without leaving VS Code.</p>
+            <p class="hero-lede">Preview generated output, trace dependencies, test approved artifacts, and understand unfamiliar JET projects—from VS Code to CI.</p>
             <div class="hero-actions">
               <a class="button button-primary" href="https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax">Install JetForge <span aria-hidden="true">↗</span></a>
               <a class="trace-link" href="#workbench">Try the live demo <span aria-hidden="true">↓</span></a>
@@ -191,16 +192,16 @@
           <div class="workspace-screen">
             <img src="assets/jetforge-workspace-preview.webp" alt="JetForge in Visual Studio Code showing a TxtJet template beside its local generated-output preview" width="1320" height="768" loading="lazy">
           </div>
-          <figcaption><span>Include-aware workspace</span><span>Template source ↔ local preview</span><span>VS Code / JetForge 0.0.21</span></figcaption>
+          <figcaption><span>Include-aware workspace</span><span>Template source ↔ local preview</span><span>VS Code + CI / JetForge 0.1.0</span></figcaption>
         </figure>
         <div class="feature-list">
           <article class="reveal"><span>01</span><h3>Navigate</h3><p>Follow includes, helpers, and project impact.</p></article>
           <article class="reveal"><span>02</span><h3>Preview</h3><p>Map source to local output in both directions.</p></article>
-          <article class="reveal"><span>03</span><h3>Refactor</h3><p>Rename, move, and extract without guessing.</p></article>
+          <article class="reveal"><span>03</span><h3>Test &amp; refactor</h3><p>Prove outputs, then rename, move, and extract with a reviewable plan.</p></article>
         </div>
         <div class="product-meta reveal">
           <p><strong>Output modes</strong> Java · HTML · XML · C · Python · LaTeX</p>
-          <a href="https://github.com/Elsyvien/JetForge#readme">See every feature <span aria-hidden="true">→</span></a>
+          <a href="feature-roadmap.html">See the 0.1 delivery map <span aria-hidden="true">→</span></a>
         </div>
       </section>
 
@@ -220,7 +221,7 @@
     <footer class="site-footer">
       <a class="brand footer-brand" href="#top"><img src="assets/icon.png" width="34" height="34" alt=""><span>JetForge</span></a>
       <p>TxtJet and Eclipse JET tooling for VS Code. Built by <a class="author-link" href="https://elsyvien.github.io/" rel="author me">Max Staneker</a>.</p>
-      <nav aria-label="Footer navigation"><a href="https://github.com/Elsyvien/JetForge#readme">Docs</a><a href="https://github.com/Elsyvien/JetForge">GitHub</a><a href="https://github.com/Elsyvien/JetForge/blob/main/CHANGELOG.md">Changelog</a><a href="#top">Back to top ↑</a></nav>
+      <nav aria-label="Footer navigation"><a href="https://github.com/Elsyvien/JetForge#readme">Docs</a><a href="feature-roadmap.html">Delivery map</a><a href="https://github.com/Elsyvien/JetForge">GitHub</a><a href="https://github.com/Elsyvien/JetForge/blob/main/CHANGELOG.md">Changelog</a><a href="#top">Back to top ↑</a></nav>
     </footer>
 
     <script src="script.js?v=20260722-6"></script>

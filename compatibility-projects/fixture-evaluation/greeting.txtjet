@@ -1,0 +1,3 @@
+<%@ jet package="example.compat" class="GreetingTemplate" %>
+Hello, <%= model.name %>!
+Role: <%= model.role %>

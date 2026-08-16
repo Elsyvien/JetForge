@@ -1,0 +1,1527 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#eee9dc">
+    <meta name="description" content="The JetForge 0.1 delivery map: golden tests, Workspace Doctor, interactive dependencies, safe refactors, headless CI, fixtures, provenance, and IP-XACT intelligence.">
+    <title>JetForge 0.1 — Delivery Map</title>
+    <link rel="icon" href="assets/icon.png" type="image/png">
+    <script>document.documentElement.classList.add("js")</script>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: oklch(94.5% 0.018 88);
+        --paper-high: oklch(98% 0.01 88);
+        --paper-low: oklch(89% 0.025 85);
+        --ink: oklch(17% 0.035 266);
+        --ink-soft: oklch(33% 0.035 266);
+        --muted: oklch(45% 0.025 266);
+        --line: oklch(72% 0.028 85);
+        --blue: oklch(42% 0.19 260);
+        --blue-soft: oklch(83% 0.075 255);
+        --orange: oklch(62% 0.19 38);
+        --orange-soft: oklch(87% 0.075 50);
+        --acid: oklch(84% 0.16 104);
+        --green: oklch(48% 0.105 158);
+        --serif: "Iowan Old Style", Baskerville, "Palatino Linotype", Georgia, serif;
+        --sans: "Avenir Next", Avenir, "Segoe UI Variable", sans-serif;
+        --mono: "SFMono-Regular", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+        --ease: cubic-bezier(.16, 1, .3, 1);
+        --page: min(100% - 2rem, 88rem);
+        --gutter: clamp(1rem, 4vw, 4rem);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        min-width: 20rem;
+        margin: 0;
+        background:
+          linear-gradient(90deg, transparent calc(100% - 1px), color-mix(in oklch, var(--ink) 7%, transparent) 0) 0 0 / 8.3333% 100%,
+          var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 1rem;
+        line-height: 1.55;
+        font-kerning: normal;
+      }
+
+      body::before {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(112deg, transparent 0 61%, color-mix(in oklch, var(--orange) 7%, transparent) 61% 72%, transparent 72%);
+        content: "";
+        pointer-events: none;
+      }
+
+      button,
+      summary {
+        color: inherit;
+        font: inherit;
+      }
+
+      button {
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      a {
+        color: inherit;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1,
+      h2,
+      h3 {
+        text-wrap: balance;
+      }
+
+      :focus-visible {
+        outline: .18rem solid var(--blue);
+        outline-offset: .25rem;
+      }
+
+      .skip-link {
+        position: fixed;
+        top: .75rem;
+        left: 1rem;
+        z-index: 100;
+        padding: .7rem 1rem;
+        background: var(--ink);
+        color: var(--paper-high);
+        transform: translateY(-180%);
+        transition: transform 180ms var(--ease);
+      }
+
+      .skip-link:focus {
+        transform: none;
+      }
+
+      .masthead {
+        position: relative;
+        z-index: 10;
+        display: flex;
+        width: var(--page);
+        min-height: 4.5rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 0 auto;
+        border-bottom: 1px solid var(--ink);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: .7rem;
+        color: inherit;
+        font-weight: 750;
+        letter-spacing: -.025em;
+        text-decoration: none;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 2rem;
+        aspect-ratio: 1;
+        place-items: center;
+        background: var(--ink);
+        color: var(--acid);
+        font-family: var(--serif);
+        font-size: 1.3rem;
+        font-weight: 700;
+        line-height: 1;
+        transform: rotate(-3deg);
+      }
+
+      .masthead-note,
+      .eyebrow,
+      .meta,
+      .phase-label,
+      .feature-no,
+      .map-label,
+      .detail-label {
+        font-family: var(--mono);
+        font-size: .68rem;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+      }
+
+      .masthead-note {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        width: var(--page);
+        grid-template-columns: minmax(0, 1.18fr) minmax(18rem, .82fr);
+        gap: clamp(2rem, 6vw, 7rem);
+        margin: 0 auto;
+        padding: clamp(4rem, 9vw, 8.5rem) 0 clamp(4rem, 7vw, 7rem);
+      }
+
+      .hero::after {
+        position: absolute;
+        right: -3vw;
+        bottom: 1.5rem;
+        color: color-mix(in oklch, var(--blue) 10%, transparent);
+        content: "NEXT";
+        font-family: var(--serif);
+        font-size: clamp(7rem, 18vw, 17rem);
+        font-weight: 700;
+        letter-spacing: -.09em;
+        line-height: .7;
+        pointer-events: none;
+      }
+
+      .hero-copy,
+      .hero-aside {
+        position: relative;
+        z-index: 1;
+      }
+
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        margin-bottom: 2rem;
+        color: var(--blue);
+      }
+
+      .eyebrow::before {
+        width: 2.4rem;
+        height: .22rem;
+        background: var(--orange);
+        content: "";
+      }
+
+      h1 {
+        max-width: 11ch;
+        margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+        font-family: var(--serif);
+        font-size: clamp(4.1rem, 9vw, 9.8rem);
+        font-weight: 600;
+        letter-spacing: -.065em;
+        line-height: .78;
+      }
+
+      h1 em {
+        display: block;
+        color: var(--blue);
+        font-weight: 500;
+      }
+
+      .hero-lede {
+        max-width: 38rem;
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: clamp(1.05rem, 1.6vw, 1.35rem);
+        line-height: 1.5;
+      }
+
+      .hero-aside {
+        align-self: end;
+        padding-top: 1.5rem;
+        border-top: .32rem solid var(--ink);
+      }
+
+      .hero-aside h2 {
+        max-width: 11ch;
+        margin-bottom: 1rem;
+        font-family: var(--serif);
+        font-size: clamp(2rem, 4vw, 3.5rem);
+        font-weight: 600;
+        letter-spacing: -.045em;
+        line-height: .95;
+      }
+
+      .hero-aside > p:not(.meta) {
+        margin-bottom: 1.5rem;
+        color: var(--ink-soft);
+      }
+
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .6rem 1.2rem;
+        margin-bottom: 1.4rem;
+        color: var(--muted);
+      }
+
+      .meta span::before {
+        margin-right: .45rem;
+        color: var(--orange);
+        content: "●";
+      }
+
+      .jump-link {
+        display: inline-flex;
+        min-height: 2.75rem;
+        align-items: center;
+        gap: .8rem;
+        color: var(--blue);
+        font-weight: 750;
+        text-decoration-thickness: .1rem;
+        text-underline-offset: .3rem;
+      }
+
+      .jump-link span {
+        font-size: 1.4rem;
+        transition: transform 180ms var(--ease);
+      }
+
+      .jump-link:hover span {
+        transform: translateX(.35rem);
+      }
+
+      .recommendation {
+        position: relative;
+        z-index: 2;
+        width: min(100% - 2rem, 96rem);
+        margin: 0 auto clamp(5rem, 10vw, 10rem);
+        background: var(--ink);
+        color: var(--paper-high);
+        transform: rotate(-.35deg);
+      }
+
+      .recommendation-inner {
+        display: grid;
+        grid-template-columns: minmax(12rem, .55fr) minmax(0, 1.45fr);
+        gap: clamp(2rem, 6vw, 6rem);
+        padding: clamp(2rem, 5vw, 5rem);
+        transform: rotate(.35deg);
+      }
+
+      .phase-label {
+        margin-bottom: 1rem;
+        color: var(--acid);
+      }
+
+      .recommendation h2 {
+        margin-bottom: 0;
+        font-family: var(--serif);
+        font-size: clamp(3rem, 6vw, 6.4rem);
+        font-weight: 550;
+        letter-spacing: -.055em;
+        line-height: .86;
+      }
+
+      .recommendation-copy {
+        display: grid;
+        align-content: end;
+        gap: 1.25rem;
+      }
+
+      .recommendation-copy > p {
+        max-width: 42rem;
+        margin: 0;
+        color: oklch(84% 0.02 86);
+        font-size: clamp(1.05rem, 1.7vw, 1.35rem);
+      }
+
+      .recommendation-points {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1px;
+        margin: .8rem 0 0;
+        background: oklch(38% 0.025 266);
+        border: 1px solid oklch(38% 0.025 266);
+      }
+
+      .recommendation-points div {
+        padding: 1rem;
+        background: var(--ink);
+      }
+
+      .recommendation-points strong {
+        display: block;
+        margin-bottom: .25rem;
+        color: var(--acid);
+        font-family: var(--mono);
+        font-size: .65rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .recommendation-points span {
+        color: oklch(88% 0.015 86);
+        font-size: .88rem;
+      }
+
+      .roadmap-shell {
+        width: var(--page);
+        margin: 0 auto;
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(18rem, .75fr);
+        gap: 2rem;
+        align-items: end;
+        margin-bottom: clamp(2rem, 5vw, 4rem);
+      }
+
+      .section-head h2,
+      .sequence h2 {
+        margin-bottom: 0;
+        font-family: var(--serif);
+        font-size: clamp(3.2rem, 7vw, 7.2rem);
+        font-weight: 600;
+        letter-spacing: -.06em;
+        line-height: .83;
+      }
+
+      .section-head > p {
+        max-width: 38rem;
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 1.08rem;
+      }
+
+      .controls {
+        position: sticky;
+        top: .75rem;
+        z-index: 20;
+        display: flex;
+        width: fit-content;
+        max-width: 100%;
+        gap: .3rem;
+        margin-bottom: 2rem;
+        padding: .35rem;
+        overflow-x: auto;
+        background: var(--paper-high);
+        border: 1px solid var(--ink);
+        box-shadow: .4rem .4rem 0 color-mix(in oklch, var(--ink) 13%, transparent);
+      }
+
+      .filter {
+        min-height: 2.75rem;
+        padding: .65rem 1rem;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .filter[aria-pressed="true"] {
+        background: var(--ink);
+        color: var(--acid);
+      }
+
+      .map {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(15rem, .65fr);
+        min-height: 30rem;
+        margin-bottom: clamp(4rem, 8vw, 8rem);
+        border: 1px solid var(--ink);
+        background: var(--paper-high);
+      }
+
+      .map-plot {
+        position: relative;
+        min-height: 30rem;
+        border-right: 1px solid var(--ink);
+        background:
+          linear-gradient(90deg, transparent calc(50% - .5px), var(--line) 50%, transparent calc(50% + .5px)),
+          linear-gradient(0deg, transparent calc(50% - .5px), var(--line) 50%, transparent calc(50% + .5px));
+      }
+
+      .map-plot::before {
+        position: absolute;
+        inset: 1.3rem;
+        border: 1px dashed var(--line);
+        content: "";
+        pointer-events: none;
+      }
+
+      .map-axis {
+        position: absolute;
+        z-index: 1;
+        margin: 0;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: .63rem;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .map-axis.y {
+        top: 1.2rem;
+        left: 1.1rem;
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+      }
+
+      .map-axis.x {
+        right: 1.2rem;
+        bottom: 1rem;
+      }
+
+      .map-axis::after {
+        margin-left: .5rem;
+        content: "→";
+        color: var(--orange);
+      }
+
+      .map-axis.y::after {
+        margin: .5rem 0 0;
+      }
+
+      .map-dot {
+        position: absolute;
+        z-index: 3;
+        display: grid;
+        width: clamp(2.7rem, 5vw, 4rem);
+        aspect-ratio: 1;
+        place-items: center;
+        padding: 0;
+        border: 1px solid var(--ink);
+        border-radius: 50%;
+        background: var(--paper-high);
+        box-shadow: .22rem .22rem 0 var(--ink);
+        cursor: pointer;
+        font-family: var(--mono);
+        font-size: .7rem;
+        font-weight: 800;
+        transform: translate(-50%, 50%);
+        transition: transform 200ms var(--ease), background-color 120ms linear, color 120ms linear;
+      }
+
+      .map-dot:hover,
+      .map-dot:focus-visible {
+        background: var(--acid);
+        transform: translate(-50%, 50%) scale(1.08);
+      }
+
+      .map-dot[data-phase="now"] {
+        background: var(--orange-soft);
+      }
+
+      .map-dot[data-phase="later"] {
+        border-style: dashed;
+      }
+
+      .map-dot.is-dimmed {
+        opacity: .16;
+      }
+
+      .map-legend {
+        display: grid;
+        align-content: start;
+        gap: .5rem;
+        padding: clamp(1.5rem, 3vw, 2.5rem);
+      }
+
+      .map-legend > p {
+        margin-bottom: 1rem;
+        color: var(--muted);
+      }
+
+      .map-key {
+        display: grid;
+        grid-template-columns: 2rem 1fr;
+        gap: .8rem;
+        align-items: baseline;
+        padding: .7rem 0;
+        border-top: 1px solid var(--line);
+        text-decoration: none;
+      }
+
+      .map-key:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .map-key b {
+        color: var(--blue);
+        font-family: var(--mono);
+        font-size: .72rem;
+      }
+
+      .map-key span {
+        font-size: .9rem;
+        font-weight: 650;
+      }
+
+      .feature-list {
+        border-top: .3rem solid var(--ink);
+      }
+
+      .feature {
+        display: grid;
+        grid-template-columns: 5rem minmax(14rem, .72fr) minmax(0, 1.28fr);
+        gap: clamp(1rem, 4vw, 4rem);
+        padding: clamp(2.5rem, 6vw, 5.5rem) 0;
+        border-bottom: 1px solid var(--ink);
+        scroll-margin-top: 6rem;
+      }
+
+      .feature[hidden] {
+        display: none;
+      }
+
+      .feature-no {
+        color: var(--blue);
+        font-size: .85rem;
+      }
+
+      .feature-title h3 {
+        margin-bottom: .8rem;
+        font-family: var(--serif);
+        font-size: clamp(2.25rem, 4vw, 4.4rem);
+        font-weight: 600;
+        letter-spacing: -.05em;
+        line-height: .9;
+      }
+
+      .feature-title > p {
+        max-width: 24rem;
+        margin-bottom: 1.35rem;
+        color: var(--ink-soft);
+      }
+
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .45rem;
+      }
+
+      .tag {
+        padding: .35rem .55rem;
+        border: 1px solid var(--line);
+        background: var(--paper-high);
+        font-family: var(--mono);
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+      }
+
+      .tag.phase-now {
+        border-color: var(--orange);
+        background: var(--orange-soft);
+      }
+
+      .tag.phase-next {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .feature-body {
+        display: grid;
+        align-content: start;
+        gap: 1.3rem;
+      }
+
+      .why {
+        display: grid;
+        grid-template-columns: 6.5rem 1fr;
+        gap: 1rem;
+        margin: 0;
+        padding-bottom: 1.3rem;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .why strong {
+        color: var(--orange);
+        font-family: var(--mono);
+        font-size: .68rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+      }
+
+      .why span {
+        max-width: 44rem;
+        font-size: 1.05rem;
+      }
+
+      details {
+        border-bottom: 1px solid var(--line);
+      }
+
+      summary {
+        display: flex;
+        min-height: 3.5rem;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        cursor: pointer;
+        font-weight: 750;
+        list-style: none;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      summary::after {
+        display: grid;
+        width: 1.8rem;
+        aspect-ratio: 1;
+        flex: 0 0 auto;
+        place-items: center;
+        border: 1px solid var(--ink);
+        content: "+";
+        font-family: var(--mono);
+        transition: transform 220ms var(--ease), background-color 120ms linear;
+      }
+
+      details[open] summary::after {
+        background: var(--acid);
+        content: "−";
+        transform: rotate(180deg);
+      }
+
+      .plan {
+        margin: 0;
+        padding: .2rem 0 1.5rem;
+        counter-reset: plan;
+        list-style: none;
+      }
+
+      .plan li {
+        position: relative;
+        display: grid;
+        grid-template-columns: 2.2rem 1fr;
+        gap: .8rem;
+        padding: .75rem 0;
+        color: var(--ink-soft);
+        counter-increment: plan;
+      }
+
+      .plan li::before {
+        display: grid;
+        width: 1.8rem;
+        height: 1.8rem;
+        place-items: center;
+        border: 1px solid var(--line);
+        color: var(--blue);
+        content: counter(plan, decimal-leading-zero);
+        font-family: var(--mono);
+        font-size: .6rem;
+        font-weight: 800;
+      }
+
+      .feature-foot {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: .8rem;
+      }
+
+      .detail {
+        min-width: 0;
+      }
+
+      .detail-label {
+        display: block;
+        margin-bottom: .35rem;
+        color: var(--muted);
+        font-size: .59rem;
+      }
+
+      .detail b {
+        display: block;
+        overflow: hidden;
+        font-size: .84rem;
+        text-overflow: ellipsis;
+      }
+
+      .sequence {
+        width: min(100% - 2rem, 96rem);
+        margin: clamp(5rem, 10vw, 10rem) auto 0;
+        padding: clamp(3rem, 7vw, 7rem) max(1rem, calc((100% - min(100% - 2rem, 88rem)) / 2));
+        background: var(--blue);
+        color: var(--paper-high);
+      }
+
+      .sequence-head {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2rem;
+        align-items: end;
+        margin-bottom: clamp(3rem, 7vw, 6rem);
+      }
+
+      .sequence-head > p {
+        max-width: 36rem;
+        margin: 0;
+        color: oklch(90% 0.035 256);
+        font-size: 1.08rem;
+      }
+
+      .sequence-track {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-top: 1px solid oklch(76% 0.08 256);
+      }
+
+      .sequence-phase {
+        position: relative;
+        padding: 2rem clamp(1rem, 3vw, 2.5rem) 0 0;
+      }
+
+      .sequence-phase::before {
+        position: absolute;
+        top: -.42rem;
+        left: 0;
+        width: .8rem;
+        aspect-ratio: 1;
+        border-radius: 50%;
+        background: var(--acid);
+        content: "";
+      }
+
+      .sequence-phase + .sequence-phase {
+        padding-left: clamp(1rem, 3vw, 2.5rem);
+        border-left: 1px solid oklch(76% 0.08 256);
+      }
+
+      .sequence-phase + .sequence-phase::before {
+        left: clamp(1rem, 3vw, 2.5rem);
+      }
+
+      .sequence-phase h3 {
+        margin: .6rem 0 .8rem;
+        font-family: var(--serif);
+        font-size: clamp(1.8rem, 3vw, 3rem);
+        font-weight: 550;
+        letter-spacing: -.04em;
+      }
+
+      .sequence-phase ol {
+        margin: 0;
+        padding-left: 1.2rem;
+        color: oklch(89% 0.03 256);
+      }
+
+      .sequence-phase li {
+        margin-bottom: .55rem;
+      }
+
+      .principles {
+        width: var(--page);
+        margin: 0 auto;
+        padding: clamp(5rem, 10vw, 10rem) 0;
+      }
+
+      .principles h2 {
+        max-width: 13ch;
+        margin-bottom: clamp(2rem, 5vw, 4rem);
+        font-family: var(--serif);
+        font-size: clamp(3rem, 6vw, 6rem);
+        font-weight: 600;
+        letter-spacing: -.055em;
+        line-height: .9;
+      }
+
+      .principle-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: clamp(1.5rem, 4vw, 4rem);
+      }
+
+      .principle {
+        padding-top: 1.2rem;
+        border-top: .22rem solid var(--ink);
+      }
+
+      .principle span {
+        color: var(--orange);
+        font-family: var(--mono);
+        font-size: .68rem;
+        font-weight: 800;
+      }
+
+      .principle h3 {
+        margin: .8rem 0 .5rem;
+        font-family: var(--serif);
+        font-size: 1.75rem;
+        letter-spacing: -.035em;
+      }
+
+      .principle p {
+        margin: 0;
+        color: var(--ink-soft);
+      }
+
+      footer {
+        display: flex;
+        width: var(--page);
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin: 0 auto;
+        padding: 2rem 0 max(2rem, env(safe-area-inset-bottom));
+        border-top: 1px solid var(--ink);
+        color: var(--muted);
+        font-size: .82rem;
+      }
+
+      footer p {
+        margin: 0;
+      }
+
+      .print-button {
+        min-height: 2.75rem;
+        padding: .6rem 1rem;
+        border: 1px solid var(--ink);
+        background: var(--paper-high);
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .print-button:hover {
+        background: var(--acid);
+      }
+
+      .js .reveal {
+        opacity: 0;
+        transform: translateY(1.25rem);
+        transition: opacity 600ms var(--ease), transform 600ms var(--ease);
+      }
+
+      .js .reveal.is-visible,
+      .js .reveal:target,
+      .js :target .reveal {
+        opacity: 1;
+        transform: none;
+      }
+
+      @media (max-width: 64rem) {
+        .hero,
+        .section-head,
+        .sequence-head {
+          grid-template-columns: 1fr;
+        }
+
+        .hero-aside {
+          max-width: 37rem;
+        }
+
+        .map {
+          grid-template-columns: 1fr;
+        }
+
+        .map-plot {
+          border-right: 0;
+          border-bottom: 1px solid var(--ink);
+        }
+
+        .map-legend {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .map-legend > p {
+          grid-column: 1 / -1;
+        }
+
+        .feature {
+          grid-template-columns: 3rem minmax(13rem, .65fr) minmax(0, 1.35fr);
+          gap: 1.5rem;
+        }
+      }
+
+      @media (max-width: 48rem) {
+        .masthead-note {
+          display: none;
+        }
+
+        .hero {
+          padding-top: 3rem;
+        }
+
+        h1 {
+          font-size: clamp(4rem, 20vw, 7rem);
+        }
+
+        .recommendation-inner,
+        .feature,
+        .sequence-track,
+        .principle-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .recommendation-points {
+          grid-template-columns: 1fr;
+        }
+
+        .map-legend {
+          grid-template-columns: 1fr;
+        }
+
+        .feature {
+          gap: .75rem;
+        }
+
+        .feature-no {
+          margin-bottom: .5rem;
+        }
+
+        .feature-title > p {
+          max-width: 36rem;
+        }
+
+        .why {
+          grid-template-columns: 1fr;
+          gap: .4rem;
+        }
+
+        .sequence-phase + .sequence-phase {
+          margin-top: 2.5rem;
+          padding-left: 0;
+          border-left: 0;
+          border-top: 1px solid oklch(76% 0.08 256);
+        }
+
+        .sequence-phase + .sequence-phase::before {
+          left: 0;
+        }
+      }
+
+      @media (max-width: 34rem) {
+        .hero::after {
+          display: none;
+        }
+
+        .map-plot {
+          min-height: 25rem;
+        }
+
+        .feature-foot {
+          grid-template-columns: 1fr;
+        }
+
+        footer {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+
+      @media (hover: hover) {
+        .map-key:hover span {
+          color: var(--blue);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+
+        *,
+        *::before,
+        *::after {
+          animation-duration: .01ms !important;
+          scroll-behavior: auto !important;
+          transition-duration: .01ms !important;
+        }
+
+        .js .reveal {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      @media print {
+        body {
+          background: var(--paper-high);
+        }
+
+        .controls,
+        .print-button,
+        .skip-link {
+          display: none;
+        }
+
+        .hero,
+        .recommendation,
+        .sequence,
+        .principles {
+          break-inside: avoid;
+        }
+
+        .recommendation,
+        .sequence {
+          width: 100%;
+          transform: none;
+          print-color-adjust: exact;
+        }
+
+        .recommendation-inner {
+          transform: none;
+        }
+
+        .js .reveal {
+          opacity: 1;
+          transform: none;
+        }
+
+        .feature {
+          display: block;
+          break-inside: auto;
+          padding: 2rem 0;
+        }
+
+        .feature-no,
+        .feature-title {
+          margin-bottom: 1rem;
+        }
+
+        .feature-title > p {
+          max-width: none;
+        }
+
+        .plan li,
+        .feature-foot {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#roadmap">Skip to the roadmap</a>
+
+    <header class="masthead">
+      <a class="brand" href="index.html" aria-label="Back to JetForge home">
+        <span class="brand-mark" aria-hidden="true">J</span>
+        <span>JetForge / Field Notes</span>
+      </a>
+      <p class="masthead-note">0.1 delivery record · local-first</p>
+    </header>
+
+    <main>
+      <section class="hero" id="top" aria-labelledby="page-title">
+        <div class="hero-copy">
+          <p class="eyebrow">What did JetForge 0.1 deliver?</p>
+          <h1 id="page-title">Templates now <em>feel testable.</em></h1>
+          <p class="hero-lede">The 0.1 foundation turns template understanding into repeatable confidence: approved outputs, visible provenance, interactive dependencies, safer project-wide changes, real fixtures, and the same checks in VS Code and CI.</p>
+        </div>
+        <aside class="hero-aside" aria-labelledby="thesis-title">
+          <p class="meta"><span>8 deliveries</span><span>3 phases</span><span>Local-first</span></p>
+          <h2 id="thesis-title">The product thesis</h2>
+          <p>Do not compete with a Java language server. Own the space between template source and generated artifact—the part no ordinary editor understands.</p>
+          <a class="jump-link" href="#roadmap">Inspect the delivery <span aria-hidden="true">→</span></a>
+        </aside>
+      </section>
+
+      <aside class="recommendation reveal" aria-labelledby="first-build-title">
+        <div class="recommendation-inner">
+          <div>
+            <p class="phase-label">Shipped foundation / highest leverage</p>
+            <h2 id="first-build-title">Golden Output Test Runner</h2>
+          </div>
+          <div class="recommendation-copy">
+            <p>A template plus an approved generated artifact is now a named regression test. Run one case from VS Code’s Testing view, the suite from the workspace, and the same contract in CI.</p>
+            <div class="recommendation-points" aria-label="Why this feature should come first">
+              <div><strong>Reuses</strong><span>generation, diffs, validation, workspace index</span></div>
+              <div><strong>Unlocks</strong><span>safe refactors and fixture-driven previews</span></div>
+              <div><strong>Visible win</strong><span>green/red results inside VS Code</span></div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="roadmap-shell" id="roadmap" aria-labelledby="roadmap-title">
+        <header class="section-head reveal">
+          <h2 id="roadmap-title">Eight moves. One working system.</h2>
+          <p>This page preserves the original impact/effort map and implementation intent, then marks what the 0.1 release delivered. “Core delivered” is deliberate: follow-on refinements remain possible without hiding the usable behavior that ships now.</p>
+        </header>
+
+        <div class="controls" role="group" aria-label="Filter roadmap by phase">
+          <button class="filter" type="button" data-filter="all" aria-pressed="true">All deliveries <span aria-hidden="true">· 8</span></button>
+          <button class="filter" type="button" data-filter="now" aria-pressed="false">Confidence <span aria-hidden="true">· 3</span></button>
+          <button class="filter" type="button" data-filter="next" aria-pressed="false">Scale <span aria-hidden="true">· 3</span></button>
+          <button class="filter" type="button" data-filter="later" aria-pressed="false">Specialist <span aria-hidden="true">· 2</span></button>
+        </div>
+
+        <div class="map reveal" aria-labelledby="map-title">
+          <div class="map-plot" role="img" aria-label="Feature map. Higher means more user impact; farther right means more engineering effort.">
+            <p class="map-axis y">User impact</p>
+            <p class="map-axis x">Engineering effort</p>
+            <button class="map-dot" style="left: 40%; bottom: 83%" data-target="feature-tests" data-phase="now" aria-label="Open feature 01, Golden Output Test Runner">01</button>
+            <button class="map-dot" style="left: 35%; bottom: 66%" data-target="feature-provenance" data-phase="now" aria-label="Open feature 02, Provenance Lens">02</button>
+            <button class="map-dot" style="left: 29%; bottom: 49%" data-target="feature-doctor" data-phase="now" aria-label="Open feature 03, Workspace Doctor">03</button>
+            <button class="map-dot" style="left: 55%; bottom: 73%" data-target="feature-graph" data-phase="next" aria-label="Open feature 04, Interactive Dependency Map">04</button>
+            <button class="map-dot" style="left: 64%; bottom: 56%" data-target="feature-refactor" data-phase="next" aria-label="Open feature 05, Refactor Preview">05</button>
+            <button class="map-dot" style="left: 71%; bottom: 80%" data-target="feature-cli" data-phase="next" aria-label="Open feature 06, Headless JetForge">06</button>
+            <button class="map-dot" style="left: 83%; bottom: 88%" data-target="feature-fixtures" data-phase="later" aria-label="Open feature 07, Fixture-Driven Live Evaluation">07</button>
+            <button class="map-dot" style="left: 87%; bottom: 58%" data-target="feature-ipxact" data-phase="later" aria-label="Open feature 08, IP-XACT Schema Intelligence">08</button>
+          </div>
+          <div class="map-legend">
+            <p id="map-title" class="map-label">Impact / effort map</p>
+            <a class="map-key" href="#feature-tests"><b>01</b><span>Golden output tests</span></a>
+            <a class="map-key" href="#feature-provenance"><b>02</b><span>Provenance lens</span></a>
+            <a class="map-key" href="#feature-doctor"><b>03</b><span>Workspace doctor</span></a>
+            <a class="map-key" href="#feature-graph"><b>04</b><span>Dependency map</span></a>
+            <a class="map-key" href="#feature-refactor"><b>05</b><span>Refactor preview</span></a>
+            <a class="map-key" href="#feature-cli"><b>06</b><span>Headless JetForge</span></a>
+            <a class="map-key" href="#feature-fixtures"><b>07</b><span>Live evaluation</span></a>
+            <a class="map-key" href="#feature-ipxact"><b>08</b><span>IP-XACT intelligence</span></a>
+          </div>
+        </div>
+
+        <div class="feature-list" aria-live="polite">
+          <article class="feature reveal" id="feature-tests" data-phase="now">
+            <div class="feature-no">01 / 08</div>
+            <header class="feature-title">
+              <h3>Golden Output Test Runner</h3>
+              <p>Save an approved generated file as the expected result, then rerun and diff it after every template change.</p>
+              <div class="tags"><span class="tag phase-now">Core delivered 0.1.0</span><span class="tag">High impact</span><span class="tag">Medium effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>Generation without repeatable verification still leaves teams checking output by hand. JetForge already has generation, snapshots, diffs, compiler commands, and workspace validation—the difficult primitives are present.</span></p>
+              <details open>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Define a small workspace format such as <code>.jetforge/tests.json</code> that maps a template, compiler profile, and expected output.</li>
+                  <li>Add “Create Golden Test From Current Output” and “Run Template Test” commands with inline diff results.</li>
+                  <li>Expose the suite through VS Code’s native Testing API with pass, fail, duration, and diagnostic locations.</li>
+                  <li>Add a headless runner contract so the exact same tests can become a CI quality gate.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>One test, one diff, one green check</b></div>
+                <div class="detail"><span class="detail-label">Builds on</span><b>Preview cache + validation runs</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>Never overwrite the golden silently</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-provenance" data-phase="now">
+            <div class="feature-no">02 / 08</div>
+            <header class="feature-title">
+              <h3>Generated Output Provenance Lens</h3>
+              <p>Show where every preview line came from: root template, include, expression, skeleton token, or unmapped compiler output.</p>
+              <div class="tags"><span class="tag phase-now">Delivered 0.0.22</span><span class="tag">High impact</span><span class="tag">Medium effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>Synchronized reveal currently answers “where did this line come from?” one selection at a time. A persistent provenance gutter would make unfamiliar generated code readable at a glance and turn source-map uncertainty into honest, visible information.</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Extend preview source maps with a provenance kind and confidence: direct, include-expanded, skeleton-rendered, approximate, or unmapped.</li>
+                  <li>Add compact gutter markers and hover text to generated preview documents; use shape as well as color.</li>
+                  <li>Add “Show Source for This Output Line” and “Show All Contributions” for composite regions.</li>
+                  <li>Offer an optional heatmap overview that highlights reliable and ambiguous sections without changing the generated file.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Preview gutter + origin hover</b></div>
+                <div class="detail"><span class="detail-label">Builds on</span><b>Preview source maps + reveal sync</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>Never imply false precision</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-doctor" data-phase="now">
+            <div class="feature-no">03 / 08</div>
+            <header class="feature-title">
+              <h3>Workspace Doctor</h3>
+              <p>One command that explains what JetForge understands, what is missing, and the exact next action to improve the workspace.</p>
+              <div class="tags"><span class="tag phase-now">Core delivered 0.1.0</span><span class="tag">Medium impact</span><span class="tag">Small effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>JetForge has powerful settings for resolution paths, compiler commands, language modes, trust, and optional IP-XACT behavior. A project can be “mostly working” without making the missing piece obvious.</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Run read-only checks for template detection, includes, skeletons, output directories, compiler placeholders, Java tooling, and Workspace Trust.</li>
+                  <li>Present results in a lightweight report with clear status, evidence, and no generic warnings.</li>
+                  <li>Attach focused actions: open the exact setting, create a safe default folder, test a compiler, or open an unresolved reference.</li>
+                  <li>Add “Copy Diagnostic Summary” for bug reports while excluding template content and local secrets.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Five checks with direct fixes</b></div>
+                <div class="detail"><span class="detail-label">Builds on</span><b>Toolchain checks + workspace model</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>Read-only unless action is explicit</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-graph" data-phase="next">
+            <div class="feature-no">04 / 08</div>
+            <header class="feature-title">
+              <h3>Interactive Dependency Map</h3>
+              <p>A navigable local map of templates, includes, skeletons, classes, generated outputs, and unresolved edges.</p>
+              <div class="tags"><span class="tag phase-next">Delivered 0.1.0</span><span class="tag">High impact</span><span class="tag">Medium effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>The existing impact graph proves the data is useful. Interaction would make it operational: isolate the blast radius of one file, find dependency hubs, jump to unresolved edges, and understand large legacy projects faster.</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Expose a stable graph model from the existing workspace index with typed nodes and edges.</li>
+                  <li>Build a local-only webview with pan, zoom, keyboard navigation, search, and “focus on this file.”</li>
+                  <li>Add filters for includes, skeletons, workspace classes, generated targets, and unresolved edges.</li>
+                  <li>Open source ranges from nodes and show transitive dependents before a rename, move, or deletion.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Clickable graph for active template</b></div>
+                <div class="detail"><span class="detail-label">Builds on</span><b>Impact graph + workspace topology</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>Fast on large workspaces</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-refactor" data-phase="next">
+            <div class="feature-no">05 / 08</div>
+            <header class="feature-title">
+              <h3>Refactor Preview &amp; Safe Recipes</h3>
+              <p>Show the exact files, references, and generated outputs a refactor will change before applying it.</p>
+              <div class="tags"><span class="tag phase-next">Core delivered 0.1.0</span><span class="tag">High impact</span><span class="tag">Large effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>JetForge already fails closed for include extraction and reference moves. A visual change plan would make that safety legible—and create room for higher-value recipes such as class renames, helper extraction, and import cleanup.</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Create a reusable refactor plan model containing edits, file operations, unresolved blockers, and affected outputs.</li>
+                  <li>Preview the plan as a multi-file diff before calling <code>WorkspaceEdit</code>.</li>
+                  <li>Add one recipe at a time: rename an <code>@jet class</code>, extract a declaration helper, then organize directive imports.</li>
+                  <li>Optionally run affected golden tests after application and offer a single undo path if verification fails.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Preview existing rename/move edits</b></div>
+                <div class="detail"><span class="detail-label">Builds on</span><b>WorkspaceEdit + impact topology</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>All uncertain sites block the edit</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-cli" data-phase="next">
+            <div class="feature-no">06 / 08</div>
+            <header class="feature-title">
+              <h3>Headless JetForge</h3>
+              <p>A small CLI that runs workspace checks, compiler validation, and golden tests without launching VS Code.</p>
+              <div class="tags"><span class="tag phase-next">Core delivered 0.1.0</span><span class="tag">Very high impact</span><span class="tag">Large effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>Editor tooling catches problems while one person is working. A headless runner makes JetForge useful to the whole team on every pull request and gives projects a repeatable definition of “the templates are healthy.”</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Extract VS Code-independent scanning, workspace modeling, generation, and diagnostic code behind narrow adapters.</li>
+                  <li>Ship <code>jetforge check</code>, <code>jetforge test</code>, and <code>jetforge graph</code> with human-readable and JSON output.</li>
+                  <li>Use the same workspace configuration format and compiler security rules as the extension.</li>
+                  <li>Provide copyable GitHub Actions and generic CI examples, but keep the runner vendor-neutral.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Unresolved references fail a terminal run</b></div>
+                <div class="detail"><span class="detail-label">Builds on</span><b>Pure TypeScript model modules</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>Zero runtime network dependency</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-fixtures" data-phase="later">
+            <div class="feature-no">07 / 08</div>
+            <header class="feature-title">
+              <h3>Fixture-Driven Live Evaluation</h3>
+              <p>Choose a named model fixture and see the real rendered artifact—not only placeholder expressions—in the side-by-side preview.</p>
+              <div class="tags"><span class="tag phase-next">Core delivered 0.1.0</span><span class="tag">Very high impact</span><span class="tag">Very large effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>This is the most exciting leap: template authors could iterate against realistic scenarios without leaving the editor. It would make previews useful for content correctness, edge cases, and visual output—not just structure.</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Start with user-configured external compiler profiles; do not attempt to interpret Java or bundle an Eclipse JET runtime.</li>
+                  <li>Define named fixtures as project-owned files plus a compiler command that knows how to load them.</li>
+                  <li>Add a fixture picker, cancellable generation, cached results, and explicit trust boundaries.</li>
+                  <li>Compare fixtures side by side and promote a rendered result directly into a golden output test.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Two fixtures, two real outputs</b></div>
+                <div class="detail"><span class="detail-label">Depends on</span><b>Compiler profiles + golden tests</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>No in-extension Java execution</b></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="feature reveal" id="feature-ipxact" data-phase="later">
+            <div class="feature-no">08 / 08</div>
+            <header class="feature-title">
+              <h3>IP-XACT Schema Intelligence</h3>
+              <p>Optional schema-aware completions, validation explanations, and navigation for generated IP-XACT structures.</p>
+              <div class="tags"><span class="tag phase-now">Delivered 0.0.22</span><span class="tag">Medium impact</span><span class="tag">Very large effort</span></div>
+            </header>
+            <div class="feature-body">
+              <p class="why"><strong>Why it belongs</strong><span>JetForge already owns the template-to-XML boundary. Schema intelligence would create a strong specialist advantage for hardware teams while remaining safely opt-in for everyone else.</span></p>
+              <details>
+                <summary>Original four-step implementation plan</summary>
+                <ol class="plan">
+                  <li>Support a user-selected local IEEE 1685 schema bundle; do not download schemas at runtime.</li>
+                  <li>Parse generated XML into a lightweight structural index and map reliable nodes back through template provenance.</li>
+                  <li>Offer context-aware element and attribute suggestions in matched generated-output regions.</li>
+                  <li>Add semantic navigation for components, bus interfaces, address blocks, registers, and referenced definitions.</li>
+                </ol>
+              </details>
+              <div class="feature-foot">
+                <div class="detail"><span class="detail-label">MVP proof</span><b>Schema error mapped to source</b></div>
+                <div class="detail"><span class="detail-label">Depends on</span><b>Provenance lens + opt-in IP-XACT</b></div>
+                <div class="detail"><span class="detail-label">Guardrail</span><b>Disabled means zero extra work</b></div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="sequence reveal" aria-labelledby="sequence-title">
+        <div class="sequence-head">
+          <h2 id="sequence-title">The sequence that got it shipped.</h2>
+          <p>Each phase produced visible user value and lowered the risk of the next. The system remains local-first and needs neither a full parser nor a cloud service.</p>
+        </div>
+        <div class="sequence-track">
+          <article class="sequence-phase">
+            <p class="phase-label">Phase 1 · confidence</p>
+            <h3>Prove what exists</h3>
+            <ol>
+              <li>Golden output tests</li>
+              <li>Provenance lens</li>
+              <li>Workspace doctor</li>
+            </ol>
+          </article>
+          <article class="sequence-phase">
+            <p class="phase-label">Phase 2 · scale</p>
+            <h3>Make projects safer</h3>
+            <ol>
+              <li>Interactive dependency map</li>
+              <li>Refactor preview</li>
+              <li>Headless CI runner</li>
+            </ol>
+          </article>
+          <article class="sequence-phase">
+            <p class="phase-label">Phase 3 · differentiation</p>
+            <h3>Do what editors cannot</h3>
+            <ol>
+              <li>Fixture-driven evaluation</li>
+              <li>Schema-aware IP-XACT tooling</li>
+            </ol>
+          </article>
+        </div>
+      </section>
+
+      <section class="principles reveal" aria-labelledby="principles-title">
+        <h2 id="principles-title">Keep these constraints. They are the product.</h2>
+        <div class="principle-grid">
+          <article class="principle">
+            <span>01</span>
+            <h3>Truth over magic</h3>
+            <p>Show mapping confidence and unresolved state. Never attach a precise-looking result to an uncertain source range.</p>
+          </article>
+          <article class="principle">
+            <span>02</span>
+            <h3>Local by default</h3>
+            <p>Templates, fixtures, compiler output, and diagnostics stay on the machine unless a project explicitly moves them.</p>
+          </article>
+          <article class="principle">
+            <span>03</span>
+            <h3>Visible editor value</h3>
+            <p>Every release should produce a behavior someone can see and use in VS Code—not only internal architecture.</p>
+          </article>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>JetForge 0.1 delivery field notes · updated August 2026</p>
+      <button class="print-button" type="button" data-print>Print / save as PDF</button>
+    </footer>
+
+    <script>
+      const filters = [...document.querySelectorAll("[data-filter]")];
+      const features = [...document.querySelectorAll(".feature")];
+      const mapDots = [...document.querySelectorAll(".map-dot")];
+
+      function setFilter(phase) {
+        filters.forEach(button => {
+          button.setAttribute("aria-pressed", String(button.dataset.filter === phase));
+        });
+
+        features.forEach(feature => {
+          feature.hidden = phase !== "all" && feature.dataset.phase !== phase;
+        });
+
+        mapDots.forEach(dot => {
+          dot.classList.toggle("is-dimmed", phase !== "all" && dot.dataset.phase !== phase);
+        });
+      }
+
+      filters.forEach(button => {
+        button.addEventListener("click", () => setFilter(button.dataset.filter));
+      });
+
+      mapDots.forEach(dot => {
+        dot.addEventListener("click", () => {
+          setFilter("all");
+          const target = document.getElementById(dot.dataset.target);
+          if (!target) return;
+          target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+          target.querySelector("details")?.setAttribute("open", "");
+          target.querySelector("summary")?.focus({ preventScroll: true });
+        });
+      });
+
+      const printButton = document.querySelector("[data-print]");
+      let printDetailState = [];
+
+      function expandPlansForPrint() {
+        printDetailState = [...document.querySelectorAll("details")].map(detail => detail.open);
+        document.querySelectorAll("details").forEach(detail => {
+          detail.open = true;
+        });
+      }
+
+      function restorePlansAfterPrint() {
+        document.querySelectorAll("details").forEach((detail, index) => {
+          detail.open = printDetailState[index] ?? detail.open;
+        });
+      }
+
+      printButton?.addEventListener("click", () => window.print());
+      window.addEventListener("beforeprint", expandPlansForPrint);
+      window.addEventListener("afterprint", restorePlansAfterPrint);
+
+      const revealItems = [...document.querySelectorAll(".reveal")];
+      if ("IntersectionObserver" in window && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        const observer = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          });
+        }, { rootMargin: "0px 0px -8% 0px", threshold: .08 });
+        revealItems.forEach(item => observer.observe(item));
+      } else {
+        revealItems.forEach(item => item.classList.add("is-visible"));
+      }
+    </script>
+  </body>
+</html>

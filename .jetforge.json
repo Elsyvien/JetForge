@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "sourcePaths": [
+    "compatibility-projects"
+  ],
+  "includePaths": [
+    "compatibility-projects/eclipse-basic",
+    "compatibility-projects/mixed-targets",
+    "compatibility-projects/fixture-evaluation"
+  ],
+  "skeletonPaths": [
+    "compatibility-projects/eclipse-basic/skeletons"
+  ],
+  "outputDirectory": "generated/headless",
+  "tests": [
+    {
+      "name": "eclipse-basic-java",
+      "template": "compatibility-projects/eclipse-basic/Component.javajet",
+      "expected": "compatibility-projects/eclipse-basic/expected/Component.javajet.java",
+      "targetLanguage": "txtjet-java"
+    },
+    {
+      "name": "mixed-python",
+      "template": "compatibility-projects/mixed-targets/registry.pythonjet",
+      "expected": "compatibility-projects/mixed-targets/expected/registry.py",
+      "targetLanguage": "txtjet-python"
+    },
+    {
+      "name": "mixed-html",
+      "template": "compatibility-projects/mixed-targets/report.htmljet",
+      "expected": "compatibility-projects/mixed-targets/expected/report.html",
+      "targetLanguage": "txtjet-html"
+    },
+    {
+      "name": "fixture-evaluation",
+      "template": "compatibility-projects/fixture-evaluation/greeting.txtjet",
+      "fixture": "compatibility-projects/fixture-evaluation/fixtures/ada.json",
+      "expected": "compatibility-projects/fixture-evaluation/expected/greeting.txt",
+      "mode": "command",
+      "command": "node compatibility-projects/fixture-evaluation/evaluate.js ${file} ${fixture} ${outputFile}"
+    }
+  ]
+}

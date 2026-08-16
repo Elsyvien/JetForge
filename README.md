@@ -6,7 +6,7 @@
 
 <img width="1200" height="630" alt="JetForge source-to-output artwork" src="https://github.com/user-attachments/assets/18ec225a-4bbc-4edc-8807-a6535476e3a9" />
 
-JetForge is a local-first VS Code extension for understanding, navigating, validating, refactoring, previewing, and generating TxtJet and Eclipse JET templates.
+JetForge is local-first TxtJet and Eclipse JET tooling for understanding, navigating, validating, testing, refactoring, previewing, and generating templates in VS Code and CI.
 
 [Install JetForge from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax)
 
@@ -43,8 +43,11 @@ Java completion, hover, and definition forwarding requires compatible installed 
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
 - Workspace-wide template, include, skeleton, unresolved-reference, and generated-target indexing in the `JetForge Workspace` Explorer view.
-- Impact graph reports for templates, includes, and skeletons so project-level generated-output blast radius is visible before edits.
-- Safe refactor commands to extract selected template text into `.jetinc` files and rename or move includes/skeletons while updating references.
+- Searchable, filterable impact maps for templates, includes, skeletons, workspace classes, and generated outputs so project-level blast radius is visible before edits.
+- Reviewable refactor plans for include extraction and include/skeleton moves, plus conservative workspace-class rename, Java-helper extraction, and `@jet` import cleanup recipes.
+- Workspace Doctor checks for configuration, references, compiler placeholders, output containment, golden cases, and local validation.
+- Golden output cases in VS Code’s Testing view with explicit baseline updates and trusted fixture-command evaluation.
+- A shared `jetforge` CLI for local and CI `doctor`, `validate`, `generate`, and `test` workflows with JSON, SARIF, and JUnit output.
 - Find All References, Rename Symbol, and Signature Help for local template Java helper methods declared in `<%! ... %>` blocks.
 - Auto Detect support that can switch a newly opened `.txtjet` file to the likely target mode.
 - Remembered per-file language choices with commands to clear them.
@@ -69,7 +72,7 @@ This checks release metadata, runs the unit/package gate and a real VS Code Exte
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.0.22.vsix
+code --install-extension txtjet-syntax-0.1.0.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -77,6 +80,56 @@ Reload VSCode after installation if the language mode is not immediately availab
 CI packages and installs the exact VSIX in clean Linux and Windows profiles against the minimum and current stable VS Code releases. Matching `vX.Y.Z` tags on `main` can publish that verified artifact through the protected `marketplace` environment and attach it with a checksum to a GitHub Release.
 
 For help, see [SUPPORT.md](SUPPORT.md). Contributions should follow [CONTRIBUTING.md](CONTRIBUTING.md), and vulnerabilities should be reported privately as described in [SECURITY.md](SECURITY.md).
+
+## Headless Projects, Golden Outputs, And Fixtures
+
+Add a checked-in `.jetforge.json` to define the templates JetForge owns, workspace-contained resolution/output paths, and named output cases:
+
+```json
+{
+  "version": 1,
+  "sourcePaths": ["templates"],
+  "includePaths": ["templates/partials"],
+  "skeletonPaths": ["templates/skeletons"],
+  "outputDirectory": "generated/jetforge",
+  "tests": [
+    {
+      "name": "component-java",
+      "template": "templates/Component.javajet",
+      "expected": "test/golden/Component.java",
+      "targetLanguage": "txtjet-java"
+    },
+    {
+      "name": "component-from-model",
+      "template": "templates/Component.javajet",
+      "fixture": "test/fixtures/component.json",
+      "expected": "test/golden/Component.fixture.java",
+      "mode": "command",
+      "command": "node tools/render-component.js ${file} ${fixture} ${outputFile}"
+    }
+  ]
+}
+```
+
+Run it in the repository:
+
+```bash
+npm run headless -- doctor
+npm run headless -- validate --format sarif
+npm run headless -- generate
+npm run headless -- test --format junit
+npm run headless -- test --update
+```
+
+For another project, install the tagged Git repository as a development tool and use its `jetforge` binary:
+
+```bash
+npm install --save-dev github:Elsyvien/JetForge#v0.1.0
+npx jetforge doctor
+npx jetforge test
+```
+
+`test --update` is the only operation that replaces approved baselines. Command-mode cases execute only when explicitly run in a trusted workspace or terminal; JetForge substitutes shell-quoted `${file}`, `${fixture}`, `${workspaceFolder}`, and `${outputFile}` paths. The extension exposes the same cases in VS Code’s Testing view and through `JetForge: Run Golden Output Tests`, `JetForge: Update Golden Output Baselines`, and `JetForge: Evaluate Named Fixture`.
 
 ## Usage
 
@@ -129,15 +182,24 @@ Use these commands for project-level workflows:
 - `TxtJet: Open Including Template`
 - `TxtJet: Open Generated Java For Template`
 - `TxtJet: Validate Workspace Templates`
+- `JetForge: Run Workspace Doctor`
+- `JetForge: Validate Workspace Locally`
+- `JetForge: Generate All Workspace Outputs`
+- `JetForge: Run Golden Output Tests`
+- `JetForge: Update Golden Output Baselines`
+- `JetForge: Evaluate Named Fixture`
 - `JetForge: Set Up and Test Compiler Toolchain`
 - `TxtJet: Open IP-XACT Template`
 - `TxtJet: Show Impact Graph`
 - `TxtJet: Extract Selection to Include`
 - `TxtJet: Rename or Move Include/Skeleton`
+- `TxtJet: Rename Workspace @jet Class`
+- `TxtJet: Extract Selected Java to Helper`
+- `TxtJet: Clean Up @jet Imports`
 
 Workspace indexing reuses the resource-scoped `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so each folder in a multi-root workspace can resolve its own project layout and unresolved diagnostics update when referenced files are created, deleted, or changed. Compiler, generation, and IP-XACT settings follow the same per-resource configuration model. The generated Java preview URI is stable per source template and remains the bridge to installed Java tooling, while the local workspace class index supplies deterministic cross-template IntelliSense even when that tooling ignores virtual documents.
 
-Impact graph reports open in the rendered Markdown preview and show direct and transitive Mermaid edges from a changed include, skeleton, or template to affected templates and generated-output targets. For Java-generating templates the same graph also follows direct and transitive references to workspace `@jet` classes, with navigable class-to-class dependency links. The refactor commands rebuild the workspace model from current open buffers before editing and fail closed if any resolved reference cannot be mapped. Extraction creates a new workspace-local `.jetinc`; include/skeleton rename or move uses a confirmed WorkspaceEdit that updates only resolved references in the current workspace model.
+Impact graphs open as local interactive maps with search, typed edge filters, source focus, neighbor isolation, pan/zoom, keyboard navigation, and direct file opening. They trace include/skeleton blast radius, generated targets, and transitive workspace `@jet` class dependencies without network access. Refactor commands rebuild from current open buffers, open a reviewable change plan, and fail closed when references or Java selections cannot be mapped conservatively.
 
 You can rerun detection manually with the command:
 

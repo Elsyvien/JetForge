@@ -1,0 +1,8 @@
+${packageDeclaration}
+
+${imports}
+
+public class ${class} {
+${members}
+${generateMethod}
+}

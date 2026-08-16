@@ -1,0 +1,9 @@
+<%@ jet package="example.compat" class="ComponentTemplate" imports="java.util.List" skeleton="skeletons/eclipse.skeleton" %>
+<%@ include file="partials/license.jetinc" %>
+package generated.compat;
+
+public final class Component {
+<% for (String name : List.of("alpha", "beta")) { %>
+    public static final String <%= name.toUpperCase() %> = "<%= name %>";
+<% } %>
+}

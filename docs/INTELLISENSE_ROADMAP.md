@@ -79,6 +79,14 @@ VSCode language servers generally operate on one coherent language document. A `
   - Optional resource-scoped `txtjet.ipxact.schemaPaths` index local XSD files and directories for permitted-child and attribute completions, XSD documentation hovers, and Go to Definition from templates and previews.
   - Recognized validator messages gain a short schema-focused explanation and corrective guidance while preserving the original validator output.
 
+- Team-scale verification and safe change workflows
+  - `.jetforge.json` is a checked-in project contract for source roots, resolution paths, generated output, and named golden cases.
+  - Workspace Doctor, local validation, full-workspace generation, and golden output tests share one VS Code-independent implementation with the `jetforge` CLI.
+  - Golden cases appear in VS Code’s Testing view and can emit JSON or JUnit in CI; local validation can emit SARIF.
+  - Trusted command-mode cases pass a named model fixture to a project-owned evaluator and can open the real artifact as a read-only editor document.
+  - The impact graph is an interactive local webview with typed filters, search, focus, keyboard operation, and file navigation.
+  - Include extraction and reference moves now show reviewable plans; class rename, helper extraction, and import cleanup remain conservative and refuse ambiguous edits.
+
 ## Remaining Future Direction
 
 1. Inline IntelliSense
@@ -90,7 +98,7 @@ VSCode language servers generally operate on one coherent language document. A `
    - Keep diagnostics conservative: if a compiler problem cannot be mapped deterministically, leave it in the output channel instead of attaching it to the wrong template range.
 
 3. Workspace Intelligence
-   - Use the workspace model as the shared source of truth for include/skeleton backlinks, unresolved-reference diagnostics, project validation, and future LSP migration work.
+   - Validate the interactive graph, headless discovery, and golden runner against additional large real-world Eclipse JET layouts.
    - Keep the model deterministic and file-based; do not infer hidden build-system state without explicit settings.
 
 ## Additional Eclipse-Inspired Feature Ideas
@@ -127,7 +135,7 @@ VSCode language servers generally operate on one coherent language document. A `
   - Eclipse benefits from Java editor formatting for generated Java portions.
   - VSCode equivalent: command-driven formatting for selected template Java blocks first, then generated-preview formatting later.
 
-## Non-Goals For The Next Release
+## Continuing Non-Goals
 
 - Do not build a full parser.
 - Do not implement semantic Java analysis directly.

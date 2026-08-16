@@ -2,12 +2,15 @@
   "name": "txtjet-syntax",
   "displayName": "JetForge — TxtJet & Eclipse JET",
   "description": "Local-first TxtJet and Eclipse JET tooling for VS Code: highlighting, previews, diagnostics, navigation, and generation.",
-  "version": "0.0.22",
+  "version": "0.1.0",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
   "icon": "assets/icon.png",
   "main": "./out/extension.js",
+  "bin": {
+    "jetforge": "./out/cli.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Elsyvien/JetForge.git"
@@ -373,6 +376,33 @@
         "enablement": "isWorkspaceTrusted"
       },
       {
+        "command": "txtjet.runWorkspaceDoctor",
+        "title": "JetForge: Run Workspace Doctor"
+      },
+      {
+        "command": "txtjet.validateHeadlessWorkspace",
+        "title": "JetForge: Validate Workspace Locally"
+      },
+      {
+        "command": "txtjet.generateWorkspaceOutputs",
+        "title": "JetForge: Generate All Workspace Outputs"
+      },
+      {
+        "command": "txtjet.runGoldenTests",
+        "title": "JetForge: Run Golden Output Tests",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "txtjet.updateGoldenTests",
+        "title": "JetForge: Update Golden Output Baselines",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "txtjet.evaluateFixture",
+        "title": "JetForge: Evaluate Named Fixture",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
         "command": "txtjet.showImpactGraph",
         "title": "TxtJet: Show Impact Graph"
       },
@@ -387,6 +417,18 @@
       {
         "command": "txtjet.renameWorkspaceReference",
         "title": "TxtJet: Rename or Move Include/Skeleton"
+      },
+      {
+        "command": "txtjet.renameWorkspaceClass",
+        "title": "TxtJet: Rename Workspace @jet Class"
+      },
+      {
+        "command": "txtjet.extractJavaHelper",
+        "title": "TxtJet: Extract Selected Java to Helper"
+      },
+      {
+        "command": "txtjet.cleanJetImports",
+        "title": "TxtJet: Clean Up @jet Imports"
       },
       {
         "command": "txtjet.openIpxactPreview",
@@ -865,6 +907,24 @@
           "command": "txtjet.validateWorkspaceTemplates"
         },
         {
+          "command": "txtjet.runWorkspaceDoctor"
+        },
+        {
+          "command": "txtjet.validateHeadlessWorkspace"
+        },
+        {
+          "command": "txtjet.generateWorkspaceOutputs"
+        },
+        {
+          "command": "txtjet.runGoldenTests"
+        },
+        {
+          "command": "txtjet.updateGoldenTests"
+        },
+        {
+          "command": "txtjet.evaluateFixture"
+        },
+        {
           "command": "txtjet.showImpactGraph"
         },
         {
@@ -877,6 +937,18 @@
         },
         {
           "command": "txtjet.renameWorkspaceReference"
+        },
+        {
+          "command": "txtjet.renameWorkspaceClass",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.extractJavaHelper",
+          "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.cleanJetImports",
+          "when": "resourceLangId =~ /^txtjet/"
         },
         {
           "command": "txtjet.openIpxactPreview",
@@ -937,6 +1009,16 @@
         {
           "command": "txtjet.validateWorkspaceTemplates",
           "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
+          "command": "txtjet.runWorkspaceDoctor",
+          "when": "view == txtjetWorkspace",
+          "group": "navigation"
+        },
+        {
+          "command": "txtjet.runGoldenTests",
+          "when": "view == txtjetWorkspace && isWorkspaceTrusted",
           "group": "navigation"
         },
         {
@@ -1028,10 +1110,19 @@
     "onCommand:txtjet.openIncludingTemplate",
     "onCommand:txtjet.openGeneratedJavaForTemplate",
     "onCommand:txtjet.validateWorkspaceTemplates",
+    "onCommand:txtjet.runWorkspaceDoctor",
+    "onCommand:txtjet.validateHeadlessWorkspace",
+    "onCommand:txtjet.generateWorkspaceOutputs",
+    "onCommand:txtjet.runGoldenTests",
+    "onCommand:txtjet.updateGoldenTests",
+    "onCommand:txtjet.evaluateFixture",
     "onCommand:txtjet.showImpactGraph",
     "onCommand:txtjet.showReferencedJavaClasses",
     "onCommand:txtjet.extractSelectionToInclude",
     "onCommand:txtjet.renameWorkspaceReference",
+    "onCommand:txtjet.renameWorkspaceClass",
+    "onCommand:txtjet.extractJavaHelper",
+    "onCommand:txtjet.cleanJetImports",
     "onView:txtjetWorkspace",
     "onCommand:txtjet.openIpxactPreview",
     "onCommand:txtjet.generateIpxactOutput",
@@ -1047,21 +1138,31 @@
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
     "compile": "npm run clean && tsc -p ./",
-    "test": "npm run compile && node out/detector.test.js && node out/templateModel.test.js && node out/provenance.test.js && node out/workspaceModel.test.js && node out/asyncRefresh.test.js && node out/regionClassifier.test.js && node out/javaSyntax.test.js && node out/javaIntelliSenseBridge.test.js && node out/javaWorkspaceIntelligence.test.js && node out/previewExamples.test.js && node out/scanner.test.js && node out/extensionSupport.test.js && node out/generationPaths.test.js && node out/validationRuns.test.js && node out/compilerDiagnostics.test.js && node out/compilerToolchain.test.js && node out/ipxact.test.js && node out/ipxactSchema.test.js && node out/previewSync.test.js && node out/previewCache.test.js && node out/formatter.test.js && node out/codeActions.test.js && node out/grammar.test.js && node out/manifest.test.js && node out/packageHygiene.test.js",
+    "test": "npm run compile && node scripts/run-unit-tests.js",
+    "coverage": "npm run compile && c8 --all --include 'out/*.js' --exclude 'out/*.test.js' --exclude 'out/extension.js' --exclude 'out/impactGraphView.js' --exclude 'out/workspaceCommands.js' --exclude 'out/refactorCommands.js' --exclude 'out/cli.js' --check-coverage --lines 85 --statements 85 --branches 75 --functions 90 --reporter=text --reporter=lcov node scripts/run-unit-tests.js",
     "test:extension": "npm run compile && node scripts/run-extension-host-tests.js",
     "test:vsix": "node scripts/run-installed-vsix-tests.js",
+    "headless": "npm run compile && node out/cli.js",
+    "verify:headless": "node out/cli.js doctor && node out/cli.js validate && node out/cli.js test",
     "check:release-metadata": "node scripts/check-release-metadata.js",
     "validate:json": "node -e \"const fs=require('fs'); for (const f of ['package.json','package-lock.json','language-configuration.json','language-configuration-latex.json','snippets/txtjet.code-snippets', ...fs.readdirSync('syntaxes').map(x=>'syntaxes/'+x)]) JSON.parse(fs.readFileSync(f,'utf8')); console.log('json ok')\"",
-    "verify": "npm test && npm run validate:json && npm run package",
+    "lint": "eslint . --ext .ts,.js",
+    "verify": "npm run coverage && npm run verify:headless && npm run validate:json && npm run package",
     "verify:release": "npm run check:release-metadata && npm run test:extension && npm run verify && npm run test:vsix",
     "vscode:prepublish": "npm run compile",
+    "prepare": "npm run compile",
     "package": "vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",
     "@types/vscode": "1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "3.9.2",
+    "c8": "^12.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
     "typescript": "^5.4.5"
   }
 }

@@ -1,0 +1,6 @@
+<%@ jet package="example.compat" class="PythonRegistry" imports="java.util.List" %>
+REGISTRY = {
+<% for (String name : List.of("alpha", "beta")) { %>
+    "<%= name %>": "<%= name.toUpperCase() %>",
+<% } %>
+}

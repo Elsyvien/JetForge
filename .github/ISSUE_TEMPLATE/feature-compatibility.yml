@@ -17,7 +17,7 @@ body:
     id: environment
     attributes:
       label: Relevant versions or tooling
-      placeholder: "JetForge 0.0.21; VS Code 1.85.2; Eclipse JET/tool version"
+      placeholder: "JetForge 0.1.0; VS Code 1.85.2; Eclipse JET/tool version"
     validations:
       required: true
   - type: textarea

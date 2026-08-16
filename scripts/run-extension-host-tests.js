@@ -114,6 +114,10 @@ async function main() {
   const requestedVersion = process.env.VSCODE_TEST_VERSION;
   const executablePath = requestedVersion ? undefined : findVSCodeExecutable();
   const temporaryRoot = mkdtempSync(join(tmpdir(), "txtjet-vscode-test-"));
+  const workspaceSettingsPath = join(extensionDevelopmentPath, ".vscode", "settings.json");
+  const workspaceSettingsExisted = existsSync(workspaceSettingsPath);
+  const workspaceSettingsDirectory = join(extensionDevelopmentPath, ".vscode");
+  const workspaceSettingsDirectoryExisted = existsSync(workspaceSettingsDirectory);
   const userDataDir = join(temporaryRoot, "user-data");
   const extensionsDir = join(temporaryRoot, "extensions");
   mkdirSync(userDataDir);
@@ -128,7 +132,7 @@ async function main() {
     "--disable-telemetry",
     "--skip-welcome",
     "--skip-release-notes",
-    resolve(extensionDevelopmentPath, "examples")
+    extensionDevelopmentPath
   ];
 
   try {
@@ -153,6 +157,16 @@ async function main() {
     }
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
+    if (!workspaceSettingsExisted) {
+      rmSync(workspaceSettingsPath, { force: true });
+    }
+    if (!workspaceSettingsDirectoryExisted) {
+      try {
+        rmSync(workspaceSettingsDirectory);
+      } catch {
+        // Preserve anything else VS Code or the user created while the test was running.
+      }
+    }
   }
 }
 
