@@ -688,7 +688,7 @@
         "txtjet.compiler.command": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Shell command used by **TxtJet: Compile Template With External Compiler**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
+          "markdownDescription": "Executable and argument list used by **TxtJet: Compile Template With External Compiler**. Quotes group arguments; no shell expansion or operators are evaluated. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
           "scope": "resource"
         },
         "txtjet.compiler.timeoutMs": {
@@ -762,7 +762,7 @@
         "txtjet.ipxact.validation.command": {
           "type": "string",
           "default": "",
-          "markdownDescription": "External command used by **TxtJet: Validate IP-XACT Output**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
+          "markdownDescription": "External executable and argument list used by **TxtJet: Validate IP-XACT Output**. Quotes group arguments; no shell expansion or operators are evaluated. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
           "scope": "resource"
         },
         "txtjet.ipxact.validation.problemMatcher": {

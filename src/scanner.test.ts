@@ -66,6 +66,16 @@ assert.deepEqual(scanTxtJetDirectiveIssues("<%@ include file=missing.txtjet %>")
   "missing-include-file"
 ]);
 
+const adversarialClosers = "%>?>".repeat(20000);
+const adversarialStart = performance.now();
+const adversarialIssues = scanTxtJetIssues(adversarialClosers);
+const adversarialElapsedMs = performance.now() - adversarialStart;
+assert.equal(adversarialIssues.length, 40000);
+assert.ok(
+  adversarialElapsedMs < 1000,
+  `adversarial delimiter scan took ${adversarialElapsedMs.toFixed(1)} ms; expected a linear scan below 1000 ms`
+);
+
 console.log("scanner tests ok");
 
 function fixture(name: string): string {

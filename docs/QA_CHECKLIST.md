@@ -120,7 +120,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Trigger Quick Fix on a missing include or skeleton diagnostic and confirm the referenced file is created locally.
 - Add a missing reference such as `../outside.txtjet` and confirm no file-creation Quick Fix can target a path outside the workspace or configured resolution roots.
 - Enable `txtjet.diagnostics.generatedJava.enabled`, open a generated Java preview, and confirm Java diagnostics can map back to template ranges where mappings exist.
-- Configure `txtjet.compiler.command` with a sanitized local wrapper that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
+- Configure `txtjet.compiler.command` with a sanitized local wrapper executable that emits `generated/sample.java:line:column: error: message` and confirm the default compiler problem matcher maps deterministic diagnostics.
 - Configure the wrapper-style matcher `^\\[txtjet\\]\\s+(?<file>.*?):(?<line>\\d+):(?<column>\\d+):\\s*(?<severity>error|warning|info|information|hint):\\s*(?<message>.+)$` and confirm `[txtjet] file:line:column: error: message` output is parsed.
 - Set `txtjet.compiler.timeoutMs` to a low value with a slow sanitized wrapper and confirm the external compiler command times out instead of hanging VSCode.
 - Start a slow compiler validation, edit/save the template, and start another validation; confirm the superseded process is aborted and cannot restore stale diagnostics.
@@ -161,7 +161,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `TxtJet: Open IP-XACT Preview` and confirm a read-only XML preview opens beside the template.
 - Run `TxtJet: Generate IP-XACT Output` and confirm output is written under `txtjet.ipxact.outputDirectory`.
 - Run `TxtJet: Diff Current IP-XACT Output Against Last Generation` after changing the template and confirm the diff opens.
-- Configure `txtjet.ipxact.validation.command` with a sanitized wrapper that emits `${outputFile}:line:column: error: message`, run `TxtJet: Validate IP-XACT Output`, and confirm deterministic generated-output diagnostics map back to the template.
+- Configure `txtjet.ipxact.validation.command` with a sanitized wrapper executable that emits `${outputFile}:line:column: error: message`, run `TxtJet: Validate IP-XACT Output`, and confirm deterministic generated-output diagnostics map back to the template.
 - Emit an unexpected-child, disallowed-attribute, invalid-value, or missing-declaration validator message and confirm the mapped diagnostic includes concise guidance, retains the original validator text, and links a configured schema declaration when available.
 - Start a slow IP-XACT validation, edit/save the template, and start another validation; confirm the superseded process is aborted and cannot restore stale diagnostics.
 - Confirm overlapping IP-XACT validations use isolated temporary output files and clean them after completion instead of overwriting the canonical generated XML.

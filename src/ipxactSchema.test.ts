@@ -4,6 +4,7 @@ import {
   ipxactGeneratedStructures,
   ipxactXmlContextAt,
   ipxactXmlNameAt,
+  MAX_IPXACT_XML_DEPTH,
   schemaAttributesFor,
   schemaChildrenFor,
   schemaElementsNamed
@@ -175,5 +176,31 @@ assert.equal(generatedStructures[0]?.children[1]?.kind, "memoryMap");
 assert.equal(generatedStructures[0]?.children[1]?.children[0]?.kind, "addressBlock");
 assert.equal(generatedStructures[0]?.children[1]?.children[0]?.children[0]?.kind, "register");
 assert.equal(generatedStructures[0]?.children[1]?.children[0]?.children[0]?.children[0]?.name, "ready");
+
+const malformedComments = "<!--".repeat(30000);
+const malformedCommentsStart = performance.now();
+assert.deepEqual(ipxactGeneratedStructures(malformedComments), []);
+const malformedCommentsElapsedMs = performance.now() - malformedCommentsStart;
+assert.ok(
+  malformedCommentsElapsedMs < 1000,
+  `malformed comment scan took ${malformedCommentsElapsedMs.toFixed(1)} ms; expected a linear scan below 1000 ms`
+);
+
+const maximumDepthXml = "<component>" + "<memoryMap>".repeat(MAX_IPXACT_XML_DEPTH - 1);
+assert.doesNotThrow(() => ipxactGeneratedStructures(maximumDepthXml));
+const excessiveDepthXml = "<component>" + "<memoryMap>".repeat(MAX_IPXACT_XML_DEPTH);
+assert.throws(() => ipxactGeneratedStructures(excessiveDepthXml), /IP-XACT XML depth exceeded its limit/);
+
+const schemaInheritanceDepth = 1000;
+const inheritanceChain = Array.from({ length: schemaInheritanceDepth }, (_, index) =>
+  index === schemaInheritanceDepth - 1
+    ? `<xs:complexType name="T${index}"><xs:sequence><xs:element name="terminal"/></xs:sequence></xs:complexType>`
+    : `<xs:complexType name="T${index}"><xs:complexContent><xs:extension base="T${index + 1}"/></xs:complexContent></xs:complexType>`
+).join("");
+const deepInheritanceIndex = buildIpxactSchemaIndex([{
+  fileName: "/workspace/schemas/deep-inheritance.xsd",
+  text: `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"><xs:element name="component" type="T0"/>${inheritanceChain}</xs:schema>`
+}]);
+assert.deepEqual(schemaChildrenFor(deepInheritanceIndex, "component").map((element) => element.name), ["terminal"]);
 
 console.log("ipxact schema tests ok");
