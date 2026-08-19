@@ -1,4 +1,9 @@
 import { TxtJetRange } from "./templateModel";
+import { ResourceBudget, ResourceLimitError } from "./resourceBudget";
+
+export const MAX_IPXACT_XML_CHARACTERS = 4 * 1024 * 1024;
+export const MAX_IPXACT_XML_DEPTH = 128;
+export const MAX_IPXACT_XML_NODES = 100000;
 
 export interface TxtJetIpxactSchemaDocument {
   fileName: string;
@@ -85,6 +90,16 @@ interface XmlNode {
   parent?: XmlNode;
   children: XmlNode[];
   sourceText: string;
+}
+
+interface XmlTagToken {
+  start: number;
+  end: number;
+  name: string;
+  closing: boolean;
+  selfClosing: boolean;
+  attributeText: string;
+  attributeOffset: number;
 }
 
 interface SchemaContext {
@@ -215,6 +230,9 @@ export function ipxactXmlContextAt(
   text: string,
   offset: number
 ): TxtJetIpxactXmlContext | undefined {
+  if (text.length > MAX_IPXACT_XML_CHARACTERS) {
+    return undefined;
+  }
   const safeOffset = Math.max(0, Math.min(offset, text.length));
   const masked = maskTxtJetBlocks(text);
   const tagStart = masked.lastIndexOf("<", safeOffset);
@@ -294,38 +312,43 @@ export function ipxactGeneratedStructures(text: string): TxtJetIpxactStructure[]
 }
 
 function scanXmlNodes(text: string): XmlNode[] {
+  if (text.length > MAX_IPXACT_XML_CHARACTERS) {
+    throw new ResourceLimitError("IP-XACT XML characters", MAX_IPXACT_XML_CHARACTERS);
+  }
   const roots: XmlNode[] = [];
   const stack: XmlNode[] = [];
-  const tags = /<!--[\s\S]*?-->|<\s*(\/?)\s*([A-Za-z_][\w.:-]*)([^<>]*?)\s*(\/?)>/g;
-  let match: RegExpExecArray | null;
-  while ((match = tags.exec(text))) {
-    if (match[0].startsWith("<!--")) {
-      continue;
-    }
-    const closing = match[1] === "/";
-    const name = match[2];
-    if (closing) {
+  const budget = new ResourceBudget({
+    "IP-XACT XML tokens": MAX_IPXACT_XML_NODES * 2,
+    "IP-XACT XML nodes": MAX_IPXACT_XML_NODES
+  });
+  let offset = 0;
+  let tag: XmlTagToken | undefined;
+  while ((tag = nextXmlTag(text, offset))) {
+    offset = tag.end;
+    budget.consume("IP-XACT XML tokens");
+    if (tag.closing) {
       for (let index = stack.length - 1; index >= 0; index -= 1) {
-        if (stack[index].name !== name) {
+        if (stack[index].name !== tag.name) {
           continue;
         }
         const node = stack[index];
-        node.endTagStart = match.index;
-        node.range.end = match.index + match[0].length;
+        node.endTagStart = tag.start;
+        node.range.end = tag.end;
         stack.splice(index);
         break;
       }
       continue;
     }
 
+    budget.consume("IP-XACT XML nodes");
     const parent = last(stack);
     const node: XmlNode = {
-      name,
-      localName: localQName(name) ?? name,
-      attributes: parseXmlAttributes(match[3], match.index + match[0].indexOf(match[3])),
-      range: { start: match.index, end: match.index + match[0].length },
-      startTagEnd: match.index + match[0].length,
-      endTagStart: match.index + match[0].length,
+      name: tag.name,
+      localName: localQName(tag.name) ?? tag.name,
+      attributes: parseXmlAttributes(tag.attributeText, tag.attributeOffset),
+      range: { start: tag.start, end: tag.end },
+      startTagEnd: tag.end,
+      endTagStart: tag.end,
       parent,
       children: [],
       sourceText: text
@@ -335,11 +358,87 @@ function scanXmlNodes(text: string): XmlNode[] {
     } else {
       roots.push(node);
     }
-    if (match[4] !== "/" && !match[0].endsWith("/>")) {
+    if (!tag.selfClosing) {
+      if (stack.length >= MAX_IPXACT_XML_DEPTH) {
+        throw new ResourceLimitError("IP-XACT XML depth", MAX_IPXACT_XML_DEPTH);
+      }
       stack.push(node);
     }
   }
   return roots;
+}
+
+function nextXmlTag(text: string, from: number): XmlTagToken | undefined {
+  let cursor = from;
+  while (cursor < text.length) {
+    const start = text.indexOf("<", cursor);
+    if (start === -1) {
+      return undefined;
+    }
+    if (text.startsWith("<!--", start)) {
+      const end = text.indexOf("-->", start + 4);
+      if (end === -1) {
+        return undefined;
+      }
+      cursor = end + 3;
+      continue;
+    }
+    if (text.startsWith("<![CDATA[", start)) {
+      const end = text.indexOf("]]>", start + 9);
+      if (end === -1) {
+        return undefined;
+      }
+      cursor = end + 3;
+      continue;
+    }
+    if (text.startsWith("<?", start)) {
+      const end = text.indexOf("?>", start + 2);
+      if (end === -1) {
+        return undefined;
+      }
+      cursor = end + 2;
+      continue;
+    }
+
+    const end = xmlTagEnd(text, start + 1);
+    if (end === -1) {
+      return undefined;
+    }
+    const raw = text.slice(start, end + 1);
+    const match = /^<\s*(\/?)\s*([A-Za-z_][\w.:-]*)/.exec(raw);
+    if (!match) {
+      cursor = end + 1;
+      continue;
+    }
+    const attributeStart = match[0].length;
+    return {
+      start,
+      end: end + 1,
+      name: match[2],
+      closing: match[1] === "/",
+      selfClosing: /\/\s*>$/.test(raw),
+      attributeText: raw.slice(attributeStart, -1),
+      attributeOffset: start + attributeStart
+    };
+  }
+  return undefined;
+}
+
+function xmlTagEnd(text: string, from: number): number {
+  let quote: "'" | "\"" | undefined;
+  for (let offset = from; offset < text.length; offset += 1) {
+    const character = text[offset];
+    if (character === "'" || character === "\"") {
+      if (!quote) {
+        quote = character;
+      } else if (quote === character) {
+        quote = undefined;
+      }
+    } else if (character === ">" && !quote) {
+      return offset;
+    }
+  }
+  return -1;
 }
 
 const IPXACT_STRUCTURE_KINDS = new Set<TxtJetIpxactStructureKind>([
@@ -352,21 +451,38 @@ const IPXACT_STRUCTURE_KINDS = new Set<TxtJetIpxactStructureKind>([
 ]);
 
 function structuresBelow(node: XmlNode): TxtJetIpxactStructure[] {
-  const nested = node.children.flatMap(structuresBelow);
-  if (!IPXACT_STRUCTURE_KINDS.has(node.localName as TxtJetIpxactStructureKind)) {
-    return nested;
+  const results = new Map<XmlNode, TxtJetIpxactStructure[]>();
+  const work: Array<{ node: XmlNode; visited: boolean }> = [{ node, visited: false }];
+  while (work.length > 0) {
+    const current = work.pop();
+    if (!current) {
+      break;
+    }
+    if (!current.visited) {
+      work.push({ node: current.node, visited: true });
+      for (let index = current.node.children.length - 1; index >= 0; index -= 1) {
+        work.push({ node: current.node.children[index], visited: false });
+      }
+      continue;
+    }
+    const nested = current.node.children.flatMap((child) => results.get(child) ?? []);
+    if (!IPXACT_STRUCTURE_KINDS.has(current.node.localName as TxtJetIpxactStructureKind)) {
+      results.set(current.node, nested);
+      continue;
+    }
+    const directName = current.node.children.find((child) => child.localName === "name");
+    const name = directName
+      ? collapseWhitespace(nodeText(directName)).slice(0, 160) || undefined
+      : undefined;
+    results.set(current.node, [{
+      kind: current.node.localName as TxtJetIpxactStructureKind,
+      name,
+      range: current.node.range,
+      selectionRange: xmlNodeNameRange(current.node),
+      children: nested
+    }]);
   }
-  const directName = node.children.find((child) => child.localName === "name");
-  const name = directName
-    ? collapseWhitespace(nodeText(directName)).slice(0, 160) || undefined
-    : undefined;
-  return [{
-    kind: node.localName as TxtJetIpxactStructureKind,
-    name,
-    range: node.range,
-    selectionRange: xmlNodeNameRange(node),
-    children: nested
-  }];
+  return results.get(node) ?? [];
 }
 
 function xmlNodeNameRange(node: XmlNode): TxtJetRange {
@@ -394,9 +510,16 @@ function parseXmlAttributes(text: string, baseOffset: number): XmlAttribute[] {
 }
 
 function walkNodes(node: XmlNode, visit: (node: XmlNode) => void): void {
-  visit(node);
-  for (const child of node.children) {
-    walkNodes(child, visit);
+  const work = [node];
+  while (work.length > 0) {
+    const current = work.pop();
+    if (!current) {
+      break;
+    }
+    visit(current);
+    for (let index = current.children.length - 1; index >= 0; index -= 1) {
+      work.push(current.children[index]);
+    }
   }
 }
 
@@ -478,57 +601,59 @@ function resolvedSchemaChildren(
 ): Array<{ name: string; key: string }> {
   const children = new Map<string, { name: string; key: string }>();
   const seen = new Set<string>([`complexType:${content.key}`]);
-
-  function visitChildren(node: XmlNode, context: SchemaContext): void {
-    for (const child of node.children) {
-      if (child.localName === "element") {
-        const name = schemaElementName(child);
-        if (!name) {
-          continue;
-        }
-        const key = resolveSchemaQName(attributeValue(child, "ref"), context)
-          ?? schemaNameKey(context.targetNamespace, name);
-        children.set(key, { name, key });
-        continue;
-      }
-      if (child.localName === "group") {
-        const key = resolveSchemaQName(attributeValue(child, "ref"), context);
-        const declaration = key ? declarations.groups.get(key) : undefined;
-        if (declaration) {
-          visitDeclaration(declaration, "group");
-        } else {
-          visitChildren(child, context);
-        }
-        continue;
-      }
-      if (child.localName === "extension" || child.localName === "restriction") {
-        const key = resolveSchemaQName(attributeValue(child, "base"), context);
-        const declaration = key ? declarations.complexTypes.get(key) : undefined;
-        if (declaration) {
-          visitDeclaration(declaration, "complexType");
-        }
-        visitChildren(child, context);
-        continue;
-      }
-      if (!["documentation", "attribute", "attributeGroup"].includes(child.localName)) {
-        visitChildren(child, context);
-      }
-    }
-  }
-
-  function visitDeclaration(
-    declaration: SchemaDeclaration,
-    kind: "complexType" | "group"
-  ): void {
+  const frames: Array<{ node: XmlNode; context: SchemaContext; index: number }> = [
+    { node: content.node, context: content.context, index: 0 }
+  ];
+  const descend = (node: XmlNode, context: SchemaContext) => frames.push({ node, context, index: 0 });
+  const descendDeclaration = (declaration: SchemaDeclaration, kind: "complexType" | "group") => {
     const seenKey = `${kind}:${declaration.key}`;
-    if (seen.has(seenKey)) {
-      return;
+    if (!seen.has(seenKey)) {
+      seen.add(seenKey);
+      descend(declaration.node, declaration.context);
     }
-    seen.add(seenKey);
-    visitChildren(declaration.node, declaration.context);
-  }
+  };
 
-  visitChildren(content.node, content.context);
+  while (frames.length > 0) {
+    const frame = frames[frames.length - 1];
+    if (frame.index >= frame.node.children.length) {
+      frames.pop();
+      continue;
+    }
+    const child = frame.node.children[frame.index];
+    frame.index += 1;
+    if (child.localName === "element") {
+      const name = schemaElementName(child);
+      if (name) {
+        const key = resolveSchemaQName(attributeValue(child, "ref"), frame.context)
+          ?? schemaNameKey(frame.context.targetNamespace, name);
+        children.set(key, { name, key });
+      }
+      continue;
+    }
+    if (child.localName === "group") {
+      const key = resolveSchemaQName(attributeValue(child, "ref"), frame.context);
+      const declaration = key ? declarations.groups.get(key) : undefined;
+      if (declaration) {
+        descendDeclaration(declaration, "group");
+      } else {
+        descend(child, frame.context);
+      }
+      continue;
+    }
+    if (child.localName === "extension" || child.localName === "restriction") {
+      // Continue the current node after its referenced base, matching the former depth-first order.
+      const key = resolveSchemaQName(attributeValue(child, "base"), frame.context);
+      const declaration = key ? declarations.complexTypes.get(key) : undefined;
+      descend(child, frame.context);
+      if (declaration) {
+        descendDeclaration(declaration, "complexType");
+      }
+      continue;
+    }
+    if (!["documentation", "attribute", "attributeGroup"].includes(child.localName)) {
+      descend(child, frame.context);
+    }
+  }
   return [...children.values()];
 }
 
@@ -538,91 +663,90 @@ function resolvedSchemaAttributes(
 ): TxtJetIpxactSchemaAttribute[] {
   const attributes = new Map<string, TxtJetIpxactSchemaAttribute>();
   const seen = new Set<string>([`complexType:${content.key}`]);
-
-  function visitChildren(node: XmlNode, context: SchemaContext): void {
-    for (const child of node.children) {
-      if (child.localName === "element") {
-        continue;
-      }
-      if (child.localName === "attribute") {
-        const refKey = resolveSchemaQName(attributeValue(child, "ref"), context);
-        const referenced = refKey ? declarations.globalAttributes.get(refKey) : undefined;
-        const definition = referenced?.node ?? child;
-        const definitionContext = referenced?.context ?? context;
-        const name = localQName(attributeValue(child, "name") ?? attributeValue(child, "ref"));
-        if (name) {
-          attributes.set(name, {
-            name,
-            type: localQName(attributeValue(definition, "type")),
-            required: (attributeValue(child, "use") ?? attributeValue(definition, "use")) === "required",
-            documentation: schemaDocumentation(child) ?? (referenced ? schemaDocumentation(referenced.node) : undefined),
-            location: schemaNodeLocation(
-              definitionContext.document.fileName,
-              definition,
-              "name",
-              "ref"
-            )
-          });
-        }
-        continue;
-      }
-      if (child.localName === "attributeGroup") {
-        const key = resolveSchemaQName(attributeValue(child, "ref"), context);
-        const declaration = key ? declarations.attributeGroups.get(key) : undefined;
-        if (declaration) {
-          visitDeclaration(declaration, "attributeGroup");
-        } else {
-          visitChildren(child, context);
-        }
-        continue;
-      }
-      if (child.localName === "extension" || child.localName === "restriction") {
-        const key = resolveSchemaQName(attributeValue(child, "base"), context);
-        const declaration = key ? declarations.complexTypes.get(key) : undefined;
-        if (declaration) {
-          visitDeclaration(declaration, "complexType");
-        }
-        visitChildren(child, context);
-        continue;
-      }
-      visitChildren(child, context);
-    }
-  }
-
-  function visitDeclaration(
-    declaration: SchemaDeclaration,
-    kind: "complexType" | "attributeGroup"
-  ): void {
+  const frames: Array<{ node: XmlNode; context: SchemaContext; index: number }> = [
+    { node: content.node, context: content.context, index: 0 }
+  ];
+  const descend = (node: XmlNode, context: SchemaContext) => frames.push({ node, context, index: 0 });
+  const descendDeclaration = (declaration: SchemaDeclaration, kind: "complexType" | "attributeGroup") => {
     const seenKey = `${kind}:${declaration.key}`;
-    if (seen.has(seenKey)) {
-      return;
+    if (!seen.has(seenKey)) {
+      seen.add(seenKey);
+      descend(declaration.node, declaration.context);
     }
-    seen.add(seenKey);
-    visitChildren(declaration.node, declaration.context);
-  }
+  };
 
-  visitChildren(content.node, content.context);
+  while (frames.length > 0) {
+    const frame = frames[frames.length - 1];
+    if (frame.index >= frame.node.children.length) {
+      frames.pop();
+      continue;
+    }
+    const child = frame.node.children[frame.index];
+    frame.index += 1;
+    if (child.localName === "element") {
+      continue;
+    }
+    if (child.localName === "attribute") {
+      const refKey = resolveSchemaQName(attributeValue(child, "ref"), frame.context);
+      const referenced = refKey ? declarations.globalAttributes.get(refKey) : undefined;
+      const definition = referenced?.node ?? child;
+      const definitionContext = referenced?.context ?? frame.context;
+      const name = localQName(attributeValue(child, "name") ?? attributeValue(child, "ref"));
+      if (name) {
+        attributes.set(name, {
+          name,
+          type: localQName(attributeValue(definition, "type")),
+          required: (attributeValue(child, "use") ?? attributeValue(definition, "use")) === "required",
+          documentation: schemaDocumentation(child) ?? (referenced ? schemaDocumentation(referenced.node) : undefined),
+          location: schemaNodeLocation(definitionContext.document.fileName, definition, "name", "ref")
+        });
+      }
+      continue;
+    }
+    if (child.localName === "attributeGroup") {
+      const key = resolveSchemaQName(attributeValue(child, "ref"), frame.context);
+      const declaration = key ? declarations.attributeGroups.get(key) : undefined;
+      if (declaration) {
+        descendDeclaration(declaration, "attributeGroup");
+      } else {
+        descend(child, frame.context);
+      }
+      continue;
+    }
+    if (child.localName === "extension" || child.localName === "restriction") {
+      const key = resolveSchemaQName(attributeValue(child, "base"), frame.context);
+      const declaration = key ? declarations.complexTypes.get(key) : undefined;
+      descend(child, frame.context);
+      if (declaration) {
+        descendDeclaration(declaration, "complexType");
+      }
+      continue;
+    }
+    descend(child, frame.context);
+  }
   return [...attributes.values()];
 }
 
 function schemaDocumentation(node: XmlNode): string | undefined {
   let documentation: XmlNode | undefined;
-  function visit(candidate: XmlNode): void {
-    for (const child of candidate.children) {
+  const work = [node];
+  while (work.length > 0 && !documentation) {
+    const candidate = work.pop();
+    if (!candidate) {
+      break;
+    }
+    if (candidate.localName === "documentation") {
+      documentation = candidate;
+      break;
+    }
+    for (let index = candidate.children.length - 1; index >= 0; index -= 1) {
+      const child = candidate.children[index];
       if (child.localName === "element") {
         continue;
       }
-      if (child.localName === "documentation") {
-        documentation = child;
-        return;
-      }
-      visit(child);
-      if (documentation) {
-        return;
-      }
+      work.push(child);
     }
   }
-  visit(node);
   if (!documentation) {
     return undefined;
   }
@@ -721,20 +845,20 @@ function maskTxtJetBlocks(text: string): string {
 
 function openElementStack(text: string): string[] {
   const stack: string[] = [];
-  const tags = /<\s*(\/?)\s*([A-Za-z_][\w.:-]*)[^<>]*?(\/?)>/g;
-  let match: RegExpExecArray | null;
-  while ((match = tags.exec(text))) {
-    const name = match[2];
-    if (!name) {
-      continue;
-    }
-    if (match[1] === "/") {
-      const index = stack.lastIndexOf(name);
+  let offset = 0;
+  let tag: XmlTagToken | undefined;
+  while ((tag = nextXmlTag(text, offset))) {
+    offset = tag.end;
+    if (tag.closing) {
+      const index = stack.lastIndexOf(tag.name);
       if (index !== -1) {
         stack.splice(index);
       }
-    } else if (match[3] !== "/" && !match[0].endsWith("/>")) {
-      stack.push(name);
+    } else if (!tag.selfClosing) {
+      if (stack.length >= MAX_IPXACT_XML_DEPTH) {
+        return [];
+      }
+      stack.push(tag.name);
     }
   }
   return stack;

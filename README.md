@@ -197,7 +197,7 @@ Use these commands for project-level workflows:
 - `TxtJet: Extract Selected Java to Helper`
 - `TxtJet: Clean Up @jet Imports`
 
-Workspace indexing reuses the resource-scoped `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so each folder in a multi-root workspace can resolve its own project layout and unresolved diagnostics update when referenced files are created, deleted, or changed. Compiler, generation, and IP-XACT settings follow the same per-resource configuration model. The generated Java preview URI is stable per source template and remains the bridge to installed Java tooling, while the local workspace class index supplies deterministic cross-template IntelliSense even when that tooling ignores virtual documents.
+Workspace indexing reuses the resource-scoped `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`, so each folder in a multi-root workspace can resolve its own project layout and unresolved diagnostics update when referenced files are created, deleted, or changed. Compiler, generation, and IP-XACT settings follow the same per-resource configuration model. Indexing is bounded to 2,000 files, 1 MiB per file, 16 MiB total content, and five seconds; when a limit is reached JetForge keeps a partial metadata-only model and records the reason in its output channel. The generated Java preview URI is stable per source template and remains the bridge to installed Java tooling, while the local workspace class index supplies deterministic cross-template IntelliSense even when that tooling ignores virtual documents.
 
 Impact graphs open as local interactive maps with search, typed edge filters, source focus, neighbor isolation, pan/zoom, keyboard navigation, and direct file opening. They trace include/skeleton blast radius, generated targets, and transitive workspace `@jet` class dependencies without network access. Refactor commands rebuild from current open buffers, open a reviewable change plan, and fail closed when references or Java selections cannot be mapped conservatively.
 
@@ -257,6 +257,8 @@ Example compiler commands:
 }
 ```
 
+JetForge parses these settings as an executable followed by arguments and launches them without a shell. Single and double quotes group arguments, and placeholders remain literal child-process arguments even when workspace paths contain shell metacharacters. Pipelines, redirections, command substitution, and environment-variable expansion are rejected; put those operations in a trusted wrapper script and configure that script as the executable instead.
+
 ```json
 {
   "txtjet.compiler.command": "./scripts/validate-template.sh ${file} ${workspaceFolder} ${outputFile}",
@@ -285,7 +287,7 @@ For optional schema intelligence, point JetForge at project-owned local XSD file
 }
 ```
 
-JetForge reads at most 256 `.xsd` files from the configured bundle, caches the resulting structural index, and never downloads schemas. Element/attribute completions and documentation are derived from global elements, named or inline complex types, child declarations, attributes, and XSD documentation. Go to Definition works from matched template output regions and the read-only IP-XACT preview. The preview Outline exposes named components, bus interfaces, memory maps, address blocks, registers, and fields as a navigable hierarchy. Recognized validator messages are rewritten with a concise explanation and actionable guidance while retaining the original validator text; related schema declarations are attached when available.
+JetForge reads at most 256 `.xsd` files from at most 32 configured roots, with explicit directory-entry, depth, time, per-file, and aggregate-byte budgets. It caches the resulting structural index and never downloads schemas. Element/attribute completions and documentation are derived from global elements, named or inline complex types, child declarations, attributes, and XSD documentation. Go to Definition works from matched template output regions and the read-only IP-XACT preview. The preview Outline exposes named components, bus interfaces, memory maps, address blocks, registers, and fields as a navigable hierarchy. Recognized validator messages are rewritten with a concise explanation and actionable guidance while retaining the original validator text; related schema declarations are attached when available.
 
 When enabled, these commands become available:
 
@@ -295,7 +297,7 @@ When enabled, these commands become available:
 - `TxtJet: Validate IP-XACT Output`
 - `TxtJet: Open IP-XACT Template`
 
-IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`; validation runs `txtjet.ipxact.validation.command` against an isolated temporary XML output so overlapping runs cannot overwrite the canonical generated file. The validation command supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic. Schema indexing supplies editor intelligence and explanations; it is intentionally not a replacement XSD validation engine.
+IP-XACT preview and generation reuse the generated-output transformer in XML mode. Generation writes to `txtjet.ipxact.outputDirectory`; validation runs `txtjet.ipxact.validation.command` against an isolated temporary XML output so overlapping runs cannot overwrite the canonical generated file. The validation command uses the same shell-free executable-and-arguments syntax and supports `${file}`, `${workspaceFolder}`, and `${outputFile}` placeholders. Diagnostics are parsed with `txtjet.ipxact.validation.problemMatcher` and mapped back to the template only where generated-output source maps are deterministic. Schema indexing supplies editor intelligence and explanations; it is intentionally not a replacement XSD validation engine.
 
 ## Preview And Navigation
 
@@ -328,12 +330,12 @@ JetForge also indexes workspace templates that declare an `@jet class`. Inside a
 
 Hover also shows resolved/unresolved include and skeleton status plus region context for template syntax. Missing local include/skeleton diagnostics offer a Quick Fix to create the referenced file. Reveal commands use the preview source map to jump between a source selection and the corresponding generated-output preview region, or back from an open preview to its source template.
 
-Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Reads are canonically contained to the workspace or explicitly configured roots, including protection against `..` and symlink escapes. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates.
+Include and skeleton resolution starts relative to the current template, then checks configured `txtjet.resolution.includePaths` and `txtjet.resolution.skeletonPaths`. Reads and completion listings are canonically contained to the workspace or explicitly configured roots, including protection against `..` and symlink escapes. Extensionless references also try `.txtjet`, `.jetinc`, and `.skeleton` candidates. Preview rendering shares cumulative input, output, mapping/provenance, and expansion budgets across the entire include or skeleton graph and returns a bounded diagnostic preview when a limit is reached.
 
 Region preview commands use the cursor position to choose the mapped source range: generated-output regions open in the generated output preview, while scriptlet, expression, and declaration regions open in the generated Java preview.
 
 `TxtJet: Generate Output File` writes the current generated-output approximation to `txtjet.generation.outputDirectory` using the selected or detected output language. Workspace-relative source directories and the original template filename are preserved, so sources in different directories or sibling files such as `component.txtjet` and `component.javajet` always produce distinct targets instead of overwriting each other. `TxtJet: Diff Current Output Against Last Generation` compares the current output with a bounded local snapshot; use `TxtJet: Clear Generated Output Snapshots` to remove all retained snapshots.
-`TxtJet: Compile Template With External Compiler` runs a user-configured shell command (`txtjet.compiler.command`) so teams can invoke Eclipse JET (or another real template compiler) and inspect the true generated output beside the template.
+`TxtJet: Compile Template With External Compiler` runs a user-configured executable and argument list (`txtjet.compiler.command`) without a shell so teams can invoke Eclipse JET (or another real template compiler) and inspect the true generated output beside the template.
 `TxtJet: Validate Template With External Compiler` runs the same command without requiring a preview to be open, parses compiler problems, and reports mapped diagnostics in the `.txtjet` editor. Superseded validation processes are aborted and their results are discarded, so an older slow run cannot restore stale diagnostics after a newer edit or save. The default matcher supports `file:line:column: severity: message` and `file:line:column: message`; customize `txtjet.diagnostics.compiler.problemMatcher` for compiler-specific output. `TxtJet: Open Synchronized Preview` opens the generated output preview beside the template and enables `txtjet.previews.synchronizedReveal.enabled`, which synchronizes visible source and preview selections only where mappings are known.
 
 ## Formatting Helpers
@@ -346,7 +348,7 @@ TxtJet modes include conservative indentation rules for common control blocks su
 <% } %>
 ```
 
-VSCode document formatting and format selection also normalize directive attributes, expression spacing, and Java block indentation without changing generated-output text.
+VSCode document formatting and format selection also normalize directive attributes, expression spacing, and Java block indentation without changing generated-output text. Pathological blocks beyond 64 nesting levels or 1 MiB of projected formatted output are left unchanged.
 
 ## Development Notes
 

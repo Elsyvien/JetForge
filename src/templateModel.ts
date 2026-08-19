@@ -1,5 +1,6 @@
 import { basename, dirname, isAbsolute, normalize, resolve } from "node:path";
 import { TxtJetTargetLanguage } from "./detector";
+import { ResourceBudget, ResourceLimitError } from "./resourceBudget";
 
 export type TxtJetBlockKind = "outer" | "scriptlet" | "expression" | "declaration" | "directive";
 
@@ -64,12 +65,21 @@ export interface TxtJetOutputPreviewOptions {
   includePaths?: string[];
   includeStack?: string[];
   originKind?: "root" | "include";
+  limits?: Partial<TxtJetPreviewLimits>;
 }
 
 export interface TxtJetJavaPreviewOptions {
   sourceFileName?: string;
   readSkeleton?: (path: string) => string | undefined;
   skeletonPaths?: string[];
+  limits?: Partial<TxtJetPreviewLimits>;
+}
+
+export interface TxtJetPreviewLimits {
+  inputCharacters: number;
+  outputCharacters: number;
+  entries: number;
+  expansions: number;
 }
 
 export interface TxtJetReferenceResolutionOptions {
@@ -85,11 +95,14 @@ class PreviewTextBuilder {
   private readonly chunks: string[] = [];
   private totalLength = 0;
 
+  constructor(private readonly budget: PreviewBudget) {}
+
   get length(): number {
     return this.totalLength;
   }
 
   append(text: string): void {
+    this.budget.consume("outputCharacters", text.length);
     this.chunks.push(text);
     this.totalLength += text.length;
   }
@@ -118,6 +131,57 @@ const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
 const DEFAULT_PACKAGE = "txtjet.generated";
 const DEFAULT_CLASS = "GeneratedTxtJetTemplate";
 const MAX_INCLUDE_DEPTH = 8;
+export const DEFAULT_PREVIEW_LIMITS: TxtJetPreviewLimits = {
+  inputCharacters: 4 * 1024 * 1024,
+  outputCharacters: 2 * 1024 * 1024,
+  entries: 100000,
+  expansions: 4096
+};
+type PreviewResource = keyof TxtJetPreviewLimits;
+type PreviewBudget = ResourceBudget<PreviewResource>;
+
+function previewBudget(overrides: Partial<TxtJetPreviewLimits> | undefined): PreviewBudget {
+  const limits = { ...DEFAULT_PREVIEW_LIMITS, ...overrides };
+  for (const key of Object.keys(limits) as PreviewResource[]) {
+    const value = limits[key];
+    if (!Number.isSafeInteger(value) || value < 1) {
+      throw new RangeError(`Invalid TxtJet preview limit for ${key}.`);
+    }
+  }
+  return new ResourceBudget(limits);
+}
+
+function limitedPreview(
+  error: ResourceLimitError,
+  sourceFileName: string | undefined,
+  targetLanguage: TxtJetTargetLanguage
+): TxtJetGeneratedPreview {
+  const text = commentPlaceholder(`txtjet preview stopped: ${error.message}`, targetLanguage);
+  return {
+    text,
+    mappings: [],
+    provenance: [{
+      preview: { start: 0, end: text.length },
+      kind: "unmapped",
+      confidence: "unmapped",
+      sourceFileName,
+      label: error.message
+    }]
+  };
+}
+
+function reserveTemplateStructure(text: string, budget: PreviewBudget): void {
+  let markers = 0;
+  let offset = 0;
+  while ((offset = text.indexOf("<%", offset)) !== -1) {
+    markers += 1;
+    budget.consume("entries", 4);
+    offset += 2;
+  }
+  if (markers === 0) {
+    budget.consume("entries", 2);
+  }
+}
 
 export function parseTxtJetTemplate(text: string): TxtJetTemplateModel {
   const blocks: TxtJetBlock[] = [];
@@ -172,8 +236,27 @@ export function buildGeneratedOutputPreview(
   targetLanguage: TxtJetTargetLanguage = "txtjet",
   options: TxtJetOutputPreviewOptions = {}
 ): TxtJetGeneratedPreview {
+  const budget = previewBudget(options.limits);
+  try {
+    return buildGeneratedOutputPreviewInternal(text, targetLanguage, options, budget);
+  } catch (error) {
+    if (error instanceof ResourceLimitError) {
+      return limitedPreview(error, options.sourceFileName, targetLanguage);
+    }
+    throw error;
+  }
+}
+
+function buildGeneratedOutputPreviewInternal(
+  text: string,
+  targetLanguage: TxtJetTargetLanguage,
+  options: TxtJetOutputPreviewOptions,
+  budget: PreviewBudget
+): TxtJetGeneratedPreview {
+  budget.consume("inputCharacters", text.length);
+  reserveTemplateStructure(text, budget);
   const model = parseTxtJetTemplate(text);
-  const output = new PreviewTextBuilder();
+  const output = new PreviewTextBuilder(budget);
   const mappings: TxtJetMapping[] = [];
   const provenance: TxtJetProvenance[] = [];
 
@@ -194,7 +277,7 @@ export function buildGeneratedOutputPreview(
     }
 
     const replacement = block.kind === "directive" && block.directive?.name === "include"
-      ? includePreview(block.directive, targetLanguage, options)
+      ? includePreview(block.directive, targetLanguage, options, budget)
       : {
         text: outputPlaceholder(block, targetLanguage, options, expressionContextFor(model.blocks, index)),
         provenance: [] as TxtJetProvenance[]
@@ -229,6 +312,25 @@ export function buildGeneratedJavaPreview(
   sourceName = "TxtJet template",
   options: TxtJetJavaPreviewOptions = {}
 ): TxtJetGeneratedPreview {
+  const budget = previewBudget(options.limits);
+  try {
+    return buildGeneratedJavaPreviewInternal(text, sourceName, options, budget);
+  } catch (error) {
+    if (error instanceof ResourceLimitError) {
+      return limitedPreview(error, options.sourceFileName ?? sourceName, "txtjet-java");
+    }
+    throw error;
+  }
+}
+
+function buildGeneratedJavaPreviewInternal(
+  text: string,
+  sourceName: string,
+  options: TxtJetJavaPreviewOptions,
+  budget: PreviewBudget
+): TxtJetGeneratedPreview {
+  budget.consume("inputCharacters", text.length);
+  reserveTemplateStructure(text, budget);
   const model = parseTxtJetTemplate(text);
   const packageName = sanitizePackageName(model.jetDirective?.attributes.package) ?? DEFAULT_PACKAGE;
   const className = sanitizeClassName(model.jetDirective?.attributes.class) ?? DEFAULT_CLASS;
@@ -236,6 +338,7 @@ export function buildGeneratedJavaPreview(
   const sections = buildJavaPreviewSections(model);
   const skeleton = readSkeletonTemplate(model, sourceName, options);
   if (skeleton?.usesTokens) {
+    budget.consume("inputCharacters", skeleton.text.length);
     return buildSkeletonJavaPreview(skeleton.text, {
       sourceName,
       model,
@@ -245,10 +348,10 @@ export function buildGeneratedJavaPreview(
       members: sections.members,
       generateMethod: sections.generateMethod,
       skeletonFileName: skeleton.resolved
-    });
+    }, budget);
   }
 
-  const output = new PreviewTextBuilder();
+  const output = new PreviewTextBuilder(budget);
   const mappings: TxtJetMapping[] = [];
 
   output.append(`// TxtJet generated Java template preview for ${sourceName}\n`);
@@ -264,8 +367,8 @@ export function buildGeneratedJavaPreview(
     output.append("\n");
   }
   output.append(`public class ${className} {\n`);
-  appendSection(output, mappings, sections.members);
-  appendSection(output, mappings, sections.generateMethod);
+  appendSection(output, mappings, sections.members, budget);
+  appendSection(output, mappings, sections.generateMethod, budget);
   output.append("}\n");
 
   return {
@@ -469,7 +572,13 @@ function appendToSection(
   section.mappings.push({ source: block.range, preview: { start, end: start + text.length }, kind });
 }
 
-function appendSection(output: PreviewTextBuilder, mappings: TxtJetMapping[], section: JavaPreviewSection): void {
+function appendSection(
+  output: PreviewTextBuilder,
+  mappings: TxtJetMapping[],
+  section: JavaPreviewSection,
+  budget: PreviewBudget
+): void {
+  budget.consume("entries", section.mappings.length * 2);
   const start = output.length;
   output.append(section.text);
   for (const mapping of section.mappings) {
@@ -518,13 +627,15 @@ function appendSkeletonText(
   text: string,
   sourceFileName: string | undefined,
   label: string,
-  source?: TxtJetRange
+  source: TxtJetRange | undefined,
+  budget: PreviewBudget
 ): void {
   if (text.length === 0) {
     return;
   }
   const start = output.length;
   output.append(text);
+  budget.consume("entries");
   provenance.push({
     preview: { start, end: start + text.length },
     kind: "skeleton",
@@ -582,9 +693,10 @@ function buildSkeletonJavaPreview(
     members: JavaPreviewSection;
     generateMethod: JavaPreviewSection;
     skeletonFileName?: string;
-  }
+  },
+  budget: PreviewBudget
 ): TxtJetGeneratedPreview {
-  const output = new PreviewTextBuilder();
+  const output = new PreviewTextBuilder(budget);
   const mappings: TxtJetMapping[] = [];
   const skeletonProvenance: TxtJetProvenance[] = [];
   output.append(`// TxtJet generated Java template preview for ${data.sourceName}\n`);
@@ -606,13 +718,15 @@ function buildSkeletonJavaPreview(
   let offset = 0;
   let match: RegExpExecArray | null;
   while ((match = tokenPattern.exec(skeletonText))) {
+    budget.consume("expansions");
     appendSkeletonText(
       output,
       skeletonProvenance,
       skeletonText.slice(offset, match.index),
       data.skeletonFileName,
       "skeleton layout",
-      { start: offset, end: match.index }
+      { start: offset, end: match.index },
+      budget
     );
     const replacement = replacements[match[1]];
     if (typeof replacement === "string") {
@@ -622,10 +736,11 @@ function buildSkeletonJavaPreview(
         replacement,
         data.skeletonFileName,
         `\${${match[1]}}`,
-        { start: match.index, end: match.index + match[0].length }
+        { start: match.index, end: match.index + match[0].length },
+        budget
       );
     } else {
-      appendSection(output, mappings, replacement);
+      appendSection(output, mappings, replacement, budget);
     }
     offset = match.index + match[0].length;
   }
@@ -635,10 +750,11 @@ function buildSkeletonJavaPreview(
     skeletonText.slice(offset),
     data.skeletonFileName,
     "skeleton layout",
-    { start: offset, end: skeletonText.length }
+    { start: offset, end: skeletonText.length },
+    budget
   );
   if (!skeletonText.endsWith("\n")) {
-    appendSkeletonText(output, skeletonProvenance, "\n", data.skeletonFileName, "skeleton layout");
+    appendSkeletonText(output, skeletonProvenance, "\n", data.skeletonFileName, "skeleton layout", undefined, budget);
   }
 
   return {
@@ -668,12 +784,13 @@ function outputPlaceholder(
   block: TxtJetBlock,
   targetLanguage: TxtJetTargetLanguage,
   options: TxtJetOutputPreviewOptions,
-  context: ExpressionContext
+  context: ExpressionContext,
+  budget?: PreviewBudget
 ): string {
   switch (block.kind) {
     case "directive":
       if (block.directive?.name === "include") {
-        return includePreview(block.directive, targetLanguage, options).text;
+        return includePreview(block.directive, targetLanguage, options, budget ?? previewBudget(options.limits)).text;
       }
       return commentPlaceholder(`txtjet directive: ${trimBlockContent(block.content)}`, targetLanguage);
     case "expression":
@@ -691,8 +808,10 @@ function outputPlaceholder(
 function includePreview(
   directive: TxtJetDirective,
   targetLanguage: TxtJetTargetLanguage,
-  options: TxtJetOutputPreviewOptions
+  options: TxtJetOutputPreviewOptions,
+  budget: PreviewBudget
 ): TxtJetGeneratedPreview {
+  budget.consume("expansions");
   const includeFile = directive.attributes.file;
   if (!includeFile || !options.expandIncludes || !options.sourceFileName || !options.readInclude) {
     return syntheticPreview(
@@ -735,12 +854,12 @@ function includePreview(
     );
   }
 
-  const nested = buildGeneratedOutputPreview(include.text, targetLanguage, {
+  const nested = buildGeneratedOutputPreviewInternal(include.text, targetLanguage, {
     ...options,
     sourceFileName: include.resolved,
     includeStack: [...includeStack, include.resolved],
     originKind: "include"
-  });
+  }, budget);
   const begin = commentPlaceholder(`txtjet include begin: ${includeFile}`, targetLanguage);
   const separator = nested.text.endsWith("\n") ? "" : "\n";
   const end = commentPlaceholder(`txtjet include end: ${includeFile}`, targetLanguage);

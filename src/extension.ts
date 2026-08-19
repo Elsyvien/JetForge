@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, extname, isAbsolute as isAbsolutePath, join, normalize, relative } from "node:path";
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { CoalescingAsyncRefresh } from "./asyncRefresh";
@@ -28,10 +28,16 @@ import {
   isTxtJetPath,
   resolveWorkspaceConfiguredPath,
   selectedTargetLanguageId,
-  shellArgumentQuote,
   stripTxtJetSuffix,
   shouldOfferMarkerCompletions
 } from "./extensionSupport";
+import { ExternalCommandInvocation, parseExternalCommand } from "./externalCommand";
+import { ResourceBudget, ResourceLimitError } from "./resourceBudget";
+import {
+  DEFAULT_SCHEMA_DISCOVERY_LIMITS,
+  discoverIpxactSchemaFiles,
+  readIpxactSchemaDocuments
+} from "./schemaDiscovery";
 import { formatTxtJetBlock } from "./formatter";
 import {
   DEFAULT_IPXACT_PROBLEM_MATCHER,
@@ -159,7 +165,12 @@ const GENERATION_STORAGE_KEY = "txtjet.lastGeneratedOutput.v1";
 const IPXACT_GENERATION_STORAGE_KEY = "txtjet.lastGeneratedIpxactOutput.v1";
 const MAX_GENERATED_SNAPSHOT_BYTES = 1024 * 1024;
 const MAX_GENERATED_SNAPSHOT_COUNT = 20;
-const execAsync = promisify(exec);
+const MAX_REFERENCE_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_WORKSPACE_MODEL_FILES = 2000;
+const MAX_WORKSPACE_MODEL_FILE_BYTES = 1024 * 1024;
+const MAX_WORKSPACE_MODEL_TOTAL_BYTES = 16 * 1024 * 1024;
+const MAX_WORKSPACE_MODEL_DURATION_MS = 5000;
+const execFileAsync = promisify(execFile);
 let activeWorkspaceModel: TxtJetWorkspaceModel | undefined;
 let requestWorkspaceModelRefresh: ((invalidate?: boolean, immediate?: boolean) => Promise<boolean>) | undefined;
 let workspaceModelGeneration = 0;
@@ -182,10 +193,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(outputChannel);
   context.subscriptions.push({
     dispose() {
-      for (const watcher of ipxactSchemaWatchers.values()) {
-        watcher.dispose();
-      }
-      ipxactSchemaWatchers.clear();
+      disposeIpxactSchemaWatchers();
       invalidateIpxactSchemaCaches();
     }
   });
@@ -680,6 +688,7 @@ export function activate(context: vscode.ExtensionContext): void {
       visualDifferentiator.refreshAll();
       previewSynchronizer.invalidate();
       if (event.affectsConfiguration(`${CONFIG_SECTION}.ipxact.schemaPaths`)) {
+        disposeIpxactSchemaWatchers();
         invalidateIpxactSchemaCaches();
       }
       void workspaceRefresh.request(true);
@@ -1770,9 +1779,17 @@ function readContainedReference(document: vscode.TextDocument, fileName: string,
   }
   const openText = openDocumentText(fileName);
   if (openText !== undefined) {
-    return openText;
+    if (Buffer.byteLength(openText, "utf8") <= MAX_REFERENCE_FILE_BYTES) {
+      return openText;
+    }
+    appendOutputLog("report", `TxtJet skipped oversized preview reference ${fileName}.`);
+    return undefined;
   }
   try {
+    if (statSync(fileName).size > MAX_REFERENCE_FILE_BYTES) {
+      appendOutputLog("report", `TxtJet skipped oversized preview reference ${fileName}.`);
+      return undefined;
+    }
     return readFileSync(fileName, "utf8");
   } catch {
     return undefined;
@@ -1824,22 +1841,17 @@ function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxac
     .filter((entry) => entry.trim().length > 0)
     .map((entry) => resolveWorkspaceConfiguredPath(entry, baseRoot))
     .filter((entry) => vscode.workspace.isTrusted || isPathInsideAnyRoot(entry, [baseRoot]));
-  for (const root of roots) {
+  for (const root of roots.slice(0, DEFAULT_SCHEMA_DISCOVERY_LIMITS.roots)) {
     ensureIpxactSchemaWatcher(root);
   }
   const discoveryKey = roots.map((root) => normalize(root)).sort().join("\0");
   let files = ipxactSchemaDiscoveryCache.get(discoveryKey);
   if (!files) {
-    const discovered: string[] = [];
-    const visited = new Set<string>();
-    for (const root of roots) {
-      collectIpxactSchemaFiles(root, root, discovered, visited);
-      if (discovered.length >= 256) {
-        break;
-      }
+    const discovery = discoverIpxactSchemaFiles(roots, isExcludedTxtJetWorkspacePath);
+    if (discovery.limited) {
+      appendOutputLog("report", `${discovery.reason ?? "IP-XACT schema discovery reached a resource limit"} The schema index is partial.`);
     }
-    discovered.sort();
-    files = discovered;
+    files = discovery.files;
     ipxactSchemaDiscoveryCache.set(discoveryKey, files);
   }
   if (files.length === 0) {
@@ -1867,20 +1879,27 @@ function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxac
   if (cached) {
     return cached;
   }
-  const documents = sources.flatMap((source) => {
-    try {
-      return [{
-        fileName: source.fileName,
-        text: source.openDocument?.getText() ?? readFileSync(source.fileName, "utf8")
-      }];
-    } catch {
-      return [];
-    }
-  });
+  const readResult = readIpxactSchemaDocuments(
+    sources.map((source) => source.fileName),
+    (fileName) => sources.find((source) => source.fileName === fileName)?.openDocument?.getText()
+  );
+  if (readResult.limited) {
+    appendOutputLog("report", `${readResult.reasons.join("\n")}\nThe IP-XACT schema index is partial.`);
+  }
+  const documents = readResult.documents;
   if (documents.length === 0) {
     return undefined;
   }
-  const index = buildIpxactSchemaIndex(documents);
+  let index: TxtJetIpxactSchemaIndex;
+  try {
+    index = buildIpxactSchemaIndex(documents);
+  } catch (error) {
+    if (error instanceof ResourceLimitError) {
+      appendOutputLog("error", error.message);
+      return undefined;
+    }
+    throw error;
+  }
   ipxactSchemaIndexCache.set(key, index);
   while (ipxactSchemaIndexCache.size > 8) {
     const oldest = ipxactSchemaIndexCache.keys().next().value;
@@ -1895,6 +1914,10 @@ function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxac
 function ensureIpxactSchemaWatcher(root: string): void {
   const normalized = normalize(root);
   if (ipxactSchemaWatchers.has(normalized)) {
+    return;
+  }
+  if (ipxactSchemaWatchers.size >= DEFAULT_SCHEMA_DISCOVERY_LIMITS.roots) {
+    appendOutputLog("report", `TxtJet stopped creating IP-XACT schema watchers at ${DEFAULT_SCHEMA_DISCOVERY_LIMITS.roots} roots.`);
     return;
   }
   let stat: ReturnType<typeof statSync>;
@@ -1921,51 +1944,11 @@ function invalidateIpxactSchemaCaches(): void {
   ipxactSchemaIndexCache.clear();
 }
 
-function collectIpxactSchemaFiles(
-  candidate: string,
-  root: string,
-  files: string[],
-  visited: Set<string>
-): void {
-  const normalized = normalize(candidate);
-  if (
-    files.length >= 256
-    || visited.has(normalized)
-    || !isPathInsideAnyRoot(normalized, [root])
-  ) {
-    return;
+function disposeIpxactSchemaWatchers(): void {
+  for (const watcher of ipxactSchemaWatchers.values()) {
+    watcher.dispose();
   }
-  visited.add(normalized);
-  let stat: ReturnType<typeof statSync>;
-  try {
-    stat = statSync(normalized);
-  } catch {
-    return;
-  }
-  if (stat.isFile()) {
-    if (normalized.toLowerCase().endsWith(".xsd")) {
-      files.push(normalized);
-    }
-    return;
-  }
-  if (!stat.isDirectory() || isExcludedTxtJetWorkspacePath(normalized)) {
-    return;
-  }
-  let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
-  try {
-    entries = readdirSync(normalized, { withFileTypes: true }) as Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (!entry.isDirectory() && !entry.isFile()) {
-      continue;
-    }
-    collectIpxactSchemaFiles(join(normalized, entry.name), root, files, visited);
-    if (files.length >= 256) {
-      return;
-    }
-  }
+  ipxactSchemaWatchers.clear();
 }
 
 function fileVersion(fileName: string): string {
@@ -1974,20 +1957,121 @@ function fileVersion(fileName: string): string {
 }
 
 async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
+  const startedAt = Date.now();
   const files = new Map<string, { fileName: string; text?: string }>();
-  const uris = await vscode.workspace.findFiles(TXTJET_WORKSPACE_GLOB, TXTJET_WORKSPACE_EXCLUDE_GLOB);
-  for (const uri of uris) {
+  const indexedBytes = new Map<string, number>();
+  const budget = new ResourceBudget({
+    files: MAX_WORKSPACE_MODEL_FILES,
+    bytes: MAX_WORKSPACE_MODEL_TOTAL_BYTES
+  });
+  const cancellation = new vscode.CancellationTokenSource();
+  const timeout = setTimeout(() => cancellation.cancel(), MAX_WORKSPACE_MODEL_DURATION_MS);
+  let discovered: vscode.Uri[];
+  try {
     try {
-      const text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString("utf8");
+      discovered = await vscode.workspace.findFiles(
+        TXTJET_WORKSPACE_GLOB,
+        TXTJET_WORKSPACE_EXCLUDE_GLOB,
+        MAX_WORKSPACE_MODEL_FILES + 1,
+        cancellation.token
+      );
+    } catch (error) {
+      if (!cancellation.token.isCancellationRequested) {
+        throw error;
+      }
+      discovered = [];
+    }
+  } finally {
+    clearTimeout(timeout);
+    cancellation.dispose();
+  }
+  const uris = discovered
+    .sort((left, right) => left.fsPath.localeCompare(right.fsPath))
+    .slice(0, MAX_WORKSPACE_MODEL_FILES);
+  let readsLimited = discovered.length > MAX_WORKSPACE_MODEL_FILES;
+  for (const uri of uris) {
+    if (Date.now() - startedAt > MAX_WORKSPACE_MODEL_DURATION_MS) {
+      readsLimited = true;
+      break;
+    }
+    budget.consume("files");
+    if (readsLimited && budget.usage("bytes") >= MAX_WORKSPACE_MODEL_TOTAL_BYTES) {
+      files.set(uri.fsPath, { fileName: uri.fsPath });
+      continue;
+    }
+    try {
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (stat.size > MAX_WORKSPACE_MODEL_FILE_BYTES) {
+        readsLimited = true;
+        files.set(uri.fsPath, { fileName: uri.fsPath });
+        continue;
+      }
+      budget.consume("bytes", stat.size);
+      const data = await vscode.workspace.fs.readFile(uri);
+      if (data.byteLength > MAX_WORKSPACE_MODEL_FILE_BYTES) {
+        readsLimited = true;
+        files.set(uri.fsPath, { fileName: uri.fsPath });
+        continue;
+      }
+      if (data.byteLength > stat.size) {
+        budget.consume("bytes", data.byteLength - stat.size);
+      }
+      const text = Buffer.from(data).toString("utf8");
       files.set(uri.fsPath, { fileName: uri.fsPath, text });
-    } catch {
+      indexedBytes.set(uri.fsPath, Math.max(stat.size, data.byteLength));
+    } catch (error) {
+      if (error instanceof ResourceLimitError) {
+        readsLimited = true;
+      }
       files.set(uri.fsPath, { fileName: uri.fsPath });
     }
   }
   for (const document of vscode.workspace.textDocuments) {
-    if (workspaceEntryKind(document.fileName) && !isExcludedTxtJetWorkspacePath(document.fileName)) {
-      files.set(document.fileName, { fileName: document.fileName, text: document.getText() });
+    if (Date.now() - startedAt > MAX_WORKSPACE_MODEL_DURATION_MS) {
+      readsLimited = true;
+      break;
     }
+    if (workspaceEntryKind(document.fileName) && !isExcludedTxtJetWorkspacePath(document.fileName)) {
+      if (!files.has(document.fileName)) {
+        try {
+          budget.consume("files");
+        } catch (error) {
+          if (error instanceof ResourceLimitError) {
+            readsLimited = true;
+            continue;
+          }
+          throw error;
+        }
+      }
+      const text = document.getText();
+      const bytes = Buffer.byteLength(text, "utf8");
+      if (bytes > MAX_WORKSPACE_MODEL_FILE_BYTES) {
+        readsLimited = true;
+        files.set(document.fileName, { fileName: document.fileName });
+        continue;
+      }
+      const previousBytes = indexedBytes.get(document.fileName) ?? 0;
+      if (bytes > previousBytes) {
+        try {
+          budget.consume("bytes", bytes - previousBytes);
+        } catch (error) {
+          if (error instanceof ResourceLimitError) {
+            readsLimited = true;
+            files.set(document.fileName, { fileName: document.fileName });
+            continue;
+          }
+          throw error;
+        }
+      }
+      files.set(document.fileName, { fileName: document.fileName, text });
+      indexedBytes.set(document.fileName, Math.max(previousBytes, bytes));
+    }
+  }
+  if (readsLimited) {
+    appendOutputLog(
+      "report",
+      `TxtJet workspace indexing stopped at ${MAX_WORKSPACE_MODEL_FILES} files, ${MAX_WORKSPACE_MODEL_FILE_BYTES} bytes per file, ${MAX_WORKSPACE_MODEL_TOTAL_BYTES} aggregate bytes, or ${MAX_WORKSPACE_MODEL_DURATION_MS} ms. The workspace model is partial.`
+    );
   }
   return createTxtJetWorkspaceModel(Array.from(files.values()), {
     includePathsForFile(fileName) {
@@ -2777,12 +2861,12 @@ async function validateIpxactTemplate(
     if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
       return;
     }
-    const fullCommand = safeCompilerCommandFor(validationCommand, document.fileName, workspaceFolder, outputPath, interactive);
-    if (!fullCommand) {
+    const invocation = safeExternalCommandFor(validationCommand, document.fileName, workspaceFolder, outputPath, interactive);
+    if (!invocation) {
       return;
     }
     const timeoutMs = compilerTimeoutMs(config.get<number>("ipxact.validation.timeoutMs"));
-    const result = await runCompilerCommand(fullCommand, workspaceFolder, timeoutMs, run.signal);
+    const result = await runCompilerCommand(invocation, workspaceFolder, timeoutMs, run.signal);
     if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
       return;
     }
@@ -3008,11 +3092,23 @@ function isVscodeUri(value: vscode.Uri | TxtJetWorkspaceTreeNode | undefined): v
 async function configureCompilerCommand(resource: vscode.Uri, current: string): Promise<string | undefined> {
   const command = await vscode.window.showInputBox({
     title: `Configure TxtJet compiler for ${compilerScopeLabel(resource)}`,
-    prompt: "External shell command. Available placeholders: ${file}, ${workspaceFolder}, and ${outputFile}.",
+    prompt: "External executable and arguments. Available placeholders: ${file}, ${workspaceFolder}, and ${outputFile}.",
     value: current,
     ignoreFocusOut: true,
     validateInput(value) {
-      return value.trim().length > 0 ? undefined : "Enter an external compiler command.";
+      if (value.trim().length === 0) {
+        return "Enter an external compiler command.";
+      }
+      try {
+        parseExternalCommand(value, {
+          file: "template.txtjet",
+          workspaceFolder: "workspace",
+          outputFile: "output.java"
+        });
+        return undefined;
+      } catch (error) {
+        return String(error);
+      }
     }
   });
   if (!command?.trim()) {
@@ -3077,8 +3173,8 @@ async function runCompilerToolchainTest(
   if (!await ensureGeneratedOutputDirectory(testOutput, true)) {
     return undefined;
   }
-  const fullCommand = safeCompilerCommandFor(command, document.fileName, workspaceFolder, testOutput.fsPath, true);
-  if (!fullCommand) {
+  const invocation = safeExternalCommandFor(command, document.fileName, workspaceFolder, testOutput.fsPath, true);
+  if (!invocation) {
     return undefined;
   }
   const timeoutMs = compilerTimeoutMs(
@@ -3096,7 +3192,7 @@ async function runCompilerToolchainTest(
         const controller = new AbortController();
         const cancellation = token.onCancellationRequested(() => controller.abort());
         try {
-          const result = await runCompilerCommand(fullCommand, workspaceFolder, timeoutMs, controller.signal);
+          const result = await runCompilerCommand(invocation, workspaceFolder, timeoutMs, controller.signal);
           if (result.stdout.trim()) {
             appendOutputLog("stdout", result.stdout);
           }
@@ -3215,13 +3311,17 @@ async function compileTemplateWithExternalTool(): Promise<void> {
   }
   const outputPath = outputUri.fsPath;
   const timeoutMs = compilerTimeoutMs(config.get<number>("compiler.timeoutMs"));
-  const fullCommand = safeCompilerCommandFor(compileCommand, editor.document.fileName, workspaceFolder, outputPath, true);
-  if (!fullCommand) {
+  const invocation = safeExternalCommandFor(compileCommand, editor.document.fileName, workspaceFolder, outputPath, true);
+  if (!invocation) {
     return;
   }
 
   try {
-    const { stdout, stderr } = await execAsync(fullCommand, { cwd: workspaceFolder, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs });
+    const { stdout, stderr } = await execFileAsync(invocation.executable, invocation.args, {
+      cwd: workspaceFolder,
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: timeoutMs
+    });
     if (stdout.trim().length > 0 || stderr.trim().length > 0) {
       void vscode.window.showInformationMessage("TxtJet compile finished. Open the TxtJet output channel for logs.");
     }
@@ -3325,12 +3425,12 @@ async function validateTemplateWithCompiler(
         ? cancelledCompilerValidation()
         : skippedCompilerValidation("superseded");
     }
-    const fullCommand = safeCompilerCommandFor(compileCommand, document.fileName, workspaceFolder, outputPath, interactive);
-    if (!fullCommand) {
+    const invocation = safeExternalCommandFor(compileCommand, document.fileName, workspaceFolder, outputPath, interactive);
+    if (!invocation) {
       return skippedCompilerValidation("unsafe-command");
     }
     const timeoutMs = compilerTimeoutMs(config.get<number>("compiler.timeoutMs"));
-    const result = await runCompilerCommand(fullCommand, workspaceFolder, timeoutMs, run.signal);
+    const result = await runCompilerCommand(invocation, workspaceFolder, timeoutMs, run.signal);
     if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
       return cancellationToken?.isCancellationRequested
         ? cancelledCompilerValidation()
@@ -3451,13 +3551,18 @@ function canRunExternalCommands(interactive: boolean): boolean {
 }
 
 async function runCompilerCommand(
-  command: string,
+  invocation: ExternalCommandInvocation,
   cwd: string,
   timeoutMs: number,
   signal?: AbortSignal
 ): Promise<{ stdout: string; stderr: string; error: string; failed: boolean }> {
   try {
-    const { stdout, stderr } = await execAsync(command, { cwd, maxBuffer: 10 * 1024 * 1024, timeout: timeoutMs, signal });
+    const { stdout, stderr } = await execFileAsync(invocation.executable, invocation.args, {
+      cwd,
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: timeoutMs,
+      signal
+    });
     return { stdout, stderr, error: "", failed: false };
   } catch (error) {
     const failed = error as { stdout?: string; stderr?: string; message?: string };
@@ -3470,24 +3575,17 @@ async function runCompilerCommand(
   }
 }
 
-function compilerCommandFor(command: string, fileName: string, workspaceFolder: string, outputPath: string): string {
-  return command
-    .split("${file}").join(shellEscape(fileName))
-    .split("${workspaceFolder}").join(shellEscape(workspaceFolder))
-    .split("${outputFile}").join(shellEscape(outputPath));
-}
-
-function safeCompilerCommandFor(
+function safeExternalCommandFor(
   command: string,
   fileName: string,
   workspaceFolder: string,
   outputPath: string,
   interactive: boolean
-): string | undefined {
+): ExternalCommandInvocation | undefined {
   try {
-    return compilerCommandFor(command, fileName, workspaceFolder, outputPath);
+    return parseExternalCommand(command, { file: fileName, workspaceFolder, outputFile: outputPath });
   } catch (error) {
-    const message = `TxtJet could not safely quote the external command path: ${String(error)}`;
+    const message = `TxtJet rejected the external command syntax: ${String(error)}`;
     appendOutputLog("error", message);
     if (interactive) {
       vscode.window.showErrorMessage(message);
@@ -3568,10 +3666,6 @@ const outputChannel = vscode.window.createOutputChannel("TxtJet");
 function appendOutputLog(stream: "stdout" | "stderr" | "error" | "report", content: string): void {
   outputChannel.appendLine(`[${new Date().toISOString()}] ${stream}`);
   outputChannel.appendLine(content.trimEnd());
-}
-
-function shellEscape(value: string): string {
-  return shellArgumentQuote(value);
 }
 
 function generationOutputUri(document: vscode.TextDocument, interactive: boolean): vscode.Uri | undefined {
@@ -4300,8 +4394,15 @@ function registerIpxactPreviewSchemaProviders(): vscode.Disposable {
   return vscode.Disposable.from(
     vscode.languages.registerDocumentSymbolProvider(selector, {
       provideDocumentSymbols(document) {
-        return ipxactGeneratedStructures(document.getText())
-          .map((structure) => ipxactStructureSymbol(document, structure));
+        try {
+          return ipxactStructureSymbols(document, ipxactGeneratedStructures(document.getText()));
+        } catch (error) {
+          if (error instanceof ResourceLimitError) {
+            appendOutputLog("error", error.message);
+            return [];
+          }
+          throw error;
+        }
       }
     }),
     vscode.languages.registerHoverProvider(selector, {
@@ -4336,7 +4437,26 @@ function registerIpxactPreviewSchemaProviders(): vscode.Disposable {
   );
 }
 
-function ipxactStructureSymbol(
+function ipxactStructureSymbols(
+  document: vscode.TextDocument,
+  structures: TxtJetIpxactStructure[]
+): vscode.DocumentSymbol[] {
+  const roots = structures.map((structure) => createIpxactStructureSymbol(document, structure));
+  const work = structures.map((structure, index) => ({ structure, symbol: roots[index] }));
+  while (work.length > 0) {
+    const current = work.pop();
+    if (!current) {
+      break;
+    }
+    current.symbol.children = current.structure.children.map((child) => createIpxactStructureSymbol(document, child));
+    for (let index = current.structure.children.length - 1; index >= 0; index -= 1) {
+      work.push({ structure: current.structure.children[index], symbol: current.symbol.children[index] });
+    }
+  }
+  return roots;
+}
+
+function createIpxactStructureSymbol(
   document: vscode.TextDocument,
   structure: TxtJetIpxactStructure
 ): vscode.DocumentSymbol {
@@ -4350,7 +4470,6 @@ function ipxactStructureSymbol(
     new vscode.Range(document.positionAt(structure.range.start), document.positionAt(structure.range.end)),
     new vscode.Range(document.positionAt(structure.selectionRange.start), document.positionAt(structure.selectionRange.end))
   );
-  symbol.children = structure.children.map((child) => ipxactStructureSymbol(document, child));
   return symbol;
 }
 
@@ -5573,7 +5692,7 @@ function referencePathCompletions(
 
   for (const root of roots) {
     const directory = join(root, directoryPrefix);
-    if (isExcludedTxtJetWorkspacePath(directory)) {
+    if (isExcludedTxtJetWorkspacePath(directory) || !isPathInsideAnyRoot(directory, [root])) {
       continue;
     }
     let entries: Array<{ name: string; isDirectory(): boolean; isFile(): boolean }>;
@@ -5585,6 +5704,9 @@ function referencePathCompletions(
 
     for (const entry of entries) {
       const entryPath = join(directory, entry.name);
+      if (!isPathInsideAnyRoot(entryPath, [root])) {
+        continue;
+      }
       if (entry.isDirectory() && isExcludedTxtJetWorkspacePath(entryPath)) {
         continue;
       }
