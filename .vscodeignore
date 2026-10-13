@@ -3,6 +3,8 @@
 .gitignore
 eslint.config.mjs
 GOAL.md
+AGENTS.md
+!CONTRIBUTING.md
 design-qa.md
 .playwright-cli/**
 .antigravitycli/**
