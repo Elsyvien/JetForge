@@ -49,7 +49,14 @@ async function main(args: string[]): Promise<void> {
         assertFormat(options.format, ["text", "json"], "doctor");
         const report = inspectJetForgeProject(project);
         if (isBuiltinProject(project)) {
-          try { const jdk = await detectJavaToolchain(); report.checks.push({ id: "jdk", status: "pass", title: "Built-in compiler JDK", detail: jdk.description }); report.passed++; }
+          try {
+            const jdk = await detectJavaToolchain();
+            const release = project.config.compiler?.release ?? 21;
+            if (release > jdk.version) {
+              throw new Error(`Project Java release ${release} requires JDK ${release} or newer; selected ${jdk.description}.`);
+            }
+            report.checks.push({ id: "jdk", status: "pass", title: "Built-in compiler JDK", detail: `${jdk.description}; project release ${release}` }); report.passed++;
+          }
           catch (error) { report.checks.push({ id: "jdk", status: "fail", title: "Built-in compiler JDK unavailable", detail: error instanceof Error ? error.message : String(error) }); report.failed++; report.ok = false; }
         }
         write(options.format === "json" ? report : doctorText(report));

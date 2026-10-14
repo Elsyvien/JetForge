@@ -122,6 +122,20 @@ assert.deepEqual(
   compile('<%@ jet skeleton="base.skeleton" %>value').diagnostics,
   [],
 );
+for (const skeleton of [
+  "public class ${class} { ${generateMethod} }",
+  "package wrong; public class ${class} { ${generateMethod} }",
+  "/* ${packageDeclaration} */ public class ${class} { ${generateMethod} }",
+  'public class ${class} { String text = "${packageDeclaration}"; ${generateMethod} }',
+]) {
+  sources.set(resolve(root, "base.skeleton"), skeleton);
+  const invalidPackage = compile('<%@ jet skeleton="base.skeleton" %>');
+  assert.ok(invalidPackage.diagnostics.some(problem => problem.code === "UNSUPPORTED_SYNTAX" && /package/.test(problem.message)));
+}
+sources.set(resolve(root, "base.skeleton"), "/* header */ package ${package}; public class ${class} { ${generateMethod} }");
+assert.deepEqual(compile('<%@ jet package="demo" skeleton="base.skeleton" %>').diagnostics, []);
+sources.set(resolve(root, "base.skeleton"), "package demo; public class ${class} { ${generateMethod} }");
+assert.deepEqual(compile('<%@ jet package="demo" skeleton="base.skeleton" %>').diagnostics, []);
 sources.set(
   resolve(root, "base.skeleton"),
   "public class CLASS { public String generate(Object argument) {} }",

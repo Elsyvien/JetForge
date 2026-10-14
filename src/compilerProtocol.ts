@@ -50,6 +50,7 @@ export interface CompilerUnit {
   mappings: CompilerMapping[];
   diagnostics: CompilerDiagnostic[];
   dependencies: Map<string, string>;
+  missingDependencies: Set<string>;
 }
 
 export interface BuiltinCompilerResult {

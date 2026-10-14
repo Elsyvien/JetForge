@@ -137,6 +137,12 @@ function canonicalPotentialPath(pathLike: string): string | undefined {
   }
 }
 
+/** File identity for buffers/caches, including symlink aliases and Windows casing. */
+export function canonicalFileIdentity(pathLike: string, platform: NodeJS.Platform = process.platform): string {
+  const path = canonicalPotentialPath(pathLike) ?? resolve(pathLike);
+  return platform === "win32" ? path.toLowerCase() : path;
+}
+
 export function directiveValueContextAt(text: string, offset: number): TxtJetDirectiveValueContext | undefined {
   const safeOffset = Math.max(0, Math.min(offset, text.length));
   const directiveOpen = text.lastIndexOf("<%@", safeOffset);

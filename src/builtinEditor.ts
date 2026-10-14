@@ -10,7 +10,7 @@ import {
   runBuiltinTargets,
 } from "./builtinProject";
 import { publishBuiltinOutput } from "./builtinCompiler";
-import { isPathInsideAnyRoot } from "./extensionSupport";
+import { canonicalFileIdentity, isPathInsideAnyRoot } from "./extensionSupport";
 import { JetForgeProject, loadJetForgeProject } from "./headlessProject";
 import { ValidationRunCoordinator } from "./validationRuns";
 
@@ -28,7 +28,7 @@ export function readBuiltinEditorFile(fileName: string): string | undefined {
     .find(
       (document) =>
         document.uri.scheme === "file" &&
-        resolve(document.uri.fsPath) === resolve(fileName),
+        canonicalFileIdentity(document.uri.fsPath) === canonicalFileIdentity(fileName),
     )
     ?.getText();
 }
@@ -163,6 +163,8 @@ class BuiltinEditorAdapter
   private readonly outputs = new Map<string, string>();
   private readonly runs = new ValidationRunCoordinator();
   private readonly active = new Map<string, Set<string>>();
+  private readonly diagnosticsByTarget = new Map<string, Map<string, { uri: vscode.Uri; entries: vscode.Diagnostic[] }>>();
+  private readonly diagnosticUris = new Map<string, vscode.Uri>();
   private readonly diagnostics =
     vscode.languages.createDiagnosticCollection("jetforge-builtin");
   private readonly subscriptions: vscode.Disposable[];
@@ -177,20 +179,25 @@ class BuiltinEditorAdapter
         if (event.document.uri.scheme !== "file") {
           return;
         }
-        const fileName = resolve(event.document.uri.fsPath);
+        const fileName = canonicalFileIdentity(event.document.uri.fsPath);
         for (const [key, files] of this.active) {
           if (files.has(fileName)) {
             this.runs.invalidate(key);
           }
         }
-        this.diagnostics.delete(event.document.uri);
+        for (const [key, diagnosed] of this.diagnosticsByTarget) {
+          if (diagnosed.has(fileName)) {
+            this.diagnosticsByTarget.delete(key);
+            this.refreshDiagnostics(diagnosed.keys());
+          }
+        }
       }),
       vscode.workspace.onDidCloseTextDocument((document) => {
         if (document.uri.scheme !== "file") {
           return;
         }
         for (const [key, files] of this.active) {
-          if (files.has(resolve(document.uri.fsPath))) {
+          if (files.has(canonicalFileIdentity(document.uri.fsPath))) {
             this.runs.invalidate(key);
           }
         }
@@ -296,7 +303,7 @@ class BuiltinEditorAdapter
     }
     const targets = project.config.targets!.filter(
       (target) =>
-        resolve(root, target.template) === resolve(document.uri.fsPath),
+        canonicalFileIdentity(resolve(root, target.template)) === canonicalFileIdentity(document.uri.fsPath),
     );
     if (!targets.length) {
       return undefined;
@@ -348,7 +355,7 @@ class BuiltinEditorAdapter
         config.targets.some(
           (target) =>
             typeof target?.template === "string" &&
-            resolve(root, target.template) === resolve(document.uri.fsPath),
+            canonicalFileIdentity(resolve(root, target.template)) === canonicalFileIdentity(document.uri.fsPath),
         )
       );
     } catch {
@@ -387,8 +394,8 @@ class BuiltinEditorAdapter
     if (!name) {
       return undefined;
     }
-    const key = `${project.root}:${name}`;
-    const files = new Set<string>([project.configPath]);
+    const key = `${canonicalFileIdentity(project.root)}:${name}`;
+    const files = new Set<string>([canonicalFileIdentity(project.configPath)]);
     this.active.set(key, files);
     const token = this.runs.begin(key, 0);
     const controller = new AbortController();
@@ -410,7 +417,7 @@ class BuiltinEditorAdapter
             isCurrent: () =>
               this.runs.isCurrent(key, token, 0) && vscode.workspace.isTrusted,
             readFile: (path) => {
-              files.add(resolve(path));
+              files.add(canonicalFileIdentity(path));
               return readBuiltinEditorFile(path);
             },
             javaHome: vscode.workspace
@@ -438,7 +445,7 @@ class BuiltinEditorAdapter
         result.output = undefined;
         return result;
       }
-      await this.setDiagnostics(result);
+      await this.setDiagnostics(key, result, () => this.runs.isCurrent(key, token, 0) && result.inputsCurrent?.() !== false);
       if (
         !this.runs.isCurrent(key, token, 0) ||
         result.inputsCurrent?.() === false
@@ -521,9 +528,9 @@ class BuiltinEditorAdapter
     }
   }
 
-  private async setDiagnostics(result: BuiltinTargetResult): Promise<void> {
-    const byFile = new Map<string, vscode.Diagnostic[]>();
-    byFile.set(result.template, []);
+  private async setDiagnostics(key: string, result: BuiltinTargetResult, isCurrent: () => boolean): Promise<void> {
+    const byFile = new Map<string, { uri: vscode.Uri; entries: vscode.Diagnostic[] }>();
+    byFile.set(canonicalFileIdentity(result.template), { uri: vscode.Uri.file(result.template), entries: [] });
     for (const problem of result.diagnostics) {
       if (!problem.fileName || !problem.range) {
         continue;
@@ -543,12 +550,35 @@ class BuiltinEditorAdapter
       );
       diagnostic.code = problem.code;
       diagnostic.source = "JetForge compiler";
-      const entries = byFile.get(problem.fileName) ?? [];
-      entries.push(diagnostic);
-      byFile.set(problem.fileName, entries);
+      const fileName = canonicalFileIdentity(problem.fileName);
+      const entry = byFile.get(fileName) ?? { uri: document.uri, entries: [] };
+      entry.entries.push(diagnostic);
+      byFile.set(fileName, entry);
     }
-    for (const [fileName, entries] of byFile) {
-      this.diagnostics.set(vscode.Uri.file(fileName), entries);
+    if (!isCurrent()) {
+      return;
+    }
+    const previous = this.diagnosticsByTarget.get(key);
+    this.diagnosticsByTarget.set(key, byFile);
+    this.refreshDiagnostics(new Set([...previous?.keys() ?? [], ...byFile.keys()]));
+  }
+
+  private refreshDiagnostics(files: Iterable<string>): void {
+    for (const fileName of files) {
+      const contributions = [...this.diagnosticsByTarget.values()].flatMap((byFile) => byFile.get(fileName) ?? []);
+      const previousUri = this.diagnosticUris.get(fileName);
+      const uri = contributions[0]?.uri ?? previousUri ?? vscode.Uri.file(fileName);
+      const entries = contributions.flatMap((entry) => entry.entries);
+      if (previousUri && previousUri.toString() !== uri.toString()) {
+        this.diagnostics.delete(previousUri);
+      }
+      if (entries.length) {
+        this.diagnostics.set(uri, entries);
+        this.diagnosticUris.set(fileName, uri);
+      } else {
+        this.diagnostics.delete(uri);
+        this.diagnosticUris.delete(fileName);
+      }
     }
   }
 
@@ -607,6 +637,8 @@ class BuiltinEditorAdapter
     this.diagnostics.dispose();
     this.subscriptions.forEach((subscription) => subscription.dispose());
     this.outputs.clear();
+    this.diagnosticsByTarget.clear();
+    this.diagnosticUris.clear();
     if (adapter === this) {
       adapter = undefined;
     }

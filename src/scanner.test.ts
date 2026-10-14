@@ -17,6 +17,11 @@ assert.deepEqual(scanTxtJetIssues("a<%= one %>b<% two(); %>c<%! int value; %>"),
 assert.deepEqual(scanTxtJetIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>"), []);
 assert.deepEqual(scanTxtJetIssues("prefix <% if (ready) { %> body <% } %> suffix"), []);
 assert.deepEqual(scanTxtJetIssues("<%@ include file=\"part.txtjet\" %>\n<%@ jet package=\"demo\" class=\"Demo\" %>"), []);
+for (const text of ['<% String marker = "<?"; %> stray ?>', '<%-- <? --%> stray ?>', '<%@ jet imports="<?" %> stray ?>']) {
+  assert.deepEqual(scanTxtJetIssues(text).map(issue => issue.code), ["unexpected-close"]);
+}
+assert.deepEqual(scanTxtJetIssues('<?xml encoding="<%= "UTF-8" %>"?><root/>'), []);
+assert.deepEqual(scanTxtJetIssues('<?xml?><% String marker = "<?"; %> stray ?>').map(issue => issue.code), ["unexpected-close"]);
 assert.deepEqual(scanTxtJetIssues(fixture("valid")).map((issue) => issue.code), []);
 assert.deepEqual(scanTxtJetIssues(fixture("malformed")).map((issue) => issue.code), [
   "unexpected-close",

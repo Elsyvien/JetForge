@@ -33,6 +33,19 @@ export function isBuiltinProject(project: JetForgeProject): boolean {
   );
 }
 
+/** All discovered templates/includes/skeletons are inputs, even without a target. */
+export function validateBuiltinSourceOutputs(
+  config: JetForgeProjectConfig,
+  root: string,
+  sourceFiles: readonly string[],
+): void {
+  for (const target of config.targets ?? []) {
+    if (sourceFiles.some((fileName) => isPathInsideAnyRoot(resolve(root, target.output), [fileName]))) {
+      throw new Error("Target outputs cannot overwrite discovered project sources.");
+    }
+  }
+}
+
 /** v2 is deliberately strict; normalize target-backed tests for the existing golden runner. */
 export function validateBuiltinConfig(
   config: JetForgeProjectConfig,
@@ -262,6 +275,8 @@ export async function runBuiltinTarget(
   if (!target) {
     throw new Error(`Unknown builtin target: ${name}.`);
   }
+  const projectSources = project.files.map((file) => file.fileName);
+  validateBuiltinSourceOutputs(project.config, project.root, projectSources);
   const compiler = project.config.compiler!;
   const configCurrent = (): boolean => {
     try {
@@ -292,6 +307,11 @@ export async function runBuiltinTarget(
     ...options,
     isCurrent: () => configCurrent() && options.isCurrent?.() !== false,
   });
+  const compilerCanWrite = result.canWriteOutput;
+  result.canWriteOutput = (destination) =>
+    compilerCanWrite?.(destination) !== false &&
+    ![...projectSources, ...project.sourceFileNamesCurrent?.() ?? []]
+      .some((fileName) => isPathInsideAnyRoot(destination, [fileName]));
   return {
     ...result,
     target: name,

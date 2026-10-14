@@ -143,6 +143,31 @@ async function main(): Promise<void> {
     const stale = run();
     setTimeout(() => writeFileSync(join(root, "item.jetinc"), "new"), 400);
     assert.equal((await stale).diagnostics[0].code, "STALE");
+    const fallback = join(root, "fallback");
+    mkdirSync(fallback);
+    writeFileSync(join(fallback, "late.jetinc"), "fallback");
+    writeFileSync(template, '<% Thread.sleep(600); %><%@ include file="late.jetinc" %>');
+    const changedIncludeResolution = run({ includePaths: ["fallback"] });
+    setTimeout(() => writeFileSync(join(root, "late.jetinc"), "preferred"), 200);
+    assert.equal((await changedIncludeResolution).diagnostics[0].code, "STALE");
+    rmSync(join(root, "late.jetinc"));
+    const fallbackOutput = await run({ includePaths: ["fallback"] });
+    assert.equal(fallbackOutput.ok, true, JSON.stringify(fallbackOutput));
+    assert.equal(fallbackOutput.output, "fallback");
+    writeFileSync(join(root, "late.jetinc"), "preferred");
+    assert.throws(() => publishBuiltinOutput(root, "generated/result.xml", fallbackOutput), /stale/i);
+    rmSync(join(root, "late.jetinc"));
+    const tokenSkeleton = "${packageDeclaration} public class ${class} { ${generateMethod} }";
+    writeFileSync(join(fallback, "late.skeleton"), tokenSkeleton);
+    writeFileSync(template, '<%@ jet skeleton="late.skeleton" %><% Thread.sleep(600); %>fallback');
+    const changedSkeletonResolution = run({ skeletonPaths: ["fallback"] });
+    setTimeout(() => writeFileSync(join(root, "late.skeleton"), tokenSkeleton), 200);
+    assert.equal((await changedSkeletonResolution).diagnostics[0].code, "STALE");
+    writeFileSync(join(root, "late.skeleton"), "public class ${class} { ${generateMethod} }");
+    for (const mode of ["compile", "evaluate"] as const) {
+      assert.equal((await run({ mode })).diagnostics[0].code, "UNSUPPORTED_SYNTAX");
+    }
+    writeFileSync(template, input);
     writeFileSync(
       join(root, "item.jetinc"),
       '<%= "x".repeat(9 * 1024 * 1024) %>',

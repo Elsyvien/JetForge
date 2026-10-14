@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { promisify } from "node:util";
-import { BuiltinRunOptions, BuiltinTarget, isBuiltinProject, runBuiltinTarget, validateBuiltinConfig } from "./builtinProject";
+import { BuiltinRunOptions, BuiltinTarget, isBuiltinProject, runBuiltinTarget, validateBuiltinConfig, validateBuiltinSourceOutputs } from "./builtinProject";
 import { CompilerErrorCode } from "./compilerProtocol";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { compilerCommandGuidance } from "./compilerToolchain";
@@ -79,6 +79,7 @@ export interface JetForgeProject {
   model: TxtJetWorkspaceModel;
   readFile?: (fileName: string) => string | undefined;
   configText?: string;
+  sourceFileNamesCurrent?: () => string[];
 }
 
 export interface JetForgeValidationIssue extends Omit<TxtJetIssue, "code"> {
@@ -156,11 +157,13 @@ export function loadJetForgeProject(rootDirectory: string, configFile = DEFAULT_
   const includePaths = safeConfiguredRoots(root, config.includePaths);
   const skeletonPaths = safeConfiguredRoots(root, config.skeletonPaths);
   const files = discoverProjectFiles(root, config.sourcePaths, config.excludePaths).map(file => ({ ...file, text: readFile?.(file.fileName) ?? file.text }));
+  if (config.version === 2) { validateBuiltinSourceOutputs(config, root, files.map(file => file.fileName)); }
   const model = createTxtJetWorkspaceModel(files, {
     includePathsForFile: () => includePaths,
     skeletonPathsForFile: () => skeletonPaths
   });
-  return { root, configPath, configExists, config, files, model, readFile, configText };
+  return { root, configPath, configExists, config, files, model, readFile, configText,
+    sourceFileNamesCurrent: () => discoverProjectFiles(root, config.sourcePaths, config.excludePaths, false).map(file => file.fileName) };
 }
 
 export function validateJetForgeProject(project: JetForgeProject): JetForgeValidationResult {
@@ -490,7 +493,7 @@ function parseProjectConfig(configPath: string, text?: string): JetForgeProjectC
   return config;
 }
 
-function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, excludePaths: string[] | undefined): TxtJetWorkspaceFile[] {
+function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, excludePaths: string[] | undefined, readText = true): TxtJetWorkspaceFile[] {
   const files: TxtJetWorkspaceFile[] = [];
   const sources = (sourcePaths?.length ? sourcePaths : ["."]).map((entry) => safeProjectPath(root, entry));
   const excluded = (excludePaths ?? []).map((entry) => safeProjectPath(root, entry));
@@ -516,7 +519,7 @@ function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, e
       if (!entry.isFile() || (!isTxtJetPath(fileName) && !fileName.toLowerCase().endsWith(".skeleton"))) {
         continue;
       }
-      files.push({ fileName: normalize(fileName), text: readFileSync(fileName, "utf8") });
+      files.push({ fileName: normalize(fileName), text: readText ? readFileSync(fileName, "utf8") : undefined });
       if (files.length > MAX_PROJECT_FILES) {
         throw new Error(`JetForge stopped after ${MAX_PROJECT_FILES} workspace files.`);
       }
@@ -529,7 +532,7 @@ function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, e
     if (lstatSync(source).isDirectory()) {
       visit(source);
     } else if (isTxtJetPath(source) || source.toLowerCase().endsWith(".skeleton")) {
-      files.push({ fileName: source, text: readFileSync(source, "utf8") });
+      files.push({ fileName: source, text: readText ? readFileSync(source, "utf8") : undefined });
     }
   }
   return files.sort((left, right) => left.fileName.localeCompare(right.fileName));

@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { publishBuiltinOutput } from "./builtinCompiler";
 import {
   builtinResultsText,
   runBuiltinTarget,
@@ -35,6 +36,8 @@ async function main(): Promise<void> {
     const configFile = join(root, ".jetforge.json");
     const source = readFileSync(configFile, "utf8");
     const config = (): JetForgeProjectConfig => JSON.parse(source);
+    const unrelatedSource = join(root, "templates/unrelated.javajet");
+    writeFileSync(unrelatedSource, "keep this project source");
     const project = loadJetForgeProject(root);
     assert.equal(validateJetForgeProject(project).ok, true);
     assert.equal(inspectJetForgeProject(project).ok, true);
@@ -64,6 +67,17 @@ async function main(): Promise<void> {
       "component-demo",
     );
     assert.equal(generated[0].ok, true);
+    assert.throws(() => publishBuiltinOutput(root, unrelatedSource, generated[0]), /compiler input/);
+    assert.equal(readFileSync(unrelatedSource, "utf8"), "keep this project source");
+    const lateSource = join(root, "templates/created-after-evaluation.javajet");
+    writeFileSync(lateSource, "keep newly created source");
+    assert.throws(() => publishBuiltinOutput(root, lateSource, generated[0]), /compiler input/);
+    assert.equal(readFileSync(lateSource, "utf8"), "keep newly created source");
+    const overwriting = config();
+    overwriting.targets![0].output = "templates/unrelated.javajet";
+    writeFileSync(configFile, JSON.stringify(overwriting));
+    assert.throws(() => loadJetForgeProject(root), /project sources/);
+    writeFileSync(configFile, source);
     assert.equal(
       readFileSync(join(root, "generated/component-demo.xml"), "utf8"),
       evaluated.content,
@@ -183,6 +197,15 @@ async function main(): Promise<void> {
       );
     const doctor = cli(["doctor", "--format", "json"]);
     assert.equal(doctor.status, 0, doctor.stderr);
+    const futureRelease = config();
+    futureRelease.compiler!.release = 10000;
+    writeFileSync(configFile, JSON.stringify(futureRelease));
+    const invalidReleaseDoctor = cli(["doctor", "--format", "json"]);
+    assert.equal(invalidReleaseDoctor.status, 1, invalidReleaseDoctor.stderr);
+    const jdkFailure = JSON.parse(invalidReleaseDoctor.stdout).checks.find((check: { id: string }) => check.id === "jdk");
+    assert.equal(jdkFailure.status, "fail");
+    assert.match(jdkFailure.detail, /release 10000.*requires JDK 10000/);
+    writeFileSync(configFile, source);
     assert.equal(
       JSON.parse(doctor.stdout).checks.some(
         (check: { id: string }) => check.id === "jdk",

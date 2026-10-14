@@ -6,6 +6,7 @@ import {
   MAX_COMPILER_INPUT_BYTES,
 } from "./compilerProtocol";
 import { CompilerLineIndex } from "./compilerSourceMap";
+import { maskJavaCommentsAndStrings } from "./javaSyntax";
 import { ResourceBudget, ResourceLimitError } from "./resourceBudget";
 import { scanTxtJetDirectiveIssues, scanTxtJetIssues } from "./scanner";
 import {
@@ -32,6 +33,7 @@ const empty = (): Section => ({ text: "", mappings: [] });
 /** Pure TxtJet-to-Java frontend; Java checking and execution belong to the runner. */
 export function compileTxtJet(request: TxtJetCompileRequest): CompilerUnit {
   const dependencies = new Map<string, string>();
+  const missingDependencies = new Set<string>();
   const diagnostics: CompilerDiagnostic[] = [];
   const budget = new ResourceBudget({
     bytes: MAX_COMPILER_INPUT_BYTES,
@@ -49,11 +51,17 @@ export function compileTxtJet(request: TxtJetCompileRequest): CompilerUnit {
     if (dependencies.has(fileName)) {
       return dependencies.get(fileName);
     }
+    if (missingDependencies.has(fileName)) {
+      return undefined;
+    }
+    budget.consume("tokens");
     const text = request.readFile(fileName);
     if (text !== undefined) {
       budget.consume("bytes", Buffer.byteLength(text));
       budget.consume("files");
       dependencies.set(fileName, text);
+    } else {
+      missingDependencies.add(fileName);
     }
     return text;
   };
@@ -326,6 +334,18 @@ export function compileTxtJet(request: TxtJetCompileRequest): CompilerUnit {
           { start: 0, end: skeletonText.length },
         );
       } else {
+        const packageHeader = maskJavaCommentsAndStrings(skeletonText)
+          .replace(/\$\{packageDeclaration\}/g, `package ${packageName};`)
+          .replace(/\$\{package\}/g, packageName)
+          .match(/^\s*package\s+([\w$]+(?:\s*\.\s*[\w$]+)*)\s*;/);
+        if (packageHeader?.[1].replace(/\s/g, "") !== packageName) {
+          issue(
+            "UNSUPPORTED_SYNTAX",
+            `Skeleton must begin with a declaration of package ${packageName}; use \${packageDeclaration} or package \${package};.`,
+            skeletonFile,
+            { start: 0, end: 0 },
+          );
+        }
         const seen = new Set<string>();
         const expression = /\$\{([^}]+)\}/g;
         let offset = 0;
@@ -397,6 +417,7 @@ export function compileTxtJet(request: TxtJetCompileRequest): CompilerUnit {
     mappings: java.mappings,
     diagnostics,
     dependencies,
+    missingDependencies,
   };
 }
 

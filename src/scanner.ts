@@ -41,14 +41,7 @@ const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
 
 export function scanTxtJetIssues(text: string): TxtJetIssue[] {
   const issues: TxtJetIssue[] = [];
-  const processingInstructionClosers = new Set<number>();
-  for (let from = 0; from < text.length;) {
-    const open = text.indexOf("<?", from);
-    if (open < 0) { break; }
-    const close = text.indexOf("?>", open + 2);
-    if (close < 0) { break; }
-    processingInstructionClosers.add(close); from = close + 2;
-  }
+  let processingInstructionOpen = false;
   let offset = 0;
 
   while (offset < text.length) {
@@ -68,8 +61,18 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
       continue;
     }
 
+    if (next.kind === "question-open") {
+      processingInstructionOpen = true;
+      offset = next.offset + 2;
+      continue;
+    }
+
     if (next.kind === "question-close") {
-      if (processingInstructionClosers.has(next.offset)) { offset = next.offset + 2; continue; }
+      if (processingInstructionOpen) {
+        processingInstructionOpen = false;
+        offset = next.offset + 2;
+        continue;
+      }
       issues.push({
         code: "unexpected-close",
         message: "Unexpected TxtJet closing delimiter. Use %> to close TxtJet blocks.",
@@ -298,7 +301,7 @@ function isValidSkeletonPath(value: string): boolean {
 function findNextDelimiter(
   text: string,
   from: number
-): { kind: "open" | "close" | "question-close"; offset: number } | undefined {
+): { kind: "open" | "close" | "question-open" | "question-close"; offset: number } | undefined {
   for (let offset = from; offset + 1 < text.length; offset += 1) {
     const pair = text.slice(offset, offset + 2);
     if (pair === "<%") {
@@ -306,6 +309,9 @@ function findNextDelimiter(
     }
     if (pair === "%>") {
       return { kind: "close", offset };
+    }
+    if (pair === "<?") {
+      return { kind: "question-open", offset };
     }
     if (pair === "?>") {
       return { kind: "question-close", offset };

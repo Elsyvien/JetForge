@@ -319,6 +319,9 @@ export async function runBuiltinCompiler(
         .update(JSON.stringify([fileName, Buffer.byteLength(text)]))
         .update(text);
     }
+    for (const fileName of unit.missingDependencies) {
+      hash.update(JSON.stringify([fileName, null]));
+    }
     result.fingerprint = hash.digest("hex");
     const source = join(
       temporary,
@@ -438,6 +441,7 @@ export async function runBuiltinCompiler(
           [...unit.dependencies].every(
             ([fileName, text]) => read(fileName) === text,
           ) &&
+          [...unit.missingDependencies].every((fileName) => read(fileName) === undefined) &&
           classpathFingerprint() === classpathBefore &&
           JSON.stringify(currentSourceNames()) === JSON.stringify(sourceNames)
         );

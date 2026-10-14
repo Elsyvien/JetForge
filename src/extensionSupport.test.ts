@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   COMPLETION_TRIGGER_CHARACTERS,
+  canonicalFileIdentity,
   compilerTimeoutMs,
   DEFAULT_COMPILER_TIMEOUT_MS,
   DIRECTIVE_VALUE_TRIGGER_CHARACTERS,
@@ -106,6 +107,10 @@ assert.throws(() => windowsCmdDoubleQuote("C:\\Workspace\\\"template.txtjet"), /
 assert.throws(() => windowsCmdDoubleQuote("C:\\Workspace\\template.txtjet\nnext"), /Windows shell arguments/);
 
 const configuredWorkspaceRoot = resolve("workspace-root");
+assert.equal(canonicalFileIdentity(join(configuredWorkspaceRoot, "Main.TXTJET"), "win32"), canonicalFileIdentity(join(configuredWorkspaceRoot, "main.txtjet"), "win32"));
+if (process.platform !== "win32") {
+  assert.notEqual(canonicalFileIdentity(join(configuredWorkspaceRoot, "Main.TXTJET"), "linux"), canonicalFileIdentity(join(configuredWorkspaceRoot, "main.txtjet"), "linux"));
+}
 assert.equal(
   resolveWorkspaceConfiguredPath("${workspaceFolder}/generated", configuredWorkspaceRoot),
   join(configuredWorkspaceRoot, "generated")

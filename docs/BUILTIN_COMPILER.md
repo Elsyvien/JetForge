@@ -48,6 +48,8 @@ installation or handwritten compiler command is needed for this backend.
 Targets have unique names and output paths. Template, fixture, baseline,
 classpath, and Java-source paths remain inside the project, including symlink
 containment. Generation cannot overwrite compiler inputs or golden baselines.
+Discovered project templates, includes and skeletons are reserved even when they
+are not dependencies of the selected target.
 A v2 project uses this backend explicitly; v1 and command-mode cases retain
 their existing behavior. A target-backed case is normalized to `mode: "builtin"`.
 
@@ -185,6 +187,9 @@ project code.
 - Token skeletons support `${package}`, `${packageDeclaration}`, `${imports}`,
   `${class}`, `${members}`, and `${generateMethod}`. Each token is used once;
   class and method are required, and declarations require members.
+  The skeleton must begin with the configured package declaration (after any
+  comments), using `${packageDeclaration}`, `package ${package};` or matching
+  literal Java. Missing or different packages fail before Java execution.
 - Classic Eclipse `CLASS` skeletons, include alternatives, custom tags, and
   attributes such as `builder`, `nlString` and `minimize` produce
   `UNSUPPORTED_SYNTAX`. There is no silent fallback to approximate output.
@@ -215,7 +220,9 @@ JVM timeout is 30 seconds, configurable from 1 to 600 seconds. Children are
 terminated on cancellation/timeout and on normal runner completion.
 
 Configured source, include, skeleton, fixture, config and classpath changes make
-a result stale. Editor changes also abort the active run. Temp run directories
+a result stale. The snapshot also records absent include/skeleton candidates:
+creating a new higher-priority candidate invalidates the old resolution before
+publication. Editor changes also abort the active run. Temp run directories
 are removed on success/failure; explicit generation alone changes a canonical
 output. Protocol failure, model load failure, Java compile failure, runtime
 exception, timeout, cancellation and stale results have separate error codes.
