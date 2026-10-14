@@ -1,0 +1,9 @@
+<component>
+  <name>other</name>
+  <version>2</version>
+  <registers>
+    <register><name>READY</name></register>
+
+
+  </registers>
+</component>

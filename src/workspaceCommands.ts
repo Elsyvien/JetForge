@@ -1,5 +1,7 @@
 import { relative } from "node:path";
 import * as vscode from "vscode";
+import { builtinResultsText, isBuiltinProject, runBuiltinTargets } from "./builtinProject";
+import { loadBuiltinEditorProject, readBuiltinEditorFile } from "./builtinEditor";
 import {
   evaluateJetForgeCase,
   formatDoctorMarkdown,
@@ -43,7 +45,7 @@ export function registerHeadlessWorkspaceCommands(context: vscode.ExtensionConte
       if (!root) {
         return;
       }
-      const project = loadJetForgeProject(root.fsPath);
+      const project = loadBuiltinEditorProject(root.fsPath);
       const result = validateJetForgeProject(project);
       const language = "log";
       const document = await vscode.workspace.openTextDocument({ language, content: validationText(result) });
@@ -58,7 +60,15 @@ export function registerHeadlessWorkspaceCommands(context: vscode.ExtensionConte
       if (!root) {
         return;
       }
-      const project = loadJetForgeProject(root.fsPath);
+      const project = loadBuiltinEditorProject(root.fsPath);
+      if (isBuiltinProject(project)) {
+        if (!vscode.workspace.isTrusted) { await vscode.window.showWarningMessage("Trust this workspace before running template Java."); return; }
+        const live = loadJetForgeProject(root.fsPath, ".jetforge.json", readBuiltinEditorFile);
+        const results = await runBuiltinTargets(live, "generate", undefined, { readFile: readBuiltinEditorFile,
+          javaHome: vscode.workspace.getConfiguration("txtjet", root).get<string>("compiler.javaHome") });
+        const document = await vscode.workspace.openTextDocument({ language: "log", content: builtinResultsText(results) });
+        await vscode.window.showTextDocument(document, { viewColumn: vscode.ViewColumn.Beside }); return;
+      }
       const results = generateJetForgeProject(project);
       const action = await vscode.window.showInformationMessage(
         `JetForge generated ${results.length} workspace output${results.length === 1 ? "" : "s"}.`,
@@ -85,12 +95,13 @@ export function registerHeadlessWorkspaceCommands(context: vscode.ExtensionConte
       }
     }),
     vscode.commands.registerCommand("txtjet.evaluateFixture", async () => {
+      if (!vscode.workspace.isTrusted) { await vscode.window.showWarningMessage("Trust this workspace before evaluating fixtures."); return; }
       const root = await selectWorkspaceRoot("Evaluate a JetForge fixture");
       if (!root) {
         return;
       }
-      const project = loadJetForgeProject(root.fsPath);
-      const cases = (project.config.tests ?? []).filter((entry) => entry.mode === "command" && entry.fixture);
+      const project = loadBuiltinEditorProject(root.fsPath);
+      const cases = (project.config.tests ?? []).filter((entry) => (entry.mode === "command" || entry.mode === "builtin") && entry.fixture);
       if (cases.length === 0) {
         vscode.window.showInformationMessage("No command-mode fixture cases are configured in .jetforge.json.");
         return;
@@ -107,12 +118,17 @@ export function registerHeadlessWorkspaceCommands(context: vscode.ExtensionConte
       if (!picked) {
         return;
       }
+      if (picked.entry.mode === "builtin") {
+        await vscode.commands.executeCommand("txtjet.evaluateBuiltinTarget", { root: root.fsPath, target: picked.entry.target });
+        return;
+      }
       await vscode.window.withProgress({
         location: vscode.ProgressLocation.Notification,
         title: `JetForge is evaluating ${picked.entry.name}…`,
         cancellable: false
       }, async () => {
-        const result = await evaluateJetForgeCase(project, picked.entry.name);
+        const result = await evaluateJetForgeCase(project, picked.entry.name, { readFile: readBuiltinEditorFile,
+          javaHome: vscode.workspace.getConfiguration("txtjet", root).get<string>("compiler.javaHome") });
         const uri = fixturePreviews.set(result.testCase.name, result.content);
         let document = await vscode.workspace.openTextDocument(uri);
         if (result.testCase.targetLanguage) {
@@ -181,6 +197,7 @@ function registerGoldenTestController(context: vscode.ExtensionContext): void {
   controller.createRunProfile("Run Golden Outputs", vscode.TestRunProfileKind.Run, async (request, token) => {
     const run = controller.createTestRun(request);
     try {
+      if (!vscode.workspace.isTrusted) { await vscode.window.showWarningMessage("Trust this workspace before running configured golden cases."); return; }
       const selected = selectedGoldenCases(controller, cases, request);
       for (const [root, entries] of selected) {
         if (token.isCancellationRequested) {
@@ -194,8 +211,14 @@ function registerGoldenTestController(context: vscode.ExtensionContext): void {
           run.started(entry.item);
         }
         try {
-          const project = loadJetForgeProject(vscode.Uri.parse(root).fsPath);
-          const result = await runJetForgeGoldenTests(project, false, new Set(entries.map((entry) => entry.name)));
+          const project = loadBuiltinEditorProject(vscode.Uri.parse(root).fsPath);
+          const cancellation = new AbortController();
+          const listener = token.onCancellationRequested(() => cancellation.abort());
+          let result;
+          try { result = await runJetForgeGoldenTests(project, false, new Set(entries.map((entry) => entry.name)), {
+            signal: cancellation.signal, readFile: readBuiltinEditorFile,
+            javaHome: vscode.workspace.getConfiguration("txtjet", vscode.Uri.parse(root)).get<string>("compiler.javaHome")
+          }); } finally { listener.dispose(); }
           const byName = new Map(result.results.map((entry) => [entry.name, entry]));
           for (const entry of entries) {
             const outcome = byName.get(entry.name);
@@ -279,6 +302,7 @@ function resolveCasePath(root: string, path: string): string {
 }
 
 async function runGoldenCommand(update: boolean): Promise<void> {
+  if (!vscode.workspace.isTrusted) { await vscode.window.showWarningMessage("Trust this workspace before running configured golden cases."); return; }
   const root = await selectWorkspaceRoot(update ? "Update JetForge golden outputs" : "Run JetForge golden tests");
   if (!root) {
     return;
@@ -288,8 +312,9 @@ async function runGoldenCommand(update: boolean): Promise<void> {
     title: update ? "JetForge is updating golden outputs…" : "JetForge is testing generated outputs…",
     cancellable: false
   }, async () => {
-    const project = loadJetForgeProject(root.fsPath);
-    const run = await runJetForgeGoldenTests(project, update);
+    const project = loadBuiltinEditorProject(root.fsPath);
+    const run = await runJetForgeGoldenTests(project, update, undefined, { readFile: readBuiltinEditorFile,
+      javaHome: vscode.workspace.getConfiguration("txtjet", root).get<string>("compiler.javaHome") });
     await openMarkdownReport("JetForge Golden Output Tests", formatGoldenMarkdown(run));
     if (run.ok) {
       vscode.window.showInformationMessage(

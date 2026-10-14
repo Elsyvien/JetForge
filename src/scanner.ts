@@ -33,7 +33,7 @@ export interface TxtJetReferenceChecks {
   directiveAttributes?: Record<string, string[]>;
 }
 
-const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
+const OPEN_MARKERS = ["<%--", "<%@", "<%=", "<%!", "<%"];
 const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
   jet: new Set(["package", "class", "imports", "skeleton", "ipxact"]),
   include: new Set(["file"])
@@ -41,6 +41,7 @@ const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
 
 export function scanTxtJetIssues(text: string): TxtJetIssue[] {
   const issues: TxtJetIssue[] = [];
+  let processingInstructionOpen = false;
   let offset = 0;
 
   while (offset < text.length) {
@@ -60,7 +61,18 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
       continue;
     }
 
+    if (next.kind === "question-open") {
+      processingInstructionOpen = true;
+      offset = next.offset + 2;
+      continue;
+    }
+
     if (next.kind === "question-close") {
+      if (processingInstructionOpen) {
+        processingInstructionOpen = false;
+        offset = next.offset + 2;
+        continue;
+      }
       issues.push({
         code: "unexpected-close",
         message: "Unexpected TxtJet closing delimiter. Use %> to close TxtJet blocks.",
@@ -78,7 +90,8 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
     }
 
     const contentStart = next.offset + marker.length;
-    const close = text.indexOf("%>", contentStart);
+    const closingMarker = marker === "<%--" ? "--%>" : "%>";
+    const close = text.indexOf(closingMarker, contentStart);
     if (close === -1) {
       issues.push({
         code: "unclosed-block",
@@ -93,7 +106,7 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
       issues.push(...scanDirective(text, contentStart, close));
     }
 
-    offset = close + 2;
+    offset = close + closingMarker.length;
   }
 
   return issues;
@@ -288,7 +301,7 @@ function isValidSkeletonPath(value: string): boolean {
 function findNextDelimiter(
   text: string,
   from: number
-): { kind: "open" | "close" | "question-close"; offset: number } | undefined {
+): { kind: "open" | "close" | "question-open" | "question-close"; offset: number } | undefined {
   for (let offset = from; offset + 1 < text.length; offset += 1) {
     const pair = text.slice(offset, offset + 2);
     if (pair === "<%") {
@@ -296,6 +309,9 @@ function findNextDelimiter(
     }
     if (pair === "%>") {
       return { kind: "close", offset };
+    }
+    if (pair === "<?") {
+      return { kind: "question-open", offset };
     }
     if (pair === "?>") {
       return { kind: "question-close", offset };

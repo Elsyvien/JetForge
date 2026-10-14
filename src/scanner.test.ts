@@ -6,6 +6,7 @@ assert.deepEqual(scanTxtJetIssues("<% code(); %>"), []);
 assert.equal(scanTxtJetIssues("<% code();").at(0)?.code, "unclosed-block");
 assert.equal(scanTxtJetIssues("text %>").at(0)?.code, "unexpected-close");
 assert.equal(scanTxtJetIssues("text ?>").at(0)?.code, "unexpected-close");
+assert.deepEqual(scanTxtJetIssues('<?xml version="1.0"?><component/>'), []);
 assert.equal(scanTxtJetIssues("<%@ %>").at(0)?.code, "empty-directive");
 assert.equal(scanTxtJetIssues("<%@ 123bad value=\"x\" %>").at(0)?.code, "malformed-directive");
 assert.equal(scanTxtJetIssues("<%@ jet package=\"example class=\"Demo\" %>").at(0)?.code, "unterminated-directive-string");
@@ -16,6 +17,11 @@ assert.deepEqual(scanTxtJetIssues("a<%= one %>b<% two(); %>c<%! int value; %>"),
 assert.deepEqual(scanTxtJetIssues("<%@ jet package=\"a\\\"b\" class='Demo' %>"), []);
 assert.deepEqual(scanTxtJetIssues("prefix <% if (ready) { %> body <% } %> suffix"), []);
 assert.deepEqual(scanTxtJetIssues("<%@ include file=\"part.txtjet\" %>\n<%@ jet package=\"demo\" class=\"Demo\" %>"), []);
+for (const text of ['<% String marker = "<?"; %> stray ?>', '<%-- <? --%> stray ?>', '<%@ jet imports="<?" %> stray ?>']) {
+  assert.deepEqual(scanTxtJetIssues(text).map(issue => issue.code), ["unexpected-close"]);
+}
+assert.deepEqual(scanTxtJetIssues('<?xml encoding="<%= "UTF-8" %>"?><root/>'), []);
+assert.deepEqual(scanTxtJetIssues('<?xml?><% String marker = "<?"; %> stray ?>').map(issue => issue.code), ["unexpected-close"]);
 assert.deepEqual(scanTxtJetIssues(fixture("valid")).map((issue) => issue.code), []);
 assert.deepEqual(scanTxtJetIssues(fixture("malformed")).map((issue) => issue.code), [
   "unexpected-close",

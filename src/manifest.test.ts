@@ -40,7 +40,8 @@ assert.deepEqual(untrustedWorkspaces?.restrictedConfigurations, [
   "txtjet.ipxact.validation.command",
   "txtjet.ipxact.validation.runOnSave",
   "txtjet.ipxact.outputDirectory",
-  "txtjet.ipxact.schemaPaths"
+  "txtjet.ipxact.schemaPaths",
+  "txtjet.compiler.javaHome"
 ]);
 for (const command of [
   "txtjet.compileTemplate",

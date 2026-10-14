@@ -10,6 +10,8 @@ JetForge is local-first TxtJet and Eclipse JET tooling for understanding, naviga
 
 [Install JetForge from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=elsyvien.txtjet-syntax)
 
+[Project documentation](docs/README.md) covers architecture, template syntax, project configuration, CLI/golden tests, and editor workflows with troubleshooting.
+
 ## 60-Second Quickstart
 
 1. Install JetForge from the Marketplace and open a TxtJet template.
@@ -39,6 +41,7 @@ Java completion, hover, and definition forwarding requires compatible installed 
 - Per-line generated preview provenance markers for root templates, expanded includes, expressions, skeleton content, and unmapped output, with hover details and Go to Definition.
 - Optional synchronized reveal between visible templates and generated previews where source maps are deterministic.
 - On-demand generated-output writing and previous-generation diffing.
+- Built-in `jetforge-v1` compilation and real evaluation with JDK 21+, JSON fixtures, typed model providers, nested includes, token skeletons, and named v2 targets shared by VS Code and CLI. See [the compiler guide](docs/BUILTIN_COMPILER.md).
 - Optional IP-XACT preview, generation, diff, validation, snippets, workspace indexing, and local-XSD schema intelligence behind `txtjet.ipxact.enabled`.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
@@ -46,7 +49,7 @@ Java completion, hover, and definition forwarding requires compatible installed 
 - Searchable, filterable impact maps for templates, includes, skeletons, workspace classes, and generated outputs so project-level blast radius is visible before edits.
 - Reviewable refactor plans for include extraction and include/skeleton moves, plus conservative workspace-class rename, Java-helper extraction, and `@jet` import cleanup recipes.
 - Workspace Doctor checks for configuration, references, compiler placeholders, output containment, golden cases, and local validation.
-- Golden output cases in VS Code’s Testing view with explicit baseline updates and trusted fixture-command evaluation.
+- Golden output cases in VS Code’s Testing view with explicit baseline updates and project-owned fixture-command evaluation.
 - A shared `jetforge` CLI for local and CI `doctor`, `validate`, `generate`, and `test` workflows with JSON, SARIF, and JUnit output.
 - Find All References, Rename Symbol, and Signature Help for local template Java helper methods declared in `<%! ... %>` blocks.
 - Auto Detect support that can switch a newly opened `.txtjet` file to the likely target mode.
@@ -72,7 +75,7 @@ This checks release metadata, runs the unit/package gate and a real VS Code Exte
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.1.0.vsix
+code --install-extension txtjet-syntax-0.2.0.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -80,6 +83,8 @@ Reload VSCode after installation if the language mode is not immediately availab
 CI packages and installs the exact VSIX in clean Linux and Windows profiles against the minimum and current stable VS Code releases. Matching `vX.Y.Z` tags on `main` can publish that verified artifact through the protected `marketplace` environment and attach it with a checksum to a GitHub Release.
 
 For help, see [SUPPORT.md](SUPPORT.md). Contributions should follow [CONTRIBUTING.md](CONTRIBUTING.md), and vulnerabilities should be reported privately as described in [SECURITY.md](SECURITY.md).
+
+For code changes, use [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) to find the responsible modules, behavioral contracts, and verification gate. Use [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md) for manual editor and release acceptance scenarios.
 
 ## Headless Projects, Golden Outputs, And Fixtures
 
@@ -124,12 +129,12 @@ npm run headless -- test --update
 For another project, install the tagged Git repository as a development tool and use its `jetforge` binary:
 
 ```bash
-npm install --save-dev github:Elsyvien/JetForge#v0.1.0
+npm install --save-dev github:Elsyvien/JetForge#v0.2.0
 npx jetforge doctor
 npx jetforge test
 ```
 
-`test --update` is the only operation that replaces approved baselines. Command-mode cases execute only when explicitly run in a trusted workspace or terminal; JetForge substitutes shell-quoted `${file}`, `${fixture}`, `${workspaceFolder}`, and `${outputFile}` paths. The extension exposes the same cases in VS Code’s Testing view and through `JetForge: Run Golden Output Tests`, `JetForge: Update Golden Output Baselines`, and `JetForge: Evaluate Named Fixture`.
+`test --update` is the CLI operation that replaces approved baselines. Command-mode cases execute configured project code when explicitly run; JetForge substitutes shell-quoted `${file}`, `${fixture}`, `${workspaceFolder}`, and `${outputFile}` paths. The extension exposes the same cases in VS Code’s Testing view and through `JetForge: Run Golden Output Tests`, `JetForge: Update Golden Output Baselines`, and `JetForge: Evaluate Named Fixture`. See the [headless guide](docs/HEADLESS.md#command-mode-evaluation) for command semantics and current editor trust behavior.
 
 ## Usage
 
@@ -350,7 +355,7 @@ TxtJet modes include conservative indentation rules for common control blocks su
 
 VSCode document formatting and format selection also normalize directive attributes, expression spacing, and Java block indentation without changing generated-output text. Pathological blocks beyond 64 nesting levels or 1 MiB of projected formatted output are left unchanged.
 
-## Development Notes
+## Implementation Limits And Settings
 
 Version 1 does not implement a full Java parser or type checker. Workspace cross-class IntelliSense is a deterministic local index of `@jet class` templates and methods declared in `<%! ... %>` blocks; external `.java` dependencies and advanced Java expressions still depend on installed Java tooling. Java IntelliSense forwarding only runs where a TxtJet source position can be mapped into the generated Java preview. Local helper References and Rename Symbol remain intentionally conservative and only cover helper declarations in `<%! ... %>` plus direct or `this.` call sites. Generated-output suggestions for Java, Python, and C/C++ are local fallbacks, not full language-server results. Auto Detect target detection is heuristic and may guess wrong on ambiguous mixed-output templates.
 The IP-XACT schema index is a deterministic authoring aid for common XSD element, complex-type, child, attribute, and documentation declarations; external validators remain authoritative for full XSD semantics.
@@ -358,44 +363,7 @@ Visual differentiation is parser-backed and local to the editor; it does not cha
 
 Further IntelliSense work is tracked in [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md). The production validation checklist is in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
 
-Settings:
-
-- `txtjet.autoDetect.enabled`
-- `txtjet.defaultTargetLanguage`
-- `txtjet.diagnostics.enabled`
-- `txtjet.diagnostics.severity`
-- `txtjet.diagnostics.maxFileSizeKb`
-- `txtjet.diagnostics.generatedJava.enabled`
-- `txtjet.diagnostics.compiler.enabled`
-- `txtjet.diagnostics.compiler.runOnSave`
-- `txtjet.diagnostics.compiler.problemMatcher`
-- `txtjet.codeActions.enabled`
-- `txtjet.completions.enabled`
-- `txtjet.completions.directiveMetadata`
-- `txtjet.javaIntelliSense.enabled`
-- `txtjet.statusBar.enabled`
-- `txtjet.previews.enabled`
-- `txtjet.previews.openBeside`
-- `txtjet.previews.generatedJava.enabled`
-- `txtjet.previews.synchronizedReveal.enabled`
-- `txtjet.previews.provenanceLens.enabled`
-- `txtjet.navigation.includeDefinitions.enabled`
-- `txtjet.resolution.includePaths`
-- `txtjet.resolution.skeletonPaths`
-- `txtjet.formatting.enabled`
-- `txtjet.visualDifferentiation.enabled`
-- `txtjet.generation.outputDirectory`
-- `txtjet.compiler.command`
-- `txtjet.compiler.timeoutMs`
-- `txtjet.ipxact.enabled`
-- `txtjet.ipxact.templateGlobs`
-- `txtjet.ipxact.schemaPaths`
-- `txtjet.ipxact.outputDirectory`
-- `txtjet.ipxact.generation.autoOpen`
-- `txtjet.ipxact.validation.command`
-- `txtjet.ipxact.validation.problemMatcher`
-- `txtjet.ipxact.validation.runOnSave`
-- `txtjet.ipxact.validation.timeoutMs`
+In VS Code Settings, search for `@ext:elsyvien.txtjet-syntax` to see every setting with its description and default. The authoritative definitions, including resource scopes, are in `contributes.configuration.properties` in [package.json](package.json). Workflow sections above show the settings needed for each task.
 
 Privacy:
 

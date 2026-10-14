@@ -1,0 +1,1 @@
+<%-- Declaration and nested include deliberately execute in root context. --%><%! private String upper(Object name) { return name.toString().toUpperCase(java.util.Locale.ROOT); } %><% for (Object name : (List<?>) model.get("registers")) { %><%@ include file="register.jetinc" %><% } %>

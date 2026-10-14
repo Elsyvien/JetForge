@@ -1,0 +1,11 @@
+<component>
+  <name>demo</name>
+  <version>9007199254740993123456789</version>
+  <registers>
+    <register><name>STATUS</name></register>
+
+    <register><name>CONTROL</name></register>
+
+
+  </registers>
+</component>

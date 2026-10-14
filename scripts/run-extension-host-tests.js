@@ -41,8 +41,8 @@ function findVSCodeExecutable() {
 
   const candidates = process.platform === "darwin"
     ? [
-        "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code",
-        "/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"
+        "/Applications/Visual Studio Code.app/Contents/MacOS/Electron",
+        "/Applications/Visual Studio Code - Insiders.app/Contents/MacOS/Electron"
       ]
     : process.platform === "win32"
       ? [
@@ -73,11 +73,11 @@ function testTimeoutMs() {
   return configured;
 }
 
-function runExtensionTests(executablePath, args, timeoutMs) {
+function runExtensionTests(executablePath, args, timeoutMs, successPath) {
   return new Promise((resolveRun, rejectRun) => {
     const child = spawn(executablePath, args, {
       cwd: resolve(__dirname, ".."),
-      env: process.env,
+      env: { ...process.env, TXTJET_EXTENSION_TEST_SUCCESS_PATH: successPath },
       stdio: "inherit"
     });
     let timedOut = false;
@@ -120,6 +120,7 @@ async function main() {
   const workspaceSettingsDirectoryExisted = existsSync(workspaceSettingsDirectory);
   const userDataDir = join(temporaryRoot, "user-data");
   const extensionsDir = join(temporaryRoot, "extensions");
+  const successPath = join(temporaryRoot, "source-smoke-passed.json");
   mkdirSync(userDataDir);
   mkdirSync(extensionsDir);
 
@@ -143,7 +144,7 @@ async function main() {
         `--extensionTestsPath=${extensionTestsPath}`,
         ...launchArgs,
         "--wait"
-      ], testTimeoutMs());
+      ], testTimeoutMs(), successPath);
     } else {
       const { runTests } = require("@vscode/test-electron");
       const version = requestedVersion || "1.85.2";
@@ -152,9 +153,12 @@ async function main() {
         version,
         extensionDevelopmentPath,
         extensionTestsPath,
+        extensionTestsEnv: { TXTJET_EXTENSION_TEST_SUCCESS_PATH: successPath },
         launchArgs
       });
     }
+    if (!existsSync(successPath)) { throw new Error("Extension Host exited without completing the smoke assertions."); }
+    console.log("Source Extension Host assertions passed, including built-in compiler execution.");
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
     if (!workspaceSettingsExisted) {

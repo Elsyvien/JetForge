@@ -2,7 +2,7 @@ import { basename, dirname, isAbsolute, normalize, resolve } from "node:path";
 import { TxtJetTargetLanguage } from "./detector";
 import { ResourceBudget, ResourceLimitError } from "./resourceBudget";
 
-export type TxtJetBlockKind = "outer" | "scriptlet" | "expression" | "declaration" | "directive";
+export type TxtJetBlockKind = "outer" | "scriptlet" | "expression" | "declaration" | "directive" | "comment";
 
 export interface TxtJetRange {
   start: number;
@@ -69,6 +69,7 @@ export interface TxtJetOutputPreviewOptions {
 }
 
 export interface TxtJetJavaPreviewOptions {
+  generateArgument?: boolean;
   sourceFileName?: string;
   readSkeleton?: (path: string) => string | undefined;
   skeletonPaths?: string[];
@@ -130,6 +131,7 @@ interface ExpressionContext {
 const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
 const DEFAULT_PACKAGE = "txtjet.generated";
 const DEFAULT_CLASS = "GeneratedTxtJetTemplate";
+export const GENERATED_JAVA_DEFAULTS = Object.freeze({ packageName: DEFAULT_PACKAGE, className: DEFAULT_CLASS });
 const MAX_INCLUDE_DEPTH = 8;
 export const DEFAULT_PREVIEW_LIMITS: TxtJetPreviewLimits = {
   inputCharacters: 4 * 1024 * 1024,
@@ -203,8 +205,9 @@ export function parseTxtJetTemplate(text: string): TxtJetTemplateModel {
     }
 
     const contentStart = open + marker.length;
-    const close = text.indexOf("%>", contentStart);
-    const end = close === -1 ? text.length : close + 2;
+    const closingMarker = marker === "<%--" ? "--%>" : "%>";
+    const close = text.indexOf(closingMarker, contentStart);
+    const end = close === -1 ? text.length : close + closingMarker.length;
     const contentEnd = close === -1 ? text.length : close;
     const content = text.slice(contentStart, contentEnd);
     const kind = kindForMarker(marker);
@@ -335,7 +338,7 @@ function buildGeneratedJavaPreviewInternal(
   const packageName = sanitizePackageName(model.jetDirective?.attributes.package) ?? DEFAULT_PACKAGE;
   const className = sanitizeClassName(model.jetDirective?.attributes.class) ?? DEFAULT_CLASS;
   const imports = splitImports(model.jetDirective?.attributes.imports);
-  const sections = buildJavaPreviewSections(model);
+  const sections = buildJavaPreviewSections(model, options.generateArgument ?? false);
   const skeleton = readSkeletonTemplate(model, sourceName, options);
   if (skeleton?.usesTokens) {
     budget.consume("inputCharacters", skeleton.text.length);
@@ -527,7 +530,7 @@ function parseDirective(content: string, contentStart: number): TxtJetDirective 
   };
 }
 
-function buildJavaPreviewSections(model: TxtJetTemplateModel): { members: JavaPreviewSection; generateMethod: JavaPreviewSection } {
+function buildJavaPreviewSections(model: TxtJetTemplateModel, generateArgument: boolean): { members: JavaPreviewSection; generateMethod: JavaPreviewSection } {
   const members = emptySection();
   const declarations = model.blocks.filter((block) => block.kind === "declaration");
   for (const block of declarations) {
@@ -535,7 +538,7 @@ function buildJavaPreviewSections(model: TxtJetTemplateModel): { members: JavaPr
   }
 
   const generateMethod = emptySection();
-  appendPlainToSection(generateMethod, "\n    public String generate() {\n");
+  appendPlainToSection(generateMethod, generateArgument ? "\n    public String generate(Object argument) throws Exception {\n" : "\n    public String generate() {\n");
   appendPlainToSection(generateMethod, "        StringBuilder stringBuffer = new StringBuilder();\n");
 
   for (const block of model.blocks) {
@@ -788,6 +791,8 @@ function outputPlaceholder(
   budget?: PreviewBudget
 ): string {
   switch (block.kind) {
+    case "comment":
+      return "";
     case "directive":
       if (block.directive?.name === "include") {
         return includePreview(block.directive, targetLanguage, options, budget ?? previewBudget(options.limits)).text;
@@ -1195,6 +1200,9 @@ function sanitizeClassName(value: string | undefined): string | undefined {
 }
 
 function kindForMarker(marker: string): TxtJetBlockKind {
+  if (marker === "<%--") {
+    return "comment";
+  }
   switch (marker) {
     case "<%@":
       return "directive";
@@ -1213,6 +1221,9 @@ function findNextOpen(text: string, from: number): number {
 }
 
 function markerAt(text: string, offset: number): string | undefined {
+  if (text.startsWith("<%--", offset)) {
+    return "<%--";
+  }
   return OPEN_MARKERS.find((marker) => text.startsWith(marker, offset));
 }
 
