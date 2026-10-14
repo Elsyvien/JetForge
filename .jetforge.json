@@ -39,5 +39,8 @@
       "mode": "command",
       "command": "node compatibility-projects/fixture-evaluation/evaluate.js ${file} ${fixture} ${outputFile}"
     }
+  ],
+  "excludePaths": [
+    "compatibility-projects/builtin-compiler"
   ]
 }

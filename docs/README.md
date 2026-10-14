@@ -12,6 +12,7 @@ The repository contains three related surfaces: the editor extension, a CLI shar
 | Understand the components and data flow | [Architecture](ARCHITECTURE.md) |
 | Write templates, includes, and skeletons | [Template language](TEMPLATE_LANGUAGE.md) |
 | Configure a reproducible project and use the CLI | [Headless projects and golden tests](HEADLESS.md) |
+| Compile and execute templates with a local JDK, JSON or typed models | [Built-in compiler](BUILTIN_COMPILER.md) |
 | Navigate dependencies, connect a compiler, validate IP-XACT, or diagnose a problem | [Editor workflows and troubleshooting](WORKFLOWS.md) |
 | Change the implementation and choose tests | [Development guide](DEVELOPMENT.md) and [contribution guide](../CONTRIBUTING.md) |
 | Perform manual editor or release acceptance checks | [QA checklist](QA_CHECKLIST.md) |
@@ -28,9 +29,9 @@ JetForge offers three ways to inspect a template:
 | --- | --- | --- |
 | Generated-output preview | Local template transformation | Output shape, expanded includes, expression locations, and source origins |
 | Generated Java preview | Local projection into a Java class or token skeleton | Where embedded Java belongs and where Java tooling can provide assistance |
-| Evaluated output | Configured external compiler or command-mode fixture evaluator | The actual result produced by that project tool for its input |
+| Evaluated output | Built-in v2 compiler, configured external compiler or command-mode fixture evaluator | The actual result for a selected model/fixture |
 
-Both local previews are approximations. Scriptlets become visible placeholders in the output preview, expressions remain unevaluated, and a loop is not executed. The Java preview is an editor projection rather than Eclipse compiler output. This distinction also applies to the CLI: `generate` writes preview output; a `command` golden case executes the configured evaluator.
+Both local previews are approximations. Scriptlets become visible placeholders in the output preview, expressions remain unevaluated, and a loop is not executed. The Java preview is an editor projection rather than Eclipse compiler output. In v1 projects, CLI `generate` writes preview output and `command` golden cases execute a configured evaluator. [Version 2 builtin projects](BUILTIN_COMPILER.md) compile and execute actual Java for named targets.
 
 ## A typical project lifecycle
 

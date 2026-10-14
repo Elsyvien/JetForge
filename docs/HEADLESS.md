@@ -34,6 +34,11 @@ Shared project commands read saved files. Save template/configuration changes be
 
 ## Project contract
 
+This chapter describes the preserved **v1** contract. For real compilation,
+named targets, model providers, and the v2 configuration, use the
+[built-in compiler guide](BUILTIN_COMPILER.md). `compile`, `evaluate`, target-aware
+`generate`, and `validate --compiler` select that explicit backend.
+
 ```json
 {
   "version": 1,
@@ -153,7 +158,7 @@ The evaluator receives these placeholders:
 
 JetForge shell-quotes each substituted value; write these placeholder tokens directly in the command rather than surrounding them with another layer of shell quotes. Execution uses the project root as working directory and Node's shell-based `exec`. The command string and any wrapper code are trusted project code; the CLI has no Workspace Trust prompt.
 
-The editor's Explorer golden-run action has a trust visibility condition, but the shared golden/fixture command handlers and Testing run profile currently do not enforce a Workspace Trust check themselves. Treat configured cases as executable project code in both interfaces; the ordinary editor compiler/validator commands use separate trust guards.
+The editor's golden/fixture command handlers and Testing run profile enforce Workspace Trust, as do builtin target and ordinary compiler/validator commands. The terminal has no trust dialog; running configured cases explicitly executes project code.
 
 Before execution, an existing case output is removed. A nonzero process result, timeout, or successful command that fails to write `${outputFile}` is an evaluation error. JetForge reads the output as UTF-8 and removes it after a successful read. Failed runs can leave temporary files; inspect them when diagnosing an evaluator.
 

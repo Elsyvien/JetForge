@@ -11,9 +11,12 @@ design-qa.md
 .claude/**
 index.html
 feature-roadmap.html
+docs/TXTJET_COMPILER_PLAN.html
 styles.css
 script.js
 scripts/**
+runtime/java/**
+runtime/README.md
 assets/og-image.png
 assets/hero-j.webp
 assets/hero-j-alpha.webp

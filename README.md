@@ -41,6 +41,7 @@ Java completion, hover, and definition forwarding requires compatible installed 
 - Per-line generated preview provenance markers for root templates, expanded includes, expressions, skeleton content, and unmapped output, with hover details and Go to Definition.
 - Optional synchronized reveal between visible templates and generated previews where source maps are deterministic.
 - On-demand generated-output writing and previous-generation diffing.
+- Built-in `jetforge-v1` compilation and real evaluation with JDK 21+, JSON fixtures, typed model providers, nested includes, token skeletons, and named v2 targets shared by VS Code and CLI. See [the compiler guide](docs/BUILTIN_COMPILER.md).
 - Optional IP-XACT preview, generation, diff, validation, snippets, workspace indexing, and local-XSD schema intelligence behind `txtjet.ipxact.enabled`.
 - Outline symbols for directives, template Java blocks, expressions, declarations, and generated-output regions.
 - Go to Definition and Peek Definition for `@include file="..."`, `@jet skeleton="..."`, and local template Java helper methods.
@@ -74,7 +75,7 @@ This checks release metadata, runs the unit/package gate and a real VS Code Exte
 Install the generated package:
 
 ```bash
-code --install-extension txtjet-syntax-0.1.0.vsix
+code --install-extension txtjet-syntax-0.2.0.vsix
 ```
 
 Reload VSCode after installation if the language mode is not immediately available.
@@ -128,7 +129,7 @@ npm run headless -- test --update
 For another project, install the tagged Git repository as a development tool and use its `jetforge` binary:
 
 ```bash
-npm install --save-dev github:Elsyvien/JetForge#v0.1.0
+npm install --save-dev github:Elsyvien/JetForge#v0.2.0
 npx jetforge doctor
 npx jetforge test
 ```

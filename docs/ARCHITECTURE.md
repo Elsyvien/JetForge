@@ -38,7 +38,7 @@ The same parsed model feeds two projections:
 - **Output projection:** copy outer text, expand readable includes, and substitute language-aware placeholders for template Java and directives. Include boundaries remain visible in the preview.
 - **Java projection:** place declarations at class scope; create a `generate()` method with a `StringBuilder`; convert outer text to append statements, expressions to Java append expressions, and scriptlets to method content. A supported skeleton can supply the surrounding class layout.
 
-Neither projection invokes a Java runtime. Real compiler output enters through a configured external tool.
+Neither projection invokes a Java runtime. Real output enters through the [builtin v2 pipeline](BUILTIN_COMPILER.md) or a configured external tool. `txtjetCompiler.ts` emits Java and mappings; `builtinCompiler.ts` snapshots inputs and runs the packaged JVM bridge; `builtinProject.ts` resolves targets; `builtinEditor.ts` supplies trust, cancellation, live buffers and read-only results. This core is shared by editor and CLI.
 
 ## Ranges and provenance
 

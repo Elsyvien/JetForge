@@ -7,8 +7,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `npm ci` to reproduce the locked dependency tree.
 - Run `npm run check:release-metadata` and confirm package, lockfile, changelog, README, QA, tag, and VSIX version references agree.
 - Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate, source Extension Host smoke test, packaging, and clean-profile installed-VSIX smoke test pass at the declared VS Code floor.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.1.0.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.1.0`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.2.0.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.2.0`.
 - Reload VSCode after install.
 
 ## First-Run Experience
@@ -148,6 +148,19 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Create `a/component.txtjet` and `b/component.txtjet`, generate both, and confirm distinct workspace-relative targets are written without either output overwriting the other.
 - Create sibling `component.txtjet`, `component.jet`, and `component.javajet` files, generate each, and confirm the original template filename keeps every output collision-free.
 - Extract a selection from a `.jetinc` file and confirm the suggested include name strips the source suffix instead of producing `.jetinc.jetinc`.
+
+## Built-in compiler
+
+- Open `compatibility-projects/builtin-compiler` as its own workspace; use a JDK 21+ and a trusted profile.
+- Compile `component-demo` without loading its fixture or writing `generated/component-demo.xml`.
+- Evaluate both targets and confirm their exact golden XML, including the large integer. Actual output opens read-only with `jetforge-builtin-output`.
+- Edit an include and JSON fixture without saving; evaluate in the editor and confirm live content is used. Save and run the CLI; verify byte-identical results.
+- Generate a successful target, introduce a Java error in its nested include, and generate again. Confirm the diagnostic opens the include and the last valid file remains unchanged.
+- Start a slow target, then change root/include/configuration or start a newer run. Confirm the previous run aborts or is marked stale and cannot publish.
+- Test explicit invalid JDK selection, malformed JSON, duplicate keys, absent model classes, runtime exceptions, timeout and cancellation; verify distinct error codes.
+- In Restricted Mode, invoke builtin commands and golden/fixture handlers programmatically and through Testing. Confirm no template JVM starts.
+- Enable IP-XACT and configure a local validator. Confirm it receives evaluated XML and unmapped XSD errors appear on that read-only result.
+- Install the exact VSIX in a fresh profile, evaluate the demo and confirm the runner loads from the installed extension, not the development checkout.
 
 ## IP-XACT
 

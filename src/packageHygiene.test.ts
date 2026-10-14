@@ -56,6 +56,9 @@ const allowed = [
   /^assets\/icon\.png$/,
   /^assets\/jetforge-workspace-preview\.png$/,
   /^docs\/[A-Za-z0-9_-]+\.md$/,
+  /^runtime\/jetforge-runtime\.jar$/,
+  /^runtime\/lib\/gson-2\.14\.0\.jar$/,
+  /^runtime\/lib\/GSON-LICENSE$/,
   /^walkthrough\/[A-Za-z0-9_-]+\.md$/,
   /^examples\/[A-Za-z0-9_.-]+\.txtjet$/,
   /^examples\/partials\/[A-Za-z0-9_.-]+\.txtjet$/,
@@ -87,6 +90,9 @@ assert.ok(files.includes("SUPPORT.md"));
 assert.ok(files.includes("assets/jetforge-workspace-preview.png"));
 assert.ok(files.includes("docs/INTELLISENSE_ROADMAP.md"));
 assert.ok(files.includes("docs/QA_CHECKLIST.md"));
+assert.ok(files.includes("runtime/jetforge-runtime.jar"));
+assert.ok(files.includes("runtime/lib/gson-2.14.0.jar"));
+assert.ok(files.includes("runtime/lib/GSON-LICENSE"));
 for (const media of [
   "walkthrough/open-template.md",
   "walkthrough/choose-output.md",

@@ -1,6 +1,6 @@
 # Template language and output modes
 
-TxtJet templates mix generated text with JET/JSP-style Java blocks. JetForge understands the local structure needed for highlighting, diagnostics, previews, navigation, and conservative edits. The configured external compiler determines the actual runtime semantics of a production template.
+TxtJet templates mix generated text with JET/JSP-style Java blocks. JetForge understands the local structure needed for highlighting, diagnostics, previews, navigation, and conservative edits. Version 2 projects can select the [built-in `jetforge-v1` compiler](BUILTIN_COMPILER.md); other projects can connect their own external compiler.
 
 ## Block syntax
 

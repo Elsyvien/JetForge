@@ -4,7 +4,7 @@ JetForge welcomes focused bug fixes, compatibility fixtures, documentation impro
 
 ## Development setup
 
-1. Install Node.js 22 (the CI version) and Visual Studio Code.
+1. Install Node.js 22 (the CI version), a JDK 21 or newer, and Visual Studio Code.
 2. Run `npm ci`.
 3. Read [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) to locate the responsible module and select verification for the changed surface.
 4. For code changes, run `npm run verify`. For editor or package changes, also run the applicable smoke tests from the development guide. Release preparation requires `npm run verify:release`.

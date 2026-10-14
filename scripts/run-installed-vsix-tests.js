@@ -1,4 +1,4 @@
-const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } = require("node:fs");
+const { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { basename, join, resolve } = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -54,6 +54,13 @@ async function main() {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "jf-vsix-"));
   const userDataDir = join(temporaryRoot, "user-data");
   const extensionsDir = join(temporaryRoot, "extensions");
+  const successPath = join(temporaryRoot, "installed-smoke-passed.json");
+  const errorPath = join(temporaryRoot, "installed-smoke-error.txt");
+  const workspacePath = join(temporaryRoot, "smoke.code-workspace");
+  writeFileSync(workspacePath, JSON.stringify({ folders: [
+    { path: resolve(root, "examples") },
+    { path: resolve(root, "compatibility-projects", "builtin-compiler") }
+  ] }));
 
   try {
     runCli(executablePath, [
@@ -82,10 +89,12 @@ async function main() {
       extensionTestsEnv: {
         TXTJET_EXPECTED_EXTENSION_ID: extensionId,
         TXTJET_EXPECTED_VERSION: manifest.version,
-        TXTJET_TEST_WORKSPACE: root
+        TXTJET_TEST_WORKSPACE: root,
+        TXTJET_VSIX_TEST_SUCCESS_PATH: successPath,
+        TXTJET_VSIX_TEST_ERROR_PATH: errorPath
       },
       launchArgs: [
-        resolve(root, "examples"),
+        workspacePath,
         `--user-data-dir=${userDataDir}`,
         `--extensions-dir=${extensionsDir}`,
         "--disable-workspace-trust",
@@ -95,6 +104,10 @@ async function main() {
         "--skip-release-notes"
       ]
     });
+    if (!existsSync(successPath)) { throw new Error("Installed VSIX exited without completing smoke assertions."); }
+  } catch (error) {
+    if (existsSync(errorPath)) console.error(readFileSync(errorPath, "utf8"));
+    throw error;
   } finally {
     rmSync(temporaryRoot, { recursive: true, force: true });
   }

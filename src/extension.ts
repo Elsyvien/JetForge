@@ -4,9 +4,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { CoalescingAsyncRefresh } from "./asyncRefresh";
+import { evaluateBuiltinDocument, handleBuiltinDocument, isBuiltinDocument, openBuiltinResult, registerBuiltinCompilerCommands } from "./builtinEditor";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import {
   mapCompilerProblemsToSource,
+  compilerProblemTargetsFile,
   parseCompilerProblems,
   TxtJetCompilerDiagnosticSeverity
 } from "./compilerDiagnostics";
@@ -182,6 +184,7 @@ const compilerOutputSources = new Map<string, string>();
 
 export function activate(context: vscode.ExtensionContext): void {
   registerHeadlessWorkspaceCommands(context);
+  registerBuiltinCompilerCommands(context);
   registerSafeRecipeCommands(context, {
     javaWorkspaceIndex,
     isTxtJetFile,
@@ -455,6 +458,8 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.compileTemplate", async () => {
+      const document = vscode.window.activeTextEditor?.document;
+      if (document && await handleBuiltinDocument(document, "compile")) { return; }
       await compileTemplateWithExternalTool();
     })
   );
@@ -464,6 +469,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (!editor || !isTxtJetFile(editor.document)) {
         return;
       }
+      if (await handleBuiltinDocument(editor.document, "compile")) { return; }
       await validateTemplateWithCompiler(
         editor.document,
         diagnostics,
@@ -1765,6 +1771,7 @@ function outputPreviewOptions(document: vscode.TextDocument) {
 
 function javaPreviewOptions(document: vscode.TextDocument) {
   return {
+    generateArgument: isBuiltinDocument(document),
     sourceFileName: document.fileName,
     skeletonPaths: configuredReferencePaths(document, "resolution.skeletonPaths"),
     readSkeleton(path: string): string | undefined {
@@ -2693,6 +2700,7 @@ async function generateOutput(
   if (!editor || !isTxtJetFile(editor.document)) {
     return;
   }
+  if (await handleBuiltinDocument(editor.document, showDiffOnly ? "diff" : "generate")) { return; }
 
   const generated = buildGeneratedOutputPreview(
     editor.document.getText(),
@@ -2753,6 +2761,7 @@ async function generateIpxactOutput(
     showIpxactUnavailableMessage(editor?.document);
     return;
   }
+  if (await handleBuiltinDocument(editor.document, showDiffOnly ? "diff" : "generate")) { return; }
 
   const generated = buildIpxactOutputForDocument(editor.document).text;
   const previousUri = generationPreviousUri(editor.document, IPXACT_GENERATION_STORAGE_KEY);
@@ -2819,7 +2828,7 @@ async function validateIpxactTemplate(
     return;
   }
 
-  if (document.isDirty) {
+  if (document.isDirty && !isBuiltinDocument(document)) {
     if (!interactive) {
       return;
     }
@@ -2854,7 +2863,9 @@ async function validateIpxactTemplate(
   const validationOutput = validationOutputUri(outputUri, "ipxact", run.generation);
   const outputPath = validationOutput.fsPath;
   try {
-    const generated = buildIpxactOutputForDocument(document);
+    const evaluated = await evaluateBuiltinDocument(document, interactive);
+    if (evaluated.handled && (!evaluated.result?.ok || evaluated.result.output === undefined)) { return; }
+    const generated = evaluated.handled ? { text: evaluated.result!.output!, mappings: [], provenance: [] } : buildIpxactOutputForDocument(document);
     if (!await writeGeneratedOutput(validationOutput, generated.text, interactive)) {
       return;
     }
@@ -2882,6 +2893,20 @@ async function validateIpxactTemplate(
 
     const matcher = config.get<string>("ipxact.validation.problemMatcher", DEFAULT_IPXACT_PROBLEM_MATCHER);
     const problems = parseCompilerProblems([result.stdout, result.stderr].filter(Boolean).join("\n"), matcher);
+    if (evaluated.result?.inputsCurrent?.() === false) { return; }
+    if (evaluated.handled && evaluated.result) {
+      const outputDocument = await openBuiltinResult(evaluated.result);
+      if (outputDocument) {
+        const outputProblems = problems.filter(problem => compilerProblemTargetsFile(problem.file, outputPath, workspaceFolder));
+        collection.set(outputDocument.uri, outputProblems.map(problem => {
+          const line = Math.max(0, Math.min(outputDocument.lineCount - 1, problem.line - 1));
+          const column = Math.max(0, Math.min(outputDocument.lineAt(line).text.length, (problem.column ?? 1) - 1));
+          const diagnostic = new vscode.Diagnostic(new vscode.Range(line, column, line, column), problem.message,
+            problem.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error);
+          diagnostic.source = "JetForge IP-XACT validator"; return diagnostic;
+        }));
+      }
+    }
     const mappedProblems = mapIpxactProblemsToSource(problems, generated, outputPath, workspaceFolder);
     const schema = configuredIpxactSchemaIndex(document);
     const mappedDiagnostics = mappedProblems.map((problem) => ipxactProblemToDiagnostic(document, problem, schema));

@@ -33,7 +33,7 @@ export interface TxtJetReferenceChecks {
   directiveAttributes?: Record<string, string[]>;
 }
 
-const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
+const OPEN_MARKERS = ["<%--", "<%@", "<%=", "<%!", "<%"];
 const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
   jet: new Set(["package", "class", "imports", "skeleton", "ipxact"]),
   include: new Set(["file"])
@@ -41,6 +41,14 @@ const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
 
 export function scanTxtJetIssues(text: string): TxtJetIssue[] {
   const issues: TxtJetIssue[] = [];
+  const processingInstructionClosers = new Set<number>();
+  for (let from = 0; from < text.length;) {
+    const open = text.indexOf("<?", from);
+    if (open < 0) { break; }
+    const close = text.indexOf("?>", open + 2);
+    if (close < 0) { break; }
+    processingInstructionClosers.add(close); from = close + 2;
+  }
   let offset = 0;
 
   while (offset < text.length) {
@@ -61,6 +69,7 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
     }
 
     if (next.kind === "question-close") {
+      if (processingInstructionClosers.has(next.offset)) { offset = next.offset + 2; continue; }
       issues.push({
         code: "unexpected-close",
         message: "Unexpected TxtJet closing delimiter. Use %> to close TxtJet blocks.",
@@ -78,7 +87,8 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
     }
 
     const contentStart = next.offset + marker.length;
-    const close = text.indexOf("%>", contentStart);
+    const closingMarker = marker === "<%--" ? "--%>" : "%>";
+    const close = text.indexOf(closingMarker, contentStart);
     if (close === -1) {
       issues.push({
         code: "unclosed-block",
@@ -93,7 +103,7 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
       issues.push(...scanDirective(text, contentStart, close));
     }
 
-    offset = close + 2;
+    offset = close + closingMarker.length;
   }
 
   return issues;

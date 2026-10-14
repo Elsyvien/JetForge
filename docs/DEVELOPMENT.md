@@ -15,6 +15,7 @@ The extension and CLI share template and project logic. Keep VS Code document, c
 | Workspace dependencies, impact, refactors | `src/workspaceModel.ts`, `src/refactorPlans.ts`; editor adapters in `src/impactGraphView.ts`, `src/refactorCommands.ts` | `workspaceModel`, `refactorPlans` tests; review-plan scenarios |
 | Doctor, generation, golden cases, CLI reports | `src/headlessProject.ts`, `src/headlessReports.ts`, `src/cli.ts`; editor adapter in `src/workspaceCommands.ts` | `headlessProject` tests and checked-in compatibility cases |
 | Compiler execution, diagnostics, cancellation | `src/externalCommand.ts`, `src/compilerToolchain.ts`, `src/compilerDiagnostics.ts`, `src/validationRuns.ts`; execution in `src/extension.ts` | Matching tests; trust, timeout, superseded-run scenarios |
+| Builtin compiler, models, snapshots and targets | `src/txtjetCompiler.ts`, `src/compilerSourceMap.ts`, `src/builtinCompiler.ts`, `src/builtinProject.ts`, `runtime/java/`; editor adapter in `src/builtinEditor.ts` | Compiler/JVM/CLI tests, pinned Eclipse reference, installed-VSIX execution |
 | Path containment, output naming, resource limits | `src/extensionSupport.ts`, `src/generationPaths.ts`, `src/resourceBudget.ts` | Matching tests; traversal, symlink, collision, and limit cases |
 | IP-XACT and local schema intelligence | `src/ipxact.ts`, `src/ipxactSchema.ts`, `src/schemaDiscovery.ts` | Matching tests; enabled/disabled and multi-root scenarios |
 | Commands, providers, settings, walkthrough | `src/extension.ts`, `package.json`, `walkthrough/` | `manifest` tests, source Extension Host smoke test, relevant QA scenarios |
@@ -26,7 +27,7 @@ Test labels above refer to adjacent `src/<name>.test.ts` files. The table is an 
 
 ### Projections and source mappings
 
-Generated-output previews preserve outer text and expand resolvable includes while representing unevaluated expressions with placeholders. Generated Java previews project template Java into a class or configured skeleton. Neither preview evaluates arbitrary Java; real fixture evaluation uses a configured command-mode golden case.
+Generated-output previews preserve outer text and expand resolvable includes while representing unevaluated expressions with placeholders. Generated Java previews project template Java into a class or configured skeleton. Neither preview evaluates arbitrary Java; real fixture evaluation uses the explicit builtin v2 backend or a configured command-mode golden case. For the model ABI, snapshot/publication contracts and dialect boundaries, read [BUILTIN_COMPILER.md](BUILTIN_COMPILER.md).
 
 Attach navigation, edits, and diagnostics only where a mapping is deterministic. Keep ambiguous or compiler-only output visibly unmapped. Include-expanded and skeleton-rendered content must retain its contributing file and range rather than pointing at an unrelated root-template offset.
 

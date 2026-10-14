@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as vscode from "vscode";
+import { BuiltinTargetResult } from "./builtinProject";
 
 const EXTENSION_ID = "elsyvien.txtjet-syntax";
 const EXPECTED_LANGUAGE_IDS = [
@@ -358,6 +360,32 @@ export async function run(): Promise<void> {
 
     await vscode.window.showTextDocument(consumerDocument);
     await vscode.commands.executeCommand("txtjet.showImpactGraph");
+    const builtinRoot = vscode.Uri.joinPath(topologyRoot!, "builtin");
+    await vscode.workspace.fs.createDirectory(builtinRoot);
+    const builtinTemplate = vscode.Uri.joinPath(builtinRoot, "main.xmljet");
+    const builtinInclude = vscode.Uri.joinPath(builtinRoot, "tail.jetinc");
+    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(builtinRoot, ".jetforge.json"), Buffer.from(JSON.stringify({
+      version: 2, sourcePaths: ["main.xmljet"], compiler: { backend: "builtin", dialect: "jetforge-v1" },
+      targets: [{ name: "smoke", template: "main.xmljet", fixture: "model.json", output: "generated/result.xml" }]
+    })));
+    await vscode.workspace.fs.writeFile(builtinTemplate, Buffer.from('<%@ jet imports="java.util.Map" %><% Map<?,?> model=(Map<?,?>)argument; %><%= model.get("name") %><%@ include file="tail.jetinc" %>'));
+    await vscode.workspace.fs.writeFile(vscode.Uri.joinPath(builtinRoot, "model.json"), Buffer.from('{"name":"Ada"}'));
+    await vscode.workspace.fs.writeFile(builtinInclude, Buffer.from(" saved"));
+    const includedDocument = await vscode.workspace.openTextDocument(builtinInclude);
+    const replaceInclude = new vscode.WorkspaceEdit(); replaceInclude.replace(builtinInclude, new vscode.Range(includedDocument.positionAt(0), includedDocument.positionAt(includedDocument.getText().length)), " live");
+    await vscode.workspace.applyEdit(replaceInclude);
+    const argument = { root: builtinRoot.fsPath, target: "smoke", quiet: true };
+    const compiledBuiltin = await vscode.commands.executeCommand<BuiltinTargetResult>("txtjet.compileBuiltinTarget", argument);
+    assert.equal(compiledBuiltin.ok, true, JSON.stringify(compiledBuiltin)); assert.equal(compiledBuiltin.output, undefined);
+    const evaluatedBuiltin = await vscode.commands.executeCommand<BuiltinTargetResult>("txtjet.evaluateBuiltinTarget", argument);
+    assert.equal(evaluatedBuiltin.ok, true, JSON.stringify(evaluatedBuiltin)); assert.equal(evaluatedBuiltin.output, "Ada live", "builtin evaluation must prefer unsaved includes");
+    await vscode.commands.executeCommand("txtjet.evaluateBuiltinTarget", { ...argument, quiet: false });
+    assert.equal(vscode.window.activeTextEditor?.document.uri.scheme, "jetforge-builtin-output", "builtin output must open as a read-only document");
+    assert.equal(vscode.window.activeTextEditor?.document.getText(), "Ada live");
+    const generatedBuiltin = await vscode.commands.executeCommand<BuiltinTargetResult>("txtjet.generateBuiltinTarget", argument);
+    assert.equal(generatedBuiltin.ok, true);
+    assert.equal(Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(builtinRoot, "generated/result.xml"))).toString("utf8"), "Ada live");
+    if (process.env.TXTJET_EXTENSION_TEST_SUCCESS_PATH) { writeFileSync(process.env.TXTJET_EXTENSION_TEST_SUCCESS_PATH, JSON.stringify({ complete: true, builtin: true })); }
   } finally {
     if (workspaceConfiguration) {
       await workspaceConfiguration.update("ipxact.enabled", previousIpxactEnabled, vscode.ConfigurationTarget.WorkspaceFolder);

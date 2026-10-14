@@ -1,4 +1,5 @@
 import { relative } from "node:path";
+import { BuiltinTargetResult } from "./builtinProject";
 import {
   JetForgeDoctorReport,
   JetForgeGenerationResult,
@@ -97,6 +98,19 @@ export function goldenJunit(run: JetForgeGoldenRun): string {
     "</testsuite>",
     ""
   ].join("\n");
+}
+
+/** Unmapped compiler problems have no template location; Java line stays in the message. */
+export function compilerValidationSarif(local: JetForgeValidationResult, compilerResults: BuiltinTargetResult[]): object {
+  const report = validationSarif(local) as { runs: Array<{ results: object[]; tool: { driver: { rules: object[] } } }> };
+  const diagnostics = compilerResults.flatMap(target => target.diagnostics.map(problem => ({ target: target.target, problem })));
+  report.runs[0].tool.driver.rules.push(...Array.from(new Set(diagnostics.map(entry => entry.problem.code))).map(code => ({ id: code, shortDescription: { text: `JetForge compiler ${code}` } })));
+  report.runs[0].results.push(...diagnostics.map(({ target, problem }) => ({
+    ruleId: problem.code, level: problem.severity,
+    message: { text: `[${target}] ${problem.message}${!problem.fileName && problem.javaLine ? ` (generated Java line ${problem.javaLine})` : ""}` },
+    ...(problem.fileName && problem.line ? { locations: [{ physicalLocation: { artifactLocation: { uri: relative(local.root, problem.fileName).replace(/\\/g, "/") }, region: { startLine: problem.line, startColumn: Math.max(1, problem.column ?? 1) } } }] } : {})
+  })));
+  return report;
 }
 
 function xmlAttribute(value: string): string {

@@ -1,0 +1,2 @@
+
+    <register><name><%= upper(name) %></name></register>
