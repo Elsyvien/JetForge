@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "sourcePaths": ["templates"],
+  "includePaths": ["templates/partials"],
+  "skeletonPaths": ["templates/skeletons"],
+  "compiler": {
+    "backend": "builtin",
+    "dialect": "jetforge-v1",
+    "release": 21,
+    "timeoutMs": 30000
+  },
+  "targets": [
+    {
+      "name": "component-demo",
+      "template": "templates/component.xmljet",
+      "fixture": "fixtures/demo.json",
+      "output": "generated/component-demo.xml"
+    },
+    {
+      "name": "component-other",
+      "template": "templates/component.xmljet",
+      "fixture": "fixtures/other.json",
+      "output": "generated/component-other.xml"
+    }
+  ],
+  "tests": [
+    { "name": "component-demo-golden", "target": "component-demo", "expected": "golden/component-demo.xml" },
+    { "name": "component-other-golden", "target": "component-other", "expected": "golden/component-other.xml" }
+  ]
+}

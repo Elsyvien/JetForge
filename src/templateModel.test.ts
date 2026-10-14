@@ -202,4 +202,37 @@ assert.ok(
   `large preview generation took ${performanceElapsedMs.toFixed(1)} ms; expected the linear path to stay below 1500 ms`
 );
 
+const repeatedIncludes = '<%@ include file="parts/item.txtjet" %>\n'.repeat(5);
+const includeBudgetPreview = buildGeneratedOutputPreview(repeatedIncludes, "txtjet-html", {
+  sourceFileName: workspaceMain,
+  expandIncludes: true,
+  readInclude: () => "<li>bounded</li>",
+  limits: { expansions: 4 }
+});
+assert.match(includeBudgetPreview.text, /preview stopped.*expansions exceeded its limit of 4/i);
+assert.ok(includeBudgetPreview.text.length < 500, "a rejected include graph must return a bounded diagnostic preview");
+
+const repeatedSkeleton = "${generateMethod}\n".repeat(5);
+const skeletonBudgetPreview = buildGeneratedJavaPreview(
+  '<%@ jet skeleton="layout.skeleton" %>\nhello',
+  workspaceMain,
+  {
+    sourceFileName: workspaceMain,
+    readSkeleton: () => repeatedSkeleton,
+    limits: { expansions: 4 }
+  }
+);
+assert.match(skeletonBudgetPreview.text, /preview stopped.*expansions exceeded its limit of 4/i);
+assert.ok(skeletonBudgetPreview.text.length < 500, "a rejected skeleton must return a bounded diagnostic preview");
+
+const outputBudgetPreview = buildGeneratedOutputPreview("x".repeat(100), "txtjet", {
+  limits: { outputCharacters: 32 }
+});
+assert.match(outputBudgetPreview.text, /preview stopped.*outputCharacters exceeded its limit of 32/i);
+
+const entryBudgetPreview = buildGeneratedOutputPreview("<%= value %>".repeat(30), "txtjet", {
+  limits: { entries: 100 }
+});
+assert.match(entryBudgetPreview.text, /preview stopped.*entries exceeded its limit of 100/i);
+
 console.log("template model tests ok");

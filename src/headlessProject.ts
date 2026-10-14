@@ -10,6 +10,8 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, join, normalize, relative, resolve } from "node:path";
 import { promisify } from "node:util";
+import { BuiltinRunOptions, BuiltinTarget, isBuiltinProject, runBuiltinTarget, validateBuiltinConfig, validateBuiltinSourceOutputs } from "./builtinProject";
+import { CompilerErrorCode } from "./compilerProtocol";
 import { detectTargetLanguage, detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { compilerCommandGuidance } from "./compilerToolchain";
 import { isPathInsideAnyRoot, isTxtJetPath, shellArgumentQuote } from "./extensionSupport";
@@ -31,11 +33,17 @@ const DEFAULT_CONFIG_NAME = ".jetforge.json";
 const MAX_PROJECT_FILES = 10000;
 const MAX_COMMAND_BUFFER = 4 * 1024 * 1024;
 
-export type JetForgeGoldenMode = "preview" | "command";
+export type JetForgeGoldenMode = "preview" | "command" | "builtin";
 
 export interface JetForgeCompilerConfig {
-  command: string;
+  command?: string;
   timeoutMs?: number;
+  backend?: "builtin";
+  dialect?: "jetforge-v1";
+  release?: number;
+  classpath?: string[];
+  sourceRoots?: string[];
+  modelProvider?: string;
 }
 
 export interface JetForgeGoldenCase {
@@ -47,10 +55,11 @@ export interface JetForgeGoldenCase {
   command?: string;
   fixture?: string;
   timeoutMs?: number;
+  target?: string;
 }
 
 export interface JetForgeProjectConfig {
-  version?: 1;
+  version?: 1 | 2;
   sourcePaths?: string[];
   excludePaths?: string[];
   includePaths?: string[];
@@ -58,6 +67,7 @@ export interface JetForgeProjectConfig {
   outputDirectory?: string;
   compiler?: JetForgeCompilerConfig;
   tests?: JetForgeGoldenCase[];
+  targets?: BuiltinTarget[];
 }
 
 export interface JetForgeProject {
@@ -67,9 +77,13 @@ export interface JetForgeProject {
   config: JetForgeProjectConfig;
   files: TxtJetWorkspaceFile[];
   model: TxtJetWorkspaceModel;
+  readFile?: (fileName: string) => string | undefined;
+  configText?: string;
+  sourceFileNamesCurrent?: () => string[];
 }
 
-export interface JetForgeValidationIssue extends TxtJetIssue {
+export interface JetForgeValidationIssue extends Omit<TxtJetIssue, "code"> {
+  code: TxtJetIssue["code"] | CompilerErrorCode;
   fileName: string;
   line: number;
   column: number;
@@ -133,19 +147,23 @@ export interface JetForgeEvaluationResult {
   durationMs: number;
 }
 
-export function loadJetForgeProject(rootDirectory: string, configFile = DEFAULT_CONFIG_NAME): JetForgeProject {
+export function loadJetForgeProject(rootDirectory: string, configFile = DEFAULT_CONFIG_NAME, readFile?: (fileName: string) => string | undefined): JetForgeProject {
   const root = normalize(resolve(rootDirectory));
   const configPath = resolveProjectPath(root, configFile, true);
   const configExists = existsSync(configPath);
-  const config = configExists ? parseProjectConfig(configPath) : {};
+  const configText = configExists ? readFile?.(configPath) ?? readFileSync(configPath, "utf8") : undefined;
+  const config = configExists ? parseProjectConfig(configPath, configText) : {};
+  if (config.version === 2) { validateBuiltinConfig(config, root); }
   const includePaths = safeConfiguredRoots(root, config.includePaths);
   const skeletonPaths = safeConfiguredRoots(root, config.skeletonPaths);
-  const files = discoverProjectFiles(root, config.sourcePaths, config.excludePaths);
+  const files = discoverProjectFiles(root, config.sourcePaths, config.excludePaths).map(file => ({ ...file, text: readFile?.(file.fileName) ?? file.text }));
+  if (config.version === 2) { validateBuiltinSourceOutputs(config, root, files.map(file => file.fileName)); }
   const model = createTxtJetWorkspaceModel(files, {
     includePathsForFile: () => includePaths,
     skeletonPathsForFile: () => skeletonPaths
   });
-  return { root, configPath, configExists, config, files, model };
+  return { root, configPath, configExists, config, files, model, readFile, configText,
+    sourceFileNamesCurrent: () => discoverProjectFiles(root, config.sourcePaths, config.excludePaths, false).map(file => file.fileName) };
 }
 
 export function validateJetForgeProject(project: JetForgeProject): JetForgeValidationResult {
@@ -220,7 +238,17 @@ export function inspectJetForgeProject(project: JetForgeProject): JetForgeDoctor
   });
 
   const compiler = project.config.compiler?.command?.trim();
-  if (!compiler) {
+  if (isBuiltinProject(project)) {
+    checks.push({ id: "compiler", status: "pass", title: "Built-in compiler configured", detail: `${project.config.targets?.length ?? 0} target(s), dialect jetforge-v1; JDK 21+ required.` });
+    for (const target of project.config.targets ?? []) {
+      const inputs = [target.template, ...(target.fixture ? [target.fixture] : [])];
+      const missing = inputs.filter(input => !existsSync(safeProjectPath(project.root, input)));
+      checks.push({ id: "target", status: missing.length ? "fail" : "pass", title: `Builtin target ${target.name}`, detail: missing.length ? `Missing inputs: ${missing.join(", ")}` : `${target.template} -> ${target.output}` });
+    }
+    for (const entry of [...(project.config.compiler?.classpath ?? []), ...(project.config.compiler?.sourceRoots ?? [])]) {
+      checks.push({ id: "classpath", status: existsSync(safeProjectPath(project.root, entry)) ? "pass" : "fail", title: "Compiler classpath", detail: entry });
+    }
+  } else if (!compiler) {
     checks.push({
       id: "compiler",
       status: "warning",
@@ -304,6 +332,7 @@ export function inspectJetForgeProject(project: JetForgeProject): JetForgeDoctor
 }
 
 export function generateJetForgeProject(project: JetForgeProject): JetForgeGenerationResult[] {
+  if (isBuiltinProject(project)) { throw new Error("Builtin projects must generate through runBuiltinTargets, not the preview generator."); }
   const outputRoot = configuredOutputRoot(project);
   if (!outputRoot) {
     throw new Error("Configured outputDirectory must remain inside the workspace.");
@@ -329,7 +358,8 @@ export function generateJetForgeProject(project: JetForgeProject): JetForgeGener
 export async function runJetForgeGoldenTests(
   project: JetForgeProject,
   update = false,
-  selectedNames?: ReadonlySet<string>
+  selectedNames?: ReadonlySet<string>,
+  options: BuiltinRunOptions = {}
 ): Promise<JetForgeGoldenRun> {
   const results: JetForgeGoldenResult[] = [];
   for (const testCase of (project.config.tests ?? []).filter((entry) => !selectedNames || selectedNames.has(entry.name))) {
@@ -337,7 +367,7 @@ export async function runJetForgeGoldenTests(
     const expectedPath = safeProjectPath(project.root, testCase.expected);
     try {
       validateGoldenCase(project, testCase);
-      const actual = await renderGoldenCase(project, testCase);
+      const actual = await renderGoldenCase(project, testCase, options);
       if (update) {
         mkdirSync(dirname(expectedPath), { recursive: true });
         writeFileSync(expectedPath, actual, "utf8");
@@ -362,7 +392,7 @@ export async function runJetForgeGoldenTests(
         continue;
       }
       const expected = readFileSync(expectedPath, "utf8");
-      const matches = normalizedOutput(actual) === normalizedOutput(expected);
+      const matches = testCase.mode === "builtin" ? actual === expected : normalizedOutput(actual) === normalizedOutput(expected);
       results.push({
         name: testCase.name,
         status: matches ? "passed" : "failed",
@@ -390,14 +420,14 @@ export async function runJetForgeGoldenTests(
   return { root: project.root, results, passed, failed, updated, errors, ok: failed === 0 && errors === 0 };
 }
 
-export async function evaluateJetForgeCase(project: JetForgeProject, name: string): Promise<JetForgeEvaluationResult> {
+export async function evaluateJetForgeCase(project: JetForgeProject, name: string, options: BuiltinRunOptions = {}): Promise<JetForgeEvaluationResult> {
   const testCase = (project.config.tests ?? []).find((entry) => entry.name === name);
   if (!testCase) {
     throw new Error(`Unknown JetForge test case: ${name}.`);
   }
   validateGoldenCase(project, testCase);
   const started = Date.now();
-  const content = await renderGoldenCase(project, testCase);
+  const content = await renderGoldenCase(project, testCase, options);
   return { testCase, content, durationMs: Date.now() - started };
 }
 
@@ -440,10 +470,10 @@ export function formatGoldenMarkdown(run: JetForgeGoldenRun): string {
   return lines.join("\n");
 }
 
-function parseProjectConfig(configPath: string): JetForgeProjectConfig {
+function parseProjectConfig(configPath: string, text?: string): JetForgeProjectConfig {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(configPath, "utf8"));
+    parsed = JSON.parse(text ?? readFileSync(configPath, "utf8"));
   } catch (error) {
     throw new Error(`Could not parse ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -451,16 +481,19 @@ function parseProjectConfig(configPath: string): JetForgeProjectConfig {
     throw new Error(`${configPath} must contain a JSON object.`);
   }
   const config = parsed as JetForgeProjectConfig;
-  if (config.version !== undefined && config.version !== 1) {
+  if (config.version !== undefined && config.version !== 1 && config.version !== 2) {
     throw new Error(`Unsupported JetForge project version: ${String(config.version)}.`);
   }
   if (config.tests !== undefined && !Array.isArray(config.tests)) {
     throw new Error("JetForge tests must be an array.");
   }
+  if (config.version !== 2 && (config.compiler?.backend || config.targets || config.tests?.some(test => test.mode === "builtin" || test.target))) {
+    throw new Error("Builtin targets require JetForge project version 2.");
+  }
   return config;
 }
 
-function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, excludePaths: string[] | undefined): TxtJetWorkspaceFile[] {
+function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, excludePaths: string[] | undefined, readText = true): TxtJetWorkspaceFile[] {
   const files: TxtJetWorkspaceFile[] = [];
   const sources = (sourcePaths?.length ? sourcePaths : ["."]).map((entry) => safeProjectPath(root, entry));
   const excluded = (excludePaths ?? []).map((entry) => safeProjectPath(root, entry));
@@ -486,7 +519,7 @@ function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, e
       if (!entry.isFile() || (!isTxtJetPath(fileName) && !fileName.toLowerCase().endsWith(".skeleton"))) {
         continue;
       }
-      files.push({ fileName: normalize(fileName), text: readFileSync(fileName, "utf8") });
+      files.push({ fileName: normalize(fileName), text: readText ? readFileSync(fileName, "utf8") : undefined });
       if (files.length > MAX_PROJECT_FILES) {
         throw new Error(`JetForge stopped after ${MAX_PROJECT_FILES} workspace files.`);
       }
@@ -499,7 +532,7 @@ function discoverProjectFiles(root: string, sourcePaths: string[] | undefined, e
     if (lstatSync(source).isDirectory()) {
       visit(source);
     } else if (isTxtJetPath(source) || source.toLowerCase().endsWith(".skeleton")) {
-      files.push({ fileName: source, text: readFileSync(source, "utf8") });
+      files.push({ fileName: source, text: readText ? readFileSync(source, "utf8") : undefined });
     }
   }
   return files.sort((left, right) => left.fileName.localeCompare(right.fileName));
@@ -553,7 +586,12 @@ function validateGoldenCase(project: JetForgeProject, testCase: JetForgeGoldenCa
   }
 }
 
-async function renderGoldenCase(project: JetForgeProject, testCase: JetForgeGoldenCase): Promise<string> {
+async function renderGoldenCase(project: JetForgeProject, testCase: JetForgeGoldenCase, options: BuiltinRunOptions = {}): Promise<string> {
+  if (testCase.mode === "builtin") {
+    const result = await runBuiltinTarget(project, testCase.target!, "evaluate", options);
+    if (!result.ok || result.output === undefined) { throw new Error(result.diagnostics.map(problem => `[${problem.code}] ${problem.message}`).join("\n")); }
+    return result.output;
+  }
   const templatePath = safeProjectPath(project.root, testCase.template);
   const templateText = readFileSync(templatePath, "utf8");
   if ((testCase.mode ?? "preview") === "preview") {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   buildCompilerOutputProvenance,
+  MAX_PROVENANCE_ORIGINS_PER_LINE,
   previewLineProvenance,
   primaryProvenance,
   provenanceAtPreviewOffset
@@ -88,5 +89,35 @@ const crlfPreview = buildGeneratedOutputPreview("alpha\r\nomega\r\n", "txtjet", 
 const lfCompilerPreview = buildCompilerOutputProvenance("alpha\nomega\n", crlfPreview);
 assert.equal(previewLineProvenance(lfCompilerPreview)[0].origins[0].kind, "root");
 assert.equal(previewLineProvenance(lfCompilerPreview)[1].origins[0].kind, "root");
+
+const provenanceLineCount = 20000;
+const provenanceText = "x\n".repeat(provenanceLineCount);
+const linearProvenanceStart = performance.now();
+const linearProvenance = previewLineProvenance({
+  text: provenanceText,
+  mappings: [],
+  provenance: Array.from({ length: provenanceLineCount }, (_, line) => ({
+    preview: { start: line * 2, end: line * 2 + 1 },
+    kind: "root" as const,
+    confidence: "direct" as const,
+    source: { start: line, end: line + 1 }
+  }))
+});
+const linearProvenanceElapsedMs = performance.now() - linearProvenanceStart;
+assert.equal(linearProvenance[provenanceLineCount - 1].origins[0]?.source?.start, provenanceLineCount - 1);
+assert.ok(
+  linearProvenanceElapsedMs < 1500,
+  `line provenance sweep took ${linearProvenanceElapsedMs.toFixed(1)} ms; expected below 1500 ms`
+);
+
+const overlappingOrigins = Array.from({ length: MAX_PROVENANCE_ORIGINS_PER_LINE + 20 }, (_, index) => ({
+  preview: { start: 0, end: 3 },
+  kind: "include" as const,
+  confidence: "include-expanded" as const,
+  sourceFileName: `/workspace/include-${index}.jetinc`
+}));
+const limitedOrigins = previewLineProvenance({ text: "a\nb", mappings: [], provenance: overlappingOrigins });
+assert.equal(limitedOrigins[0].origins.length, MAX_PROVENANCE_ORIGINS_PER_LINE + 1);
+assert.match(limitedOrigins[0].origins.at(-1)?.label ?? "", /limited to 128 origins/);
 
 console.log("provenance tests ok");

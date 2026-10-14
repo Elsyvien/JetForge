@@ -33,7 +33,7 @@ export interface TxtJetReferenceChecks {
   directiveAttributes?: Record<string, string[]>;
 }
 
-const OPEN_MARKERS = ["<%@", "<%=", "<%!", "<%"];
+const OPEN_MARKERS = ["<%--", "<%@", "<%=", "<%!", "<%"];
 const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
   jet: new Set(["package", "class", "imports", "skeleton", "ipxact"]),
   include: new Set(["file"])
@@ -41,57 +41,63 @@ const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
 
 export function scanTxtJetIssues(text: string): TxtJetIssue[] {
   const issues: TxtJetIssue[] = [];
+  let processingInstructionOpen = false;
   let offset = 0;
 
   while (offset < text.length) {
-    const nextOpen = findNextOpen(text, offset);
-    const nextClose = text.indexOf("%>", offset);
-    const nextQuestionClose = text.indexOf("?>", offset);
-
-    if (nextClose !== -1 && (nextOpen === -1 || nextClose < nextOpen)) {
-      issues.push({
-        code: "unexpected-close",
-        message: "Unexpected TxtJet closing delimiter without a matching opening delimiter.",
-        start: nextClose,
-        end: nextClose + 2
-      });
-      offset = nextClose + 2;
-      continue;
-    }
-
-    if (
-      nextQuestionClose !== -1
-      && (nextOpen === -1 || nextQuestionClose < nextOpen)
-      && (nextClose === -1 || nextQuestionClose < nextClose)
-    ) {
-      issues.push({
-        code: "unexpected-close",
-        message: "Unexpected TxtJet closing delimiter. Use %> to close TxtJet blocks.",
-        start: nextQuestionClose,
-        end: nextQuestionClose + 2
-      });
-      offset = nextQuestionClose + 2;
-      continue;
-    }
-
-    if (nextOpen === -1) {
+    const next = findNextDelimiter(text, offset);
+    if (!next) {
       break;
     }
 
-    const marker = markerAt(text, nextOpen);
-    if (!marker) {
-      offset = nextOpen + 2;
+    if (next.kind === "close") {
+      issues.push({
+        code: "unexpected-close",
+        message: "Unexpected TxtJet closing delimiter without a matching opening delimiter.",
+        start: next.offset,
+        end: next.offset + 2
+      });
+      offset = next.offset + 2;
       continue;
     }
 
-    const contentStart = nextOpen + marker.length;
-    const close = text.indexOf("%>", contentStart);
+    if (next.kind === "question-open") {
+      processingInstructionOpen = true;
+      offset = next.offset + 2;
+      continue;
+    }
+
+    if (next.kind === "question-close") {
+      if (processingInstructionOpen) {
+        processingInstructionOpen = false;
+        offset = next.offset + 2;
+        continue;
+      }
+      issues.push({
+        code: "unexpected-close",
+        message: "Unexpected TxtJet closing delimiter. Use %> to close TxtJet blocks.",
+        start: next.offset,
+        end: next.offset + 2
+      });
+      offset = next.offset + 2;
+      continue;
+    }
+
+    const marker = markerAt(text, next.offset);
+    if (!marker) {
+      offset = next.offset + 2;
+      continue;
+    }
+
+    const contentStart = next.offset + marker.length;
+    const closingMarker = marker === "<%--" ? "--%>" : "%>";
+    const close = text.indexOf(closingMarker, contentStart);
     if (close === -1) {
       issues.push({
         code: "unclosed-block",
         message: "Unclosed TxtJet block. Add a matching %> delimiter.",
-        start: nextOpen,
-        end: Math.min(text.length, nextOpen + marker.length)
+        start: next.offset,
+        end: Math.min(text.length, next.offset + marker.length)
       });
       break;
     }
@@ -100,7 +106,7 @@ export function scanTxtJetIssues(text: string): TxtJetIssue[] {
       issues.push(...scanDirective(text, contentStart, close));
     }
 
-    offset = close + 2;
+    offset = close + closingMarker.length;
   }
 
   return issues;
@@ -292,15 +298,26 @@ function isValidSkeletonPath(value: string): boolean {
   return !/\.[^/\\.]+$/.test(value) || value.toLowerCase().endsWith(".skeleton");
 }
 
-function findNextOpen(text: string, from: number): number {
-  let next = -1;
-  for (const marker of OPEN_MARKERS) {
-    const index = text.indexOf(marker, from);
-    if (index !== -1 && (next === -1 || index < next)) {
-      next = index;
+function findNextDelimiter(
+  text: string,
+  from: number
+): { kind: "open" | "close" | "question-open" | "question-close"; offset: number } | undefined {
+  for (let offset = from; offset + 1 < text.length; offset += 1) {
+    const pair = text.slice(offset, offset + 2);
+    if (pair === "<%") {
+      return { kind: "open", offset };
+    }
+    if (pair === "%>") {
+      return { kind: "close", offset };
+    }
+    if (pair === "<?") {
+      return { kind: "question-open", offset };
+    }
+    if (pair === "?>") {
+      return { kind: "question-close", offset };
     }
   }
-  return next;
+  return undefined;
 }
 
 function markerAt(text: string, offset: number): string | undefined {

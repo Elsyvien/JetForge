@@ -22,8 +22,20 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify built-in compiler reference
+        run: npm run test:compiler
+
+      - name: Compare pinned Eclipse JET emission
+        run: npm run test:eclipse
 
       - name: Audit dependencies
         run: npm audit
@@ -90,6 +102,7 @@ jobs:
         os:
           - ubuntu-latest
           - windows-latest
+          - macos-latest
         vscode:
           - "1.85.2"
           - stable
@@ -104,6 +117,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install dependencies
         run: npm ci
 
@@ -117,8 +136,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t packages < <(find artifact -maxdepth 1 -type f -name '*.vsix' -print)
+          packages=(artifact/*.vsix)
           test "${#packages[@]}" -eq 1
+          test -f "${packages[0]}"
           node scripts/check-release-metadata.js --vsix "${packages[0]}"
           echo "VSIX_PATH=${packages[0]}" >> "$GITHUB_ENV"
 
@@ -133,3 +153,31 @@ jobs:
         env:
           VSCODE_TEST_VERSION: ${{ matrix.vscode }}
         run: node scripts/run-installed-vsix-tests.js
+
+      - name: Run installed VSIX smoke test on macOS
+        if: runner.os == 'macOS'
+        env:
+          VSCODE_TEST_VERSION: ${{ matrix.vscode }}
+        run: node scripts/run-installed-vsix-tests.js
+
+  builtin-jdk-matrix:
+    name: Built-in compiler (${{ matrix.os }}, JDK ${{ matrix.jdk }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        jdk: ["21", "25"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.jdk }}
+      - run: npm ci
+      - run: npm run test:compiler

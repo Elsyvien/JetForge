@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0
+
+- Added an opt-in built-in TxtJet-to-Java compiler and packaged JDK 21+ runner for version 2 projects, with named targets, precise JSON fixtures, typed model providers, Java source roots and classpath snapshots.
+- Shared compile, evaluate, atomic generation and byte-exact golden testing across CLI and trusted editor commands; existing v1 previews and external commands retain their behavior.
+- Added mapped Java errors, separate template logs, cancellation/stale-input checks and real-output IP-XACT validation; dynamic XML errors remain on the evaluated output.
+- Added compiler/CLI/JVM regression fixtures, pinned Eclipse emission comparisons with explicit dialect differences, JDK/OS CI coverage and completion-verified source/installed Extension Host smoke tests.
+
 ## 0.1.0
 
 - Added a shared headless project engine and `jetforge` CLI with `doctor`, `validate`, `generate`, and `test` commands, stable exit codes, JSON/SARIF/JUnit output, workspace-contained paths, and checked-in `.jetforge.json` configuration.

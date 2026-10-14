@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "JetForge — TxtJet & Eclipse JET",
   "description": "Local-first TxtJet and Eclipse JET tooling for VS Code: highlighting, previews, diagnostics, navigation, and generation.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -35,7 +35,8 @@
         "txtjet.ipxact.validation.command",
         "txtjet.ipxact.validation.runOnSave",
         "txtjet.ipxact.outputDirectory",
-        "txtjet.ipxact.schemaPaths"
+        "txtjet.ipxact.schemaPaths",
+        "txtjet.compiler.javaHome"
       ]
     }
   },
@@ -470,6 +471,26 @@
       {
         "command": "txtjet.openGeneratedOutputForTemplate",
         "title": "JetForge: Open Generated Output For Template"
+      },
+      {
+        "command": "txtjet.compileBuiltinTarget",
+        "title": "JetForge: Compile Built-in Target",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "txtjet.evaluateBuiltinTarget",
+        "title": "JetForge: Evaluate Built-in Target",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "txtjet.generateBuiltinTarget",
+        "title": "JetForge: Generate Built-in Target",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "txtjet.validateBuiltinProject",
+        "title": "JetForge: Validate Built-in Project",
+        "enablement": "isWorkspaceTrusted"
       }
     ],
     "views": {
@@ -688,7 +709,7 @@
         "txtjet.compiler.command": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Shell command used by **TxtJet: Compile Template With External Compiler**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
+          "markdownDescription": "Executable and argument list used by **TxtJet: Compile Template With External Compiler**. Quotes group arguments; no shell expansion or operators are evaluated. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
           "scope": "resource"
         },
         "txtjet.compiler.timeoutMs": {
@@ -762,7 +783,7 @@
         "txtjet.ipxact.validation.command": {
           "type": "string",
           "default": "",
-          "markdownDescription": "External command used by **TxtJet: Validate IP-XACT Output**. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
+          "markdownDescription": "External executable and argument list used by **TxtJet: Validate IP-XACT Output**. Quotes group arguments; no shell expansion or operators are evaluated. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
           "scope": "resource"
         },
         "txtjet.ipxact.validation.problemMatcher": {
@@ -784,6 +805,12 @@
           "maximum": 600000,
           "description": "Maximum runtime in milliseconds for external IP-XACT validation commands.",
           "scope": "resource"
+        },
+        "txtjet.compiler.javaHome": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "description": "Optional JDK 21+ home for the built-in compiler. Leave empty to detect a local JDK. Template execution requires Workspace Trust."
         }
       }
     },
@@ -986,6 +1013,22 @@
         {
           "command": "txtjet.openGeneratedOutputForTemplate",
           "when": "resourceLangId =~ /^txtjet/"
+        },
+        {
+          "command": "txtjet.compileBuiltinTarget",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "txtjet.evaluateBuiltinTarget",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "txtjet.generateBuiltinTarget",
+          "when": "workspaceFolderCount > 0"
+        },
+        {
+          "command": "txtjet.validateBuiltinProject",
+          "when": "workspaceFolderCount > 0"
         }
       ],
       "editor/context": [
@@ -1133,13 +1176,17 @@
     "onCommand:txtjet.togglePreviewSynchronization",
     "onCommand:txtjet.openGettingStarted",
     "onCommand:txtjet.setupCompilerToolchain",
-    "onCommand:txtjet.openGeneratedOutputForTemplate"
+    "onCommand:txtjet.openGeneratedOutputForTemplate",
+    "onCommand:txtjet.compileBuiltinTarget",
+    "onCommand:txtjet.evaluateBuiltinTarget",
+    "onCommand:txtjet.generateBuiltinTarget",
+    "onCommand:txtjet.validateBuiltinProject"
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('out',{recursive:true,force:true})\"",
-    "compile": "npm run clean && tsc -p ./",
+    "compile": "npm run clean && tsc -p ./ && npm run build:runtime",
     "test": "npm run compile && node scripts/run-unit-tests.js",
-    "coverage": "npm run compile && c8 --all --include 'out/*.js' --exclude 'out/*.test.js' --exclude 'out/extension.js' --exclude 'out/impactGraphView.js' --exclude 'out/workspaceCommands.js' --exclude 'out/refactorCommands.js' --exclude 'out/cli.js' --check-coverage --lines 85 --statements 85 --branches 75 --functions 90 --reporter=text --reporter=lcov node scripts/run-unit-tests.js",
+    "coverage": "npm run compile && c8 --all --include 'out/*.js' --exclude 'out/*.test.js' --exclude 'out/extension.js' --exclude 'out/impactGraphView.js' --exclude 'out/workspaceCommands.js' --exclude 'out/refactorCommands.js' --exclude 'out/cli.js' --exclude 'out/builtinEditor.js' --check-coverage --lines 85 --statements 85 --branches 75 --functions 90 --reporter=text --reporter=lcov node scripts/run-unit-tests.js",
     "test:extension": "npm run compile && node scripts/run-extension-host-tests.js",
     "test:vsix": "node scripts/run-installed-vsix-tests.js",
     "headless": "npm run compile && node out/cli.js",
@@ -1151,7 +1198,10 @@
     "verify:release": "npm run check:release-metadata && npm run test:extension && npm run verify && npm run test:vsix",
     "vscode:prepublish": "npm run compile",
     "prepare": "npm run compile",
-    "package": "vsce package"
+    "package": "vsce package",
+    "build:runtime": "node scripts/build-runtime.js",
+    "test:compiler": "npm run compile && node out/txtjetCompiler.test.js && node out/builtinCompiler.test.js && node out/builtinProject.test.js",
+    "test:eclipse": "npm run compile && node scripts/test-eclipse-reference.js"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",

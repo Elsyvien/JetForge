@@ -18,15 +18,52 @@ const PROVENANCE_PRIORITY: Record<TxtJetProvenanceKind, number> = {
   root: 3,
   unmapped: 4
 };
+export const MAX_PROVENANCE_ORIGINS_PER_LINE = 128;
 
 export function previewLineProvenance(
   preview: TxtJetGeneratedPreview
 ): TxtJetPreviewLineProvenance[] {
   const lines = lineRanges(preview.text);
+  const starts = new Map<number, TxtJetProvenance[]>();
+  const removals = new Map<number, TxtJetProvenance[]>();
+  for (const entry of preview.provenance) {
+    const span = intersectingLineSpan(lines, entry.preview);
+    if (!span) {
+      continue;
+    }
+    pushMapEntry(starts, span.start, entry);
+    pushMapEntry(removals, span.end + 1, entry);
+  }
+
+  const active = new Set<TxtJetProvenance>();
   return lines.map((range, line) => {
-    const origins = uniqueProvenance(preview.provenance.filter((entry) =>
-      rangesIntersectLine(entry.preview, range)
-    ));
+    for (const entry of removals.get(line) ?? []) {
+      active.delete(entry);
+    }
+    for (const entry of starts.get(line) ?? []) {
+      active.add(entry);
+    }
+    const candidates: TxtJetProvenance[] = [];
+    let limited = false;
+    for (const entry of active) {
+      if (!rangesIntersectLine(entry.preview, range)) {
+        continue;
+      }
+      if (candidates.length >= MAX_PROVENANCE_ORIGINS_PER_LINE) {
+        limited = true;
+        break;
+      }
+      candidates.push(entry);
+    }
+    const origins = uniqueProvenance(candidates);
+    if (limited) {
+      origins.push({
+        preview: range,
+        kind: "unmapped",
+        confidence: "unmapped",
+        label: `Provenance limited to ${MAX_PROVENANCE_ORIGINS_PER_LINE} origins on this line`
+      });
+    }
     return {
       line,
       preview: range,
@@ -38,6 +75,61 @@ export function previewLineProvenance(
       }]
     };
   });
+}
+
+function pushMapEntry<T>(target: Map<number, T[]>, key: number, value: T): void {
+  const entries = target.get(key) ?? [];
+  entries.push(value);
+  target.set(key, entries);
+}
+
+function intersectingLineSpan(
+  lines: TxtJetRange[],
+  range: TxtJetRange
+): { start: number; end: number } | undefined {
+  if (lines.length === 0) {
+    return undefined;
+  }
+  let start = firstLineWhoseEndReaches(lines, range.start);
+  while (start < lines.length && !rangesIntersectLine(range, lines[start])) {
+    start += 1;
+  }
+  if (start >= lines.length) {
+    return undefined;
+  }
+  let end = lastLineWhoseStartPrecedes(lines, range.end);
+  while (end >= start && !rangesIntersectLine(range, lines[end])) {
+    end -= 1;
+  }
+  return end >= start ? { start, end } : undefined;
+}
+
+function firstLineWhoseEndReaches(lines: TxtJetRange[], offset: number): number {
+  let low = 0;
+  let high = lines.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lines[middle].end < offset) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low;
+}
+
+function lastLineWhoseStartPrecedes(lines: TxtJetRange[], offset: number): number {
+  let low = 0;
+  let high = lines.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if (lines[middle].start <= offset) {
+      low = middle + 1;
+    } else {
+      high = middle;
+    }
+  }
+  return low - 1;
 }
 
 export function provenanceAtPreviewOffset(

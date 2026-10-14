@@ -1,5 +1,8 @@
 import { TxtJetBlock } from "./templateModel";
 
+export const MAX_FORMAT_NESTING_DEPTH = 64;
+export const MAX_FORMAT_OUTPUT_CHARACTERS = 1024 * 1024;
+
 export function formatTxtJetBlock(block: TxtJetBlock): string | undefined {
   if (block.kind === "directive") {
     return formatDirectiveBlock(block);
@@ -29,26 +32,42 @@ function formatDirectiveBlock(block: TxtJetBlock): string | undefined {
   return attributes ? ` ${directive.name} ${attributes} ` : ` ${directive.name} `;
 }
 
-function formatJavaBlock(content: string): string {
+function formatJavaBlock(content: string): string | undefined {
   const trimmed = content.trim();
   if (!trimmed) {
     return " ";
+  }
+  if (trimmed.length + 2 > MAX_FORMAT_OUTPUT_CHARACTERS) {
+    return undefined;
   }
   const lines = trimmed.split(/\r?\n/);
   if (lines.length === 1) {
     return ` ${lines[0].trim()} `;
   }
   let indent = 1;
-  const formatted = lines.map((raw) => {
+  let outputCharacters = 2;
+  const formatted: string[] = [];
+  for (const raw of lines) {
     const line = raw.trim();
     if (/^[})\]]/.test(line)) {
       indent = Math.max(1, indent - 1);
     }
+    if (indent > MAX_FORMAT_NESTING_DEPTH) {
+      return undefined;
+    }
+    const projected = outputCharacters + indent * 2 + line.length + 1;
+    if (projected > MAX_FORMAT_OUTPUT_CHARACTERS) {
+      return undefined;
+    }
     const result = `${"  ".repeat(indent)}${line}`;
     if (/[{([]\s*$/.test(line) && !/^[})\]]/.test(line)) {
       indent += 1;
+      if (indent > MAX_FORMAT_NESTING_DEPTH) {
+        return undefined;
+      }
     }
-    return result;
-  });
+    formatted.push(result);
+    outputCharacters = projected;
+  }
   return `\n${formatted.join("\n")}\n`;
 }
