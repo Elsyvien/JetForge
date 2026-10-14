@@ -54,6 +54,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install locked publishing toolchain
         run: npm ci
 
