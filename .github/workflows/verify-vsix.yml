@@ -136,8 +136,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t packages < <(find artifact -maxdepth 1 -type f -name '*.vsix' -print)
+          packages=(artifact/*.vsix)
           test "${#packages[@]}" -eq 1
+          test -f "${packages[0]}"
           node scripts/check-release-metadata.js --vsix "${packages[0]}"
           echo "VSIX_PATH=${packages[0]}" >> "$GITHUB_ENV"
 
