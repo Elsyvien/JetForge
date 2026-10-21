@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- Removed all IP-XACT-specific commands, settings, previews, generation, diffing, validation, workspace indexing, local XSD intelligence, snippets, directive metadata, and examples.
+- General XML templates, output previews, generation, and the built-in compiler remain available. Existing `txtjet.ipxact.*` settings can be removed from workspace configuration; remove `ipxact="true"` from template directives.
+
 ## 0.2.0
 
 - Added an opt-in built-in TxtJet-to-Java compiler and packaged JDK 21+ runner for version 2 projects, with named targets, precise JSON fixtures, typed model providers, Java source roots and classpath snapshots.

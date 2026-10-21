@@ -68,7 +68,7 @@ Editor indexing is bounded by file count, per-file size, aggregate bytes, and el
 
 ## Editor document lifecycle
 
-The editor registers read-only virtual documents for generated output, generated Java, and IP-XACT XML. Their URI schemes are `txtjet-preview-output`, `txtjet-preview-java`, and `txtjet-preview-ipxact`. A stable URI allows existing preview tabs to refresh instead of creating a tab for each edit.
+The editor registers read-only virtual documents for generated output and generated Java. Their URI schemes are `txtjet-preview-output` and `txtjet-preview-java`. A stable URI allows existing preview tabs to refresh instead of creating a tab for each edit.
 
 Preview reads prefer open include/skeleton buffers to disk. Source edits, dependency edits, file creation/deletion, and topology changes trigger refreshes of affected roots. `asyncRefresh.ts` coalesces event bursts; `previewCache.ts` caches mapping work by source, document version, and variant with a bounded entry count.
 
@@ -84,17 +84,11 @@ Target-language fallbacks for Java, Python, and C/C++ assist the generated-text 
 
 ## External processes and validation
 
-Editor compiler and IP-XACT commands pass through `externalCommand.ts`: parse an executable and argument list, substitute path placeholders as data, and call `execFile`. Workspace Trust gates execution. A wrapper script is the integration point for tools needing shell operations.
+Editor compiler commands pass through `externalCommand.ts`: parse an executable and argument list, substitute path placeholders as data, and call `execFile`. Workspace Trust gates execution. A wrapper script is the integration point for tools needing shell operations.
 
 `validationRuns.ts` gives each source a generation token, document version, and abort signal. A newer run cancels the preceding run; results are accepted only when the token still matches the open document. Temporary output naming in `generationPaths.ts` prevents overlapping validations from sharing their output input. `compilerDiagnostics.ts` parses tool problems and maps known generated locations conservatively.
 
 Command-mode golden cases follow a different path in `headlessProject.ts`: shell-quote supported placeholders, execute the configured command through Node's `exec`, then read the declared output file. The command is trusted project code. [HEADLESS.md](HEADLESS.md#command-mode-evaluation) describes its inputs and error behavior.
-
-## IP-XACT
-
-`ipxact.ts` determines whether enabled templates match configured globs or directive metadata. IP-XACT output uses the XML projection. `schemaDiscovery.ts` finds bounded local XSD inputs; `ipxactSchema.ts` builds a structural authoring index for declarations, child elements, attributes, and documentation.
-
-The index supports completion, hover, definition, outline, and explanations of recognized validator messages. It performs no schema download and is not a full XSD validation engine. Actual XML validation is delegated to the configured external validator. All IP-XACT behavior remains scoped to the enabled feature.
 
 ## Refactors and output persistence
 

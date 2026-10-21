@@ -25,7 +25,7 @@ In a separate template project, the main README describes installing a tagged Gi
 
 | Configuration | Consumers | Example |
 | --- | --- | --- |
-| VS Code `txtjet.*` settings | Ordinary editor previews, resource-scoped resolution, compiler validation, IP-XACT | `txtjet.resolution.includePaths`, `txtjet.compiler.command` |
+| VS Code `txtjet.*` settings | Ordinary editor previews, resource-scoped resolution, compiler validation | `txtjet.resolution.includePaths`, `txtjet.compiler.command` |
 | `.jetforge.json` | CLI and shared project commands such as Doctor, local validation, full-workspace generation, and golden cases | `includePaths`, `compiler.command`, `tests` |
 
 The systems are not merged. Configuring `txtjet.compiler.command` does not configure command-mode CLI cases, and configuring `.jetforge.json` does not change the ordinary editor's resolution settings. For shared layouts, set the corresponding search roots in both places.

@@ -112,12 +112,6 @@ macOS installations. An explicit invalid selection fails; a stale automatic
 `JAVA_HOME` may fall back. Both matching `java` and `javac` must be present.
 `release` defaults to 21 and cannot exceed the selected JDK version.
 
-IP-XACT remains opt-in. A builtin IP-XACT target is evaluated before its external
-validator runs. The validator consumes the real XML, not expression placeholders.
-Problems without proven dynamic output mappings appear on the evaluated XML.
-The configured schema and validator remain authoritative for full IP-XACT/XSD
-validation.
-
 ## Model ABI and project classes
 
 The generated class exposes:
@@ -175,7 +169,7 @@ project code.
 ## Dialect and mapping contracts
 
 - Literal text, `<% … %>`, `<%= … %>`, `<%! … %>`, `<%-- … --%>`, core `@jet`
-  metadata and nested `@include file="…"` are supported. `ipxact` is metadata.
+  metadata and nested `@include file="…"` are supported.
 - Declarations become class members; scriptlets run inside `generate`; expression
   values use Java `StringBuilder.append` overload semantics. An untyped literal
   `null` may need an Object/String cast, just as other overloaded Java calls do.

@@ -6,7 +6,7 @@
 - Architecture, template semantics, project configuration, or operational documentation: use [docs/README.md](docs/README.md) to reach the matching project chapter.
 - User-visible workflows or settings: read the relevant section of [README.md](README.md) and the matching `package.json` contribution before editing.
 - Editor or release validation: use the relevant scenarios in [docs/QA_CHECKLIST.md](docs/QA_CHECKLIST.md).
-- IntelliSense or IP-XACT scope: consult [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md) or [docs/IPXACT_ROADMAP.md](docs/IPXACT_ROADMAP.md), then confirm implemented behavior in source.
+- IntelliSense scope: consult [docs/INTELLISENSE_ROADMAP.md](docs/INTELLISENSE_ROADMAP.md), then confirm implemented behavior in source.
 
 ## Change workflow
 

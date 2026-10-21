@@ -2,7 +2,7 @@
   "name": "txtjet-syntax",
   "displayName": "JetForge — TxtJet & Eclipse JET",
   "description": "Local-first TxtJet and Eclipse JET tooling for VS Code: highlighting, previews, diagnostics, navigation, and generation.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "elsyvien",
   "author": "Max Staneker",
   "license": "MIT",
@@ -32,10 +32,6 @@
         "txtjet.resolution.includePaths",
         "txtjet.resolution.skeletonPaths",
         "txtjet.generation.outputDirectory",
-        "txtjet.ipxact.validation.command",
-        "txtjet.ipxact.validation.runOnSave",
-        "txtjet.ipxact.outputDirectory",
-        "txtjet.ipxact.schemaPaths",
         "txtjet.compiler.javaHome"
       ]
     }
@@ -432,27 +428,6 @@
         "title": "TxtJet: Clean Up @jet Imports"
       },
       {
-        "command": "txtjet.openIpxactPreview",
-        "title": "TxtJet: Open IP-XACT Preview"
-      },
-      {
-        "command": "txtjet.generateIpxactOutput",
-        "title": "TxtJet: Generate IP-XACT Output"
-      },
-      {
-        "command": "txtjet.diffIpxactOutput",
-        "title": "TxtJet: Diff Current IP-XACT Output Against Last Generation"
-      },
-      {
-        "command": "txtjet.validateIpxact",
-        "title": "TxtJet: Validate IP-XACT Output",
-        "enablement": "isWorkspaceTrusted"
-      },
-      {
-        "command": "txtjet.openIpxactTemplate",
-        "title": "TxtJet: Open IP-XACT Template"
-      },
-      {
         "command": "txtjet.openSynchronizedPreview",
         "title": "TxtJet: Open Synchronized Preview"
       },
@@ -557,7 +532,7 @@
           {
             "id": "jetforge.next",
             "title": "Explore advanced workflows when needed",
-            "description": "Use impact graphs and fail-closed refactors from the JetForge Workspace. Optional IP-XACT support is available under [JetForge settings](command:workbench.action.openSettings?%22txtjet%22).",
+            "description": "Use impact graphs and fail-closed refactors from the JetForge Workspace.",
             "media": {
               "markdown": "walkthrough/advanced.md"
             }
@@ -741,71 +716,6 @@
           },
           "markdownDescription": "Project-specific TxtJet directive attributes offered as completions and accepted by diagnostics. Example: `{ \"jet\": [\"team\", \"owner\"] }`."
         },
-        "txtjet.ipxact.enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable optional IP-XACT workflows for matched TxtJet templates.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.templateGlobs": {
-          "type": "array",
-          "default": [
-            "**/*.ipxact.txtjet",
-            "ipxact/**/*.txtjet"
-          ],
-          "items": {
-            "type": "string"
-          },
-          "description": "Workspace-relative template globs treated as IP-XACT when txtjet.ipxact.enabled is true. Templates can also opt in with @jet ipxact=\"true\".",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.schemaPaths": {
-          "type": "array",
-          "default": [],
-          "items": {
-            "type": "string"
-          },
-          "markdownDescription": "Optional local `.xsd` files or directories used for schema-aware IP-XACT element/attribute completions, documentation, validation explanations, and Go to Definition. Supports `${workspaceFolder}`. No schemas are downloaded.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.outputDirectory": {
-          "type": "string",
-          "default": "${workspaceFolder}/generated-ipxact",
-          "description": "Directory used by TxtJet: Generate IP-XACT Output. Supports ${workspaceFolder}.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.generation.autoOpen": {
-          "type": "boolean",
-          "default": true,
-          "description": "Open the generated IP-XACT XML file after generation.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.validation.command": {
-          "type": "string",
-          "default": "",
-          "markdownDescription": "External executable and argument list used by **TxtJet: Validate IP-XACT Output**. Quotes group arguments; no shell expansion or operators are evaluated. Supports placeholders `${file}`, `${workspaceFolder}`, and `${outputFile}`.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.validation.problemMatcher": {
-          "type": "string",
-          "default": "^(?<file>.*?):(?<line>\\d+):(?<column>\\d+):(?:\\s*(?<severity>error|warning|info|information|hint):)?\\s*(?<message>.+)$",
-          "markdownDescription": "Regex used to parse IP-XACT validator diagnostics from stdout and stderr. Capture groups match the compiler problem matcher: `file`, `line`, `column`, optional `severity`, and `message`.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.validation.runOnSave": {
-          "type": "boolean",
-          "default": false,
-          "description": "Run IP-XACT validation when a matched TxtJet template is saved.",
-          "scope": "resource"
-        },
-        "txtjet.ipxact.validation.timeoutMs": {
-          "type": "number",
-          "default": 60000,
-          "minimum": 1000,
-          "maximum": 600000,
-          "description": "Maximum runtime in milliseconds for external IP-XACT validation commands.",
-          "scope": "resource"
-        },
         "txtjet.compiler.javaHome": {
           "type": "string",
           "default": "",
@@ -978,25 +888,6 @@
           "when": "resourceLangId =~ /^txtjet/"
         },
         {
-          "command": "txtjet.openIpxactPreview",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
-        },
-        {
-          "command": "txtjet.generateIpxactOutput",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
-        },
-        {
-          "command": "txtjet.diffIpxactOutput",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
-        },
-        {
-          "command": "txtjet.validateIpxact",
-          "when": "resourceLangId =~ /^txtjet/ && config.txtjet.ipxact.enabled"
-        },
-        {
-          "command": "txtjet.openIpxactTemplate"
-        },
-        {
           "command": "txtjet.openSynchronizedPreview",
           "when": "resourceLangId =~ /^txtjet/"
         },
@@ -1066,11 +957,6 @@
         },
         {
           "command": "txtjet.showImpactGraph",
-          "when": "view == txtjetWorkspace",
-          "group": "navigation"
-        },
-        {
-          "command": "txtjet.openIpxactTemplate",
           "when": "view == txtjetWorkspace",
           "group": "navigation"
         },
@@ -1167,11 +1053,6 @@
     "onCommand:txtjet.extractJavaHelper",
     "onCommand:txtjet.cleanJetImports",
     "onView:txtjetWorkspace",
-    "onCommand:txtjet.openIpxactPreview",
-    "onCommand:txtjet.generateIpxactOutput",
-    "onCommand:txtjet.diffIpxactOutput",
-    "onCommand:txtjet.validateIpxact",
-    "onCommand:txtjet.openIpxactTemplate",
     "onCommand:txtjet.openSynchronizedPreview",
     "onCommand:txtjet.togglePreviewSynchronization",
     "onCommand:txtjet.openGettingStarted",

@@ -35,7 +35,7 @@ export interface TxtJetReferenceChecks {
 
 const OPEN_MARKERS = ["<%--", "<%@", "<%=", "<%!", "<%"];
 const KNOWN_DIRECTIVE_ATTRIBUTES: Record<string, Set<string>> = {
-  jet: new Set(["package", "class", "imports", "skeleton", "ipxact"]),
+  jet: new Set(["package", "class", "imports", "skeleton"]),
   include: new Set(["file"])
 };
 

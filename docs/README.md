@@ -13,11 +13,11 @@ The repository contains three related surfaces: the editor extension, a CLI shar
 | Write templates, includes, and skeletons | [Template language](TEMPLATE_LANGUAGE.md) |
 | Configure a reproducible project and use the CLI | [Headless projects and golden tests](HEADLESS.md) |
 | Compile and execute templates with a local JDK, JSON or typed models | [Built-in compiler](BUILTIN_COMPILER.md) |
-| Navigate dependencies, connect a compiler, validate IP-XACT, or diagnose a problem | [Editor workflows and troubleshooting](WORKFLOWS.md) |
+| Navigate dependencies, connect a compiler, or diagnose a problem | [Editor workflows and troubleshooting](WORKFLOWS.md) |
 | Change the implementation and choose tests | [Development guide](DEVELOPMENT.md) and [contribution guide](../CONTRIBUTING.md) |
 | Perform manual editor or release acceptance checks | [QA checklist](QA_CHECKLIST.md) |
 
-For current limitations and future direction, see the [IntelliSense roadmap](INTELLISENSE_ROADMAP.md) and [IP-XACT scope](IPXACT_ROADMAP.md). These describe direction as well as shipped behavior; source and tests determine what the implementation currently supports.
+For current limitations and future direction, see the [IntelliSense roadmap](INTELLISENSE_ROADMAP.md). It describes direction as well as shipped behavior; source and tests determine what the implementation currently supports.
 
 ## The central distinction
 

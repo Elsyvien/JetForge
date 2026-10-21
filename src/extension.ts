@@ -4,11 +4,10 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import * as vscode from "vscode";
 import { CoalescingAsyncRefresh } from "./asyncRefresh";
-import { evaluateBuiltinDocument, handleBuiltinDocument, isBuiltinDocument, openBuiltinResult, registerBuiltinCompilerCommands } from "./builtinEditor";
+import { handleBuiltinDocument, isBuiltinDocument, registerBuiltinCompilerCommands } from "./builtinEditor";
 import { buildTxtJetCodeActionEdit } from "./codeActions";
 import {
   mapCompilerProblemsToSource,
-  compilerProblemTargetsFile,
   parseCompilerProblems,
   TxtJetCompilerDiagnosticSeverity
 } from "./compilerDiagnostics";
@@ -35,32 +34,7 @@ import {
 } from "./extensionSupport";
 import { ExternalCommandInvocation, parseExternalCommand } from "./externalCommand";
 import { ResourceBudget, ResourceLimitError } from "./resourceBudget";
-import {
-  DEFAULT_SCHEMA_DISCOVERY_LIMITS,
-  discoverIpxactSchemaFiles,
-  readIpxactSchemaDocuments
-} from "./schemaDiscovery";
 import { formatTxtJetBlock } from "./formatter";
-import {
-  DEFAULT_IPXACT_PROBLEM_MATCHER,
-  IPXACT_NODE_COMPLETIONS,
-  isIpxactTemplate,
-  mapIpxactProblemsToSource,
-  TxtJetMappedIpxactProblem
-} from "./ipxact";
-import {
-  buildIpxactSchemaIndex,
-  ipxactGeneratedStructures,
-  ipxactXmlContextAt,
-  ipxactXmlNameAt,
-  schemaAttributesFor,
-  schemaChildrenFor,
-  schemaElementsNamed,
-  TxtJetIpxactSchemaAttribute,
-  TxtJetIpxactSchemaElement,
-  TxtJetIpxactSchemaIndex,
-  TxtJetIpxactStructure
-} from "./ipxactSchema";
 import {
   effectiveCompletionTarget,
   isJavaKeywordCompletionName,
@@ -161,10 +135,8 @@ const DIAGNOSTIC_SOURCE = "txtjet";
 const DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB = 1024;
 const OUTPUT_PREVIEW_SCHEME = "txtjet-preview-output";
 const JAVA_PREVIEW_SCHEME = "txtjet-preview-java";
-const IPXACT_PREVIEW_SCHEME = "txtjet-preview-ipxact";
 const GENERATED_DIFF_SCHEME = "txtjet-generated-diff";
 const GENERATION_STORAGE_KEY = "txtjet.lastGeneratedOutput.v1";
-const IPXACT_GENERATION_STORAGE_KEY = "txtjet.lastGeneratedIpxactOutput.v1";
 const MAX_GENERATED_SNAPSHOT_BYTES = 1024 * 1024;
 const MAX_GENERATED_SNAPSHOT_COUNT = 20;
 const MAX_REFERENCE_FILE_BYTES = 4 * 1024 * 1024;
@@ -177,9 +149,6 @@ let activeWorkspaceModel: TxtJetWorkspaceModel | undefined;
 let requestWorkspaceModelRefresh: ((invalidate?: boolean, immediate?: boolean) => Promise<boolean>) | undefined;
 let workspaceModelGeneration = 0;
 let javaWorkspaceIndexCache: { key: string; index: TxtJetJavaWorkspaceIndex } | undefined;
-const ipxactSchemaIndexCache = new Map<string, TxtJetIpxactSchemaIndex>();
-const ipxactSchemaDiscoveryCache = new Map<string, string[]>();
-const ipxactSchemaWatchers = new Map<string, vscode.Disposable>();
 const compilerOutputSources = new Map<string, string>();
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -192,24 +161,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscodeRangeFor
   });
   activeWorkspaceModel = undefined;
-  invalidateIpxactSchemaCaches();
   context.subscriptions.push(outputChannel);
-  context.subscriptions.push({
-    dispose() {
-      disposeIpxactSchemaWatchers();
-      invalidateIpxactSchemaCaches();
-    }
-  });
   const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
   statusBar.command = "txtjet.selectTargetLanguage";
   context.subscriptions.push(statusBar);
   const diagnostics = vscode.languages.createDiagnosticCollection("txtjet");
   context.subscriptions.push(diagnostics);
   const compilerDiagnosticsBySource = new Map<string, vscode.Diagnostic[]>();
-  const ipxactDiagnosticsBySource = new Map<string, vscode.Diagnostic[]>();
   const compilerValidationRuns = new ValidationRunCoordinator();
-  const ipxactValidationRuns = new ValidationRunCoordinator();
-  context.subscriptions.push(compilerValidationRuns, ipxactValidationRuns);
+  context.subscriptions.push(compilerValidationRuns);
   const previewProvider = new TxtJetPreviewProvider();
   const generatedDiffProvider = new TxtJetGeneratedDiffProvider(context);
   const visualDifferentiator = new TxtJetVisualDifferentiator();
@@ -231,7 +191,6 @@ export function activate(context: vscode.ExtensionContext): void {
     workspaceTreeView,
     vscode.workspace.registerTextDocumentContentProvider(OUTPUT_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(JAVA_PREVIEW_SCHEME, previewProvider),
-    vscode.workspace.registerTextDocumentContentProvider(IPXACT_PREVIEW_SCHEME, previewProvider),
     vscode.workspace.registerTextDocumentContentProvider(GENERATED_DIFF_SCHEME, generatedDiffProvider)
   );
   let workspaceRefreshGeneration = 0;
@@ -253,12 +212,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       if (invalidateCompilerDiagnostics) {
         compilerDiagnosticsBySource.clear();
-        ipxactDiagnosticsBySource.clear();
         compilerValidationRuns.dispose();
-        ipxactValidationRuns.dispose();
       }
       for (const document of vscode.workspace.textDocuments) {
-        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       }
       return true;
     } catch (error) {
@@ -368,10 +325,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.clearGeneratedSnapshots", async () => {
-      await Promise.all([
-        context.workspaceState.update(GENERATION_STORAGE_KEY, undefined),
-        context.workspaceState.update(IPXACT_GENERATION_STORAGE_KEY, undefined)
-      ]);
+      await context.workspaceState.update(GENERATION_STORAGE_KEY, undefined);
       vscode.window.setStatusBarMessage("TxtJet generated-output snapshots cleared.", 4000);
     })
   );
@@ -475,7 +429,6 @@ export function activate(context: vscode.ExtensionContext): void {
         diagnostics,
         compilerDiagnosticsBySource,
         true,
-        ipxactDiagnosticsBySource,
         compilerValidationRuns
       );
     })
@@ -516,7 +469,6 @@ export function activate(context: vscode.ExtensionContext): void {
       await validateWorkspaceTemplates(
         diagnostics,
         compilerDiagnosticsBySource,
-        ipxactDiagnosticsBySource,
         compilerValidationRuns
       );
     })
@@ -542,42 +494,6 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
   context.subscriptions.push(
-    vscode.commands.registerCommand("txtjet.openIpxactPreview", async () => {
-      await openIpxactPreview();
-    })
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("txtjet.generateIpxactOutput", async () => {
-      await generateIpxactOutput(context, generatedDiffProvider, false);
-    })
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("txtjet.diffIpxactOutput", async () => {
-      await generateIpxactOutput(context, generatedDiffProvider, true);
-    })
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("txtjet.validateIpxact", async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor || !isTxtJetFile(editor.document)) {
-        return;
-      }
-      await validateIpxactTemplate(
-        editor.document,
-        diagnostics,
-        ipxactDiagnosticsBySource,
-        true,
-        compilerDiagnosticsBySource,
-        ipxactValidationRuns
-      );
-    })
-  );
-  context.subscriptions.push(
-    vscode.commands.registerCommand("txtjet.openIpxactTemplate", async () => {
-      await openIpxactTemplate();
-    })
-  );
-  context.subscriptions.push(
     vscode.commands.registerCommand("txtjet.openSynchronizedPreview", async () => {
       const document = vscode.window.activeTextEditor?.document;
       if (!document || !isTxtJetFile(document)) {
@@ -596,7 +512,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((document) => {
       void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
-      updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+      updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       visualDifferentiator.refreshDocument(document);
       if (workspaceEntryKind(document.fileName) && !activeWorkspaceModel?.entry(document.fileName)) {
         void workspaceRefresh.request();
@@ -608,12 +524,10 @@ export function activate(context: vscode.ExtensionContext): void {
       const affectedDocuments = invalidateAffectedExternalDiagnostics(
         event.document,
         compilerDiagnosticsBySource,
-        ipxactDiagnosticsBySource,
-        compilerValidationRuns,
-        ipxactValidationRuns
+        compilerValidationRuns
       );
       for (const document of affectedDocuments) {
-        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       }
       previewProvider.refreshAffected(event.document.uri, activeWorkspaceModel);
       visualDifferentiator.refreshDocument(event.document);
@@ -632,22 +546,7 @@ export function activate(context: vscode.ExtensionContext): void {
           diagnostics,
           compilerDiagnosticsBySource,
           false,
-          ipxactDiagnosticsBySource,
           compilerValidationRuns
-        );
-      }
-      if (
-        isTxtJetFile(document)
-        && config.get<boolean>("ipxact.enabled", false)
-        && config.get<boolean>("ipxact.validation.runOnSave", false)
-      ) {
-        void validateIpxactTemplate(
-          document,
-          diagnostics,
-          ipxactDiagnosticsBySource,
-          false,
-          compilerDiagnosticsBySource,
-          ipxactValidationRuns
         );
       }
       void workspaceRefresh.request();
@@ -676,7 +575,7 @@ export function activate(context: vscode.ExtensionContext): void {
           ? vscode.workspace.textDocuments.find((document) => document.uri.toString() === source.toString())
           : undefined;
         if (sourceDocument) {
-          updateDiagnostics(diagnostics, sourceDocument, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+          updateDiagnostics(diagnostics, sourceDocument, compilerDiagnosticsBySource);
         }
       }
     })
@@ -689,23 +588,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
       updateStatusBar(statusBar, vscode.window.activeTextEditor?.document, context);
       for (const document of vscode.workspace.textDocuments) {
-        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+        updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
       }
       visualDifferentiator.refreshAll();
       previewSynchronizer.invalidate();
-      if (event.affectsConfiguration(`${CONFIG_SECTION}.ipxact.schemaPaths`)) {
-        disposeIpxactSchemaWatchers();
-        invalidateIpxactSchemaCaches();
-      }
       void workspaceRefresh.request(true);
     })
   );
   context.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((document) => {
       compilerDiagnosticsBySource.delete(document.uri.toString());
-      ipxactDiagnosticsBySource.delete(document.uri.toString());
       compilerValidationRuns.invalidate(document.uri.toString());
-      ipxactValidationRuns.invalidate(document.uri.toString());
       diagnostics.delete(document.uri);
       previewProvider.forget(document.uri);
       visualDifferentiator.clearDocument(document);
@@ -719,7 +612,6 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(registerDefinitionProvider());
   context.subscriptions.push(registerHoverProvider());
   context.subscriptions.push(registerPreviewProvenanceProviders());
-  context.subscriptions.push(registerIpxactPreviewSchemaProviders());
   context.subscriptions.push(registerReferenceProvider());
   context.subscriptions.push(registerRenameProvider());
   context.subscriptions.push(registerSignatureHelpProvider());
@@ -727,7 +619,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   for (const document of vscode.workspace.textDocuments) {
     void applyDetectedLanguage(context, document, false, statusBar, visualDifferentiator);
-    updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+    updateDiagnostics(diagnostics, document, compilerDiagnosticsBySource);
     visualDifferentiator.refreshDocument(document);
   }
 
@@ -787,9 +679,6 @@ class TxtJetPreviewProvider implements vscode.TextDocumentContentProvider, vscod
 
     if (uri.scheme === JAVA_PREVIEW_SCHEME) {
       return buildGeneratedJavaPreview(document.getText(), document.fileName, javaPreviewOptions(document)).text;
-    }
-    if (uri.scheme === IPXACT_PREVIEW_SCHEME) {
-      return buildIpxactPreviewForDocument(document).text;
     }
     const targetLanguage = target ?? detectLanguage(document);
     return buildOutputPreviewForDocument(document, targetLanguage).text;
@@ -912,9 +801,7 @@ function sameStrings(left: string[], right: string[]): boolean {
 function invalidateAffectedExternalDiagnostics(
   changedDocument: vscode.TextDocument,
   compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
-  ipxactDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
-  compilerValidationRuns: ValidationRunCoordinator,
-  ipxactValidationRuns: ValidationRunCoordinator
+  compilerValidationRuns: ValidationRunCoordinator
 ): vscode.TextDocument[] {
   const affectedFileNames = new Set<string>([normalize(changedDocument.fileName)]);
   if (activeWorkspaceModel) {
@@ -929,9 +816,7 @@ function invalidateAffectedExternalDiagnostics(
   for (const document of affectedDocuments) {
     const source = document.uri.toString();
     compilerDiagnosticsBySource.delete(source);
-    ipxactDiagnosticsBySource.delete(source);
     compilerValidationRuns.invalidate(source);
-    ipxactValidationRuns.invalidate(source);
   }
   return affectedDocuments;
 }
@@ -945,10 +830,7 @@ class TxtJetGeneratedDiffProvider implements vscode.TextDocumentContentProvider,
 
   provideTextDocumentContent(uri: vscode.Uri): string {
     const source = queryValue(uri, "source");
-    const requestedStorageKey = queryValue(uri, "storage");
-    const storageKey = requestedStorageKey === IPXACT_GENERATION_STORAGE_KEY
-      ? IPXACT_GENERATION_STORAGE_KEY
-      : GENERATION_STORAGE_KEY;
+    const storageKey = GENERATION_STORAGE_KEY;
     return source ? this.context.workspaceState.get<Record<string, string>>(storageKey, {})[source] ?? "" : "";
   }
 
@@ -962,7 +844,7 @@ class TxtJetGeneratedDiffProvider implements vscode.TextDocumentContentProvider,
 }
 
 type TxtJetWorkspaceTreeNode =
-  | { kind: "group"; id: "templates" | "includes" | "skeletons" | "unresolved" | "generated" | "ipxact"; label: string }
+  | { kind: "group"; id: "templates" | "includes" | "skeletons" | "unresolved" | "generated"; label: string }
   | { kind: "entry"; entry: TxtJetWorkspaceEntry }
   | { kind: "reference"; reference: TxtJetWorkspaceReference }
   | { kind: "generated"; entry: TxtJetWorkspaceEntry };
@@ -1049,13 +931,6 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
         { kind: "group", id: "unresolved", label: `Unresolved References (${this.model.unresolvedReferences.length})` },
         { kind: "group", id: "generated", label: `Generated Output Targets (${this.model.templates.length})` }
       ];
-      if (this.model.ipxactTemplates.length > 0) {
-        groups.splice(3, 0, {
-          kind: "group",
-          id: "ipxact",
-          label: `IP-XACT Templates (${this.model.ipxactTemplates.length})`
-        });
-      }
       return groups;
     }
     if (element.kind !== "group") {
@@ -1068,8 +943,6 @@ class TxtJetWorkspaceTreeProvider implements vscode.TreeDataProvider<TxtJetWorks
         return this.model.includes.map((entry) => ({ kind: "entry", entry }));
       case "skeletons":
         return this.model.skeletons.map((entry) => ({ kind: "entry", entry }));
-      case "ipxact":
-        return this.model.ipxactTemplates.map((entry) => ({ kind: "entry", entry }));
       case "unresolved":
         return this.model.unresolvedReferences.map((reference) => ({ kind: "reference", reference }));
       case "generated":
@@ -1104,8 +977,6 @@ function groupIcon(id: TxtJetWorkspaceGroupId): vscode.ThemeIcon {
       return new vscode.ThemeIcon("references");
     case "skeletons":
       return new vscode.ThemeIcon("symbol-class");
-    case "ipxact":
-      return new vscode.ThemeIcon("symbol-namespace");
     case "unresolved":
       return new vscode.ThemeIcon("warning");
     case "generated":
@@ -1430,9 +1301,6 @@ function buildPreviewForVisiblePreview(sourceDocument: vscode.TextDocument, prev
   if (previewUri.scheme === JAVA_PREVIEW_SCHEME) {
     return buildPreviewForDocument(sourceDocument, "java");
   }
-  if (previewUri.scheme === IPXACT_PREVIEW_SCHEME) {
-    return buildIpxactPreviewForDocument(sourceDocument);
-  }
   return buildPreviewForDocument(sourceDocument, "output");
 }
 
@@ -1640,14 +1508,6 @@ function buildPreviewUri(document: vscode.TextDocument, kind: PreviewKind): vsco
   });
 }
 
-function buildIpxactPreviewUri(document: vscode.TextDocument): vscode.Uri {
-  return vscode.Uri.from({
-    scheme: IPXACT_PREVIEW_SCHEME,
-    path: `${document.uri.path}.ipxact.xml`,
-    query: `source=${encodeURIComponent(document.uri.toString())}`
-  });
-}
-
 function sourceUriFromPreview(uri: vscode.Uri): vscode.Uri | undefined {
   const source = queryValue(uri, "source");
   if (!source) {
@@ -1722,40 +1582,6 @@ function buildOutputPreviewForDocument(
       }))
     ]
   };
-}
-
-function buildIpxactPreviewForDocument(document: vscode.TextDocument): TxtJetGeneratedPreview {
-  const header = headerComment("output", document.fileName, "txtjet-xml");
-  const preview = buildIpxactOutputForDocument(document);
-  return {
-    text: header + preview.text,
-    mappings: preview.mappings.map((mapping) => ({
-      ...mapping,
-      preview: {
-        start: mapping.preview.start + header.length,
-        end: mapping.preview.end + header.length
-      }
-    })),
-    provenance: [
-      {
-        preview: { start: 0, end: header.length },
-        kind: "unmapped",
-        confidence: "unmapped",
-        label: "JetForge preview header"
-      },
-      ...preview.provenance.map((entry) => ({
-        ...entry,
-        preview: {
-          start: entry.preview.start + header.length,
-          end: entry.preview.end + header.length
-        }
-      }))
-    ]
-  };
-}
-
-function buildIpxactOutputForDocument(document: vscode.TextDocument): TxtJetGeneratedPreview {
-  return buildGeneratedOutputPreview(document.getText(), "txtjet-xml", outputPreviewOptions(document));
 }
 
 function outputPreviewOptions(document: vscode.TextDocument) {
@@ -1834,133 +1660,6 @@ function configuredReferencePathsForFileName(fileName: string, uri: vscode.Uri, 
   return vscode.workspace.isTrusted
     ? resolvedPaths
     : resolvedPaths.filter((entry) => isPathInsideAnyRoot(entry, [baseRoot]));
-}
-
-function configuredIpxactSchemaIndex(document: vscode.TextDocument): TxtJetIpxactSchemaIndex | undefined {
-  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
-  const configured = config.get<string[]>("ipxact.schemaPaths", []);
-  if (configured.length === 0) {
-    return undefined;
-  }
-  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-  const baseRoot = workspaceFolder?.uri.fsPath ?? dirname(document.fileName);
-  const roots = configured
-    .filter((entry) => entry.trim().length > 0)
-    .map((entry) => resolveWorkspaceConfiguredPath(entry, baseRoot))
-    .filter((entry) => vscode.workspace.isTrusted || isPathInsideAnyRoot(entry, [baseRoot]));
-  for (const root of roots.slice(0, DEFAULT_SCHEMA_DISCOVERY_LIMITS.roots)) {
-    ensureIpxactSchemaWatcher(root);
-  }
-  const discoveryKey = roots.map((root) => normalize(root)).sort().join("\0");
-  let files = ipxactSchemaDiscoveryCache.get(discoveryKey);
-  if (!files) {
-    const discovery = discoverIpxactSchemaFiles(roots, isExcludedTxtJetWorkspacePath);
-    if (discovery.limited) {
-      appendOutputLog("report", `${discovery.reason ?? "IP-XACT schema discovery reached a resource limit"} The schema index is partial.`);
-    }
-    files = discovery.files;
-    ipxactSchemaDiscoveryCache.set(discoveryKey, files);
-  }
-  if (files.length === 0) {
-    return undefined;
-  }
-  const sources = files.flatMap((fileName) => {
-    const openDocument = vscode.workspace.textDocuments.find((candidate) =>
-      normalize(candidate.fileName) === normalize(fileName)
-    );
-    try {
-      return [{
-        fileName,
-        openDocument,
-        version: openDocument ? `open:${openDocument.version}` : fileVersion(fileName)
-      }];
-    } catch {
-      return [];
-    }
-  });
-  if (sources.length === 0) {
-    return undefined;
-  }
-  const key = sources.map((entry) => `${entry.fileName}\0${entry.version}`).join("\n");
-  const cached = ipxactSchemaIndexCache.get(key);
-  if (cached) {
-    return cached;
-  }
-  const readResult = readIpxactSchemaDocuments(
-    sources.map((source) => source.fileName),
-    (fileName) => sources.find((source) => source.fileName === fileName)?.openDocument?.getText()
-  );
-  if (readResult.limited) {
-    appendOutputLog("report", `${readResult.reasons.join("\n")}\nThe IP-XACT schema index is partial.`);
-  }
-  const documents = readResult.documents;
-  if (documents.length === 0) {
-    return undefined;
-  }
-  let index: TxtJetIpxactSchemaIndex;
-  try {
-    index = buildIpxactSchemaIndex(documents);
-  } catch (error) {
-    if (error instanceof ResourceLimitError) {
-      appendOutputLog("error", error.message);
-      return undefined;
-    }
-    throw error;
-  }
-  ipxactSchemaIndexCache.set(key, index);
-  while (ipxactSchemaIndexCache.size > 8) {
-    const oldest = ipxactSchemaIndexCache.keys().next().value;
-    if (typeof oldest !== "string") {
-      break;
-    }
-    ipxactSchemaIndexCache.delete(oldest);
-  }
-  return index;
-}
-
-function ensureIpxactSchemaWatcher(root: string): void {
-  const normalized = normalize(root);
-  if (ipxactSchemaWatchers.has(normalized)) {
-    return;
-  }
-  if (ipxactSchemaWatchers.size >= DEFAULT_SCHEMA_DISCOVERY_LIMITS.roots) {
-    appendOutputLog("report", `TxtJet stopped creating IP-XACT schema watchers at ${DEFAULT_SCHEMA_DISCOVERY_LIMITS.roots} roots.`);
-    return;
-  }
-  let stat: ReturnType<typeof statSync>;
-  try {
-    stat = statSync(normalized);
-  } catch {
-    return;
-  }
-  const pattern = stat.isDirectory()
-    ? new vscode.RelativePattern(normalized, "**/*.xsd")
-    : new vscode.RelativePattern(dirname(normalized), basename(normalized));
-  const watcher = vscode.workspace.createFileSystemWatcher(pattern);
-  const invalidate = () => invalidateIpxactSchemaCaches();
-  ipxactSchemaWatchers.set(normalized, vscode.Disposable.from(
-    watcher,
-    watcher.onDidCreate(invalidate),
-    watcher.onDidChange(invalidate),
-    watcher.onDidDelete(invalidate)
-  ));
-}
-
-function invalidateIpxactSchemaCaches(): void {
-  ipxactSchemaDiscoveryCache.clear();
-  ipxactSchemaIndexCache.clear();
-}
-
-function disposeIpxactSchemaWatchers(): void {
-  for (const watcher of ipxactSchemaWatchers.values()) {
-    watcher.dispose();
-  }
-  ipxactSchemaWatchers.clear();
-}
-
-function fileVersion(fileName: string): string {
-  const stat = statSync(fileName);
-  return `${stat.mtimeMs}:${stat.size}`;
 }
 
 async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
@@ -2086,13 +1785,6 @@ async function buildTxtJetWorkspaceModel(): Promise<TxtJetWorkspaceModel> {
     },
     skeletonPathsForFile(fileName) {
       return configuredReferencePathsForFileName(fileName, vscode.Uri.file(fileName), "resolution.skeletonPaths");
-    },
-    ipxactOptionsForFile(fileName) {
-      const config = vscode.workspace.getConfiguration(CONFIG_SECTION, vscode.Uri.file(fileName));
-      return {
-        enabled: config.get<boolean>("ipxact.enabled", false),
-        templateGlobs: config.get<string[]>("ipxact.templateGlobs", [])
-      };
     }
   });
 }
@@ -2153,7 +1845,6 @@ async function openGeneratedPreviewForTemplate(
 async function validateWorkspaceTemplates(
   collection: vscode.DiagnosticCollection,
   compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
-  ipxactDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
   validationRuns: ValidationRunCoordinator
 ): Promise<void> {
   const model = activeWorkspaceModel ?? await ensureWorkspaceModel();
@@ -2186,7 +1877,6 @@ async function validateWorkspaceTemplates(
           collection,
           compilerDiagnosticsBySource,
           false,
-          ipxactDiagnosticsBySource,
           validationRuns,
           token
         ));
@@ -2734,223 +2424,6 @@ async function generateOutput(
   );
 }
 
-async function openIpxactPreview(): Promise<void> {
-  const sourceEditor = vscode.window.activeTextEditor;
-  if (!sourceEditor || !isTxtJetFile(sourceEditor.document) || !isIpxactDocument(sourceEditor.document)) {
-    showIpxactUnavailableMessage(sourceEditor?.document);
-    return;
-  }
-
-  const preview = buildIpxactPreviewForDocument(sourceEditor.document);
-  const mappedPreviewRange = mapSourceRangeToPreview(preview.mappings, selectionToRange(sourceEditor.document, sourceEditor.selection));
-  const previewDocument = await vscode.workspace.openTextDocument(buildIpxactPreviewUri(sourceEditor.document));
-  const updatedDocument = await vscode.languages.setTextDocumentLanguage(previewDocument, "xml");
-  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, sourceEditor.document.uri);
-  const viewColumn = config.get<boolean>("previews.openBeside", true) ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
-  const previewEditor = await vscode.window.showTextDocument(updatedDocument, { preview: true, viewColumn });
-  revealMappedPreviewRange(previewEditor, mappedPreviewRange);
-}
-
-async function generateIpxactOutput(
-  context: vscode.ExtensionContext,
-  diffProvider: TxtJetGeneratedDiffProvider,
-  showDiffOnly: boolean
-): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor || !isTxtJetFile(editor.document) || !isIpxactDocument(editor.document)) {
-    showIpxactUnavailableMessage(editor?.document);
-    return;
-  }
-  if (await handleBuiltinDocument(editor.document, showDiffOnly ? "diff" : "generate")) { return; }
-
-  const generated = buildIpxactOutputForDocument(editor.document).text;
-  const previousUri = generationPreviousUri(editor.document, IPXACT_GENERATION_STORAGE_KEY);
-  const previous = context.workspaceState.get<Record<string, string>>(IPXACT_GENERATION_STORAGE_KEY, {})[editor.document.uri.toString()];
-  if (!showDiffOnly) {
-    const outputUri = ipxactOutputUri(editor.document, true);
-    if (!outputUri || !await writeGeneratedOutput(outputUri, generated, true)) {
-      return;
-    }
-    await rememberGeneratedOutput(context, editor.document, generated, IPXACT_GENERATION_STORAGE_KEY);
-    diffProvider.refresh(previousUri);
-    const config = vscode.workspace.getConfiguration(CONFIG_SECTION, editor.document.uri);
-    if (config.get<boolean>("ipxact.generation.autoOpen", true)) {
-      await vscode.window.showTextDocument(outputUri, { preview: false, viewColumn: vscode.ViewColumn.Beside });
-    }
-    vscode.window.setStatusBarMessage(`TxtJet generated IP-XACT ${workspaceRelativeLabel(outputUri.fsPath)}`, 5000);
-    return;
-  }
-
-  if (previous === undefined) {
-    vscode.window.showInformationMessage("TxtJet has no previous IP-XACT generated output snapshot for this template yet.");
-    return;
-  }
-  const currentDocument = await vscode.workspace.openTextDocument({ content: generated, language: "xml" });
-  await vscode.commands.executeCommand(
-    "vscode.diff",
-    previousUri,
-    currentDocument.uri,
-    `TxtJet IP-XACT generated diff: ${basename(editor.document.fileName)}`
-  );
-}
-
-async function validateIpxactTemplate(
-  document: vscode.TextDocument,
-  collection: vscode.DiagnosticCollection,
-  ipxactDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
-  interactive: boolean,
-  compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]> | undefined,
-  validationRuns: ValidationRunCoordinator
-): Promise<void> {
-  if (!isTxtJetFile(document)) {
-    return;
-  }
-
-  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
-  if (!config.get<boolean>("diagnostics.enabled", true) || !config.get<boolean>("ipxact.enabled", false)) {
-    ipxactDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-    return;
-  }
-
-  if (!isIpxactDocument(document)) {
-    ipxactDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-    if (interactive) {
-      showIpxactUnavailableMessage(document);
-    }
-    return;
-  }
-
-  if (!canRunExternalCommands(interactive)) {
-    ipxactDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-    return;
-  }
-
-  if (document.isDirty && !isBuiltinDocument(document)) {
-    if (!interactive) {
-      return;
-    }
-    const choice = await vscode.window.showWarningMessage(
-      "Save the current template before validating IP-XACT output.",
-      "Save and Validate",
-      "Cancel"
-    );
-    if (choice !== "Save and Validate") {
-      return;
-    }
-    await document.save();
-  }
-
-  const validationCommand = config.get<string>("ipxact.validation.command", "").trim();
-  if (validationCommand.length === 0) {
-    ipxactDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-    if (interactive) {
-      vscode.window.showErrorMessage("TxtJet IP-XACT validation command is not configured. Set txtjet.ipxact.validation.command in settings.");
-    }
-    return;
-  }
-
-  const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri)?.uri.fsPath ?? dirname(document.fileName);
-  const outputUri = ipxactOutputUri(document, interactive);
-  if (!outputUri) {
-    return;
-  }
-  const source = document.uri.toString();
-  const run = validationRuns.begin(source, document.version);
-  const validationOutput = validationOutputUri(outputUri, "ipxact", run.generation);
-  const outputPath = validationOutput.fsPath;
-  try {
-    const evaluated = await evaluateBuiltinDocument(document, interactive);
-    if (evaluated.handled && (!evaluated.result?.ok || evaluated.result.output === undefined)) { return; }
-    const generated = evaluated.handled ? { text: evaluated.result!.output!, mappings: [], provenance: [] } : buildIpxactOutputForDocument(document);
-    if (!await writeGeneratedOutput(validationOutput, generated.text, interactive)) {
-      return;
-    }
-    if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
-      return;
-    }
-    const invocation = safeExternalCommandFor(validationCommand, document.fileName, workspaceFolder, outputPath, interactive);
-    if (!invocation) {
-      return;
-    }
-    const timeoutMs = compilerTimeoutMs(config.get<number>("ipxact.validation.timeoutMs"));
-    const result = await runCompilerCommand(invocation, workspaceFolder, timeoutMs, run.signal);
-    if (!validationRuns.isCurrent(source, run, document.version, document.isClosed)) {
-      return;
-    }
-    if (result.stdout.trim().length > 0) {
-      appendOutputLog("stdout", result.stdout);
-    }
-    if (result.stderr.trim().length > 0) {
-      appendOutputLog("stderr", result.stderr);
-    }
-    if (result.error.trim().length > 0) {
-      appendOutputLog("error", result.error);
-    }
-
-    const matcher = config.get<string>("ipxact.validation.problemMatcher", DEFAULT_IPXACT_PROBLEM_MATCHER);
-    const problems = parseCompilerProblems([result.stdout, result.stderr].filter(Boolean).join("\n"), matcher);
-    if (evaluated.result?.inputsCurrent?.() === false) { return; }
-    if (evaluated.handled && evaluated.result) {
-      const outputDocument = await openBuiltinResult(evaluated.result);
-      if (outputDocument) {
-        const outputProblems = problems.filter(problem => compilerProblemTargetsFile(problem.file, outputPath, workspaceFolder));
-        collection.set(outputDocument.uri, outputProblems.map(problem => {
-          const line = Math.max(0, Math.min(outputDocument.lineCount - 1, problem.line - 1));
-          const column = Math.max(0, Math.min(outputDocument.lineAt(line).text.length, (problem.column ?? 1) - 1));
-          const diagnostic = new vscode.Diagnostic(new vscode.Range(line, column, line, column), problem.message,
-            problem.severity === "warning" ? vscode.DiagnosticSeverity.Warning : vscode.DiagnosticSeverity.Error);
-          diagnostic.source = "JetForge IP-XACT validator"; return diagnostic;
-        }));
-      }
-    }
-    const mappedProblems = mapIpxactProblemsToSource(problems, generated, outputPath, workspaceFolder);
-    const schema = configuredIpxactSchemaIndex(document);
-    const mappedDiagnostics = mappedProblems.map((problem) => ipxactProblemToDiagnostic(document, problem, schema));
-    if (mappedDiagnostics.length > 0) {
-      ipxactDiagnosticsBySource.set(source, mappedDiagnostics);
-    } else {
-      ipxactDiagnosticsBySource.delete(source);
-    }
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
-
-    if (!interactive) {
-      return;
-    }
-    if (mappedDiagnostics.length > 0) {
-      vscode.window.showWarningMessage(`TxtJet IP-XACT validation found ${mappedDiagnostics.length} mapped diagnostic${mappedDiagnostics.length === 1 ? "" : "s"}.`);
-    } else if (problems.length > 0) {
-      vscode.window.showWarningMessage("TxtJet IP-XACT validation finished, but no diagnostics could be mapped to this template.");
-    } else if (result.failed) {
-      vscode.window.showErrorMessage("TxtJet IP-XACT validation failed. Open the TxtJet output channel for details.");
-    } else {
-      vscode.window.showInformationMessage("TxtJet IP-XACT validation finished without mapped diagnostics.");
-    }
-  } finally {
-    await deleteValidationOutput(validationOutput);
-    validationRuns.finish(source, run);
-  }
-}
-
-async function openIpxactTemplate(): Promise<void> {
-  const model = await ensureWorkspaceModel();
-  if (model.ipxactTemplates.length === 0) {
-    const message = isIpxactFeatureEnabledInAnyWorkspaceContext()
-      ? "TxtJet found no IP-XACT templates in this workspace."
-      : "Enable txtjet.ipxact.enabled in a workspace folder to use IP-XACT template navigation.";
-    vscode.window.showInformationMessage(message);
-    return;
-  }
-  const selected = await pickWorkspaceEntry(model.ipxactTemplates, "Open IP-XACT TxtJet template");
-  if (!selected) {
-    return;
-  }
-  await vscode.window.showTextDocument(vscode.Uri.file(selected.fileName), { preview: false });
-}
-
 async function setupCompilerToolchain(
   argument?: vscode.Uri | TxtJetWorkspaceTreeNode
 ): Promise<void> {
@@ -3373,7 +2846,6 @@ async function validateTemplateWithCompiler(
   collection: vscode.DiagnosticCollection,
   compilerDiagnosticsBySource: Map<string, vscode.Diagnostic[]>,
   interactive: boolean,
-  ipxactDiagnosticsBySource: Map<string, vscode.Diagnostic[]> | undefined,
   validationRuns: ValidationRunCoordinator,
   cancellationToken?: vscode.CancellationToken
 ): Promise<CompilerValidationResult> {
@@ -3387,13 +2859,13 @@ async function validateTemplateWithCompiler(
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
   if (!config.get<boolean>("diagnostics.enabled", true) || !config.get<boolean>("diagnostics.compiler.enabled", true)) {
     compilerDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+    updateDiagnostics(collection, document, compilerDiagnosticsBySource);
     return skippedCompilerValidation("disabled");
   }
 
   if (!canRunExternalCommands(interactive)) {
     compilerDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+    updateDiagnostics(collection, document, compilerDiagnosticsBySource);
     return skippedCompilerValidation("restricted");
   }
 
@@ -3417,7 +2889,7 @@ async function validateTemplateWithCompiler(
   const compileCommand = config.get<string>("compiler.command", "").trim();
   if (compileCommand.length === 0) {
     compilerDiagnosticsBySource.delete(document.uri.toString());
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+    updateDiagnostics(collection, document, compilerDiagnosticsBySource);
     if (interactive) {
       await showCompilerNotConfigured(document.uri);
     }
@@ -3489,7 +2961,7 @@ async function validateTemplateWithCompiler(
     } else {
       compilerDiagnosticsBySource.delete(source);
     }
-    updateDiagnostics(collection, document, compilerDiagnosticsBySource, ipxactDiagnosticsBySource);
+    updateDiagnostics(collection, document, compilerDiagnosticsBySource);
 
     const validationResult: CompilerValidationResult = {
       outcome: "completed",
@@ -3564,7 +3036,7 @@ function canRunExternalCommands(interactive: boolean): boolean {
   }
   if (interactive) {
     void vscode.window.showErrorMessage(
-      "TxtJet external compiler and validator commands are disabled in Restricted Mode.",
+      "TxtJet external compiler commands are disabled in Restricted Mode.",
       "Manage Workspace Trust"
     ).then((action) => {
       if (action === "Manage Workspace Trust") {
@@ -3635,43 +3107,6 @@ function compilerProblemToDiagnostic(
   return diagnostic;
 }
 
-function ipxactProblemToDiagnostic(
-  document: vscode.TextDocument,
-  problem: TxtJetMappedIpxactProblem,
-  schema: TxtJetIpxactSchemaIndex | undefined
-): vscode.Diagnostic {
-  const message = problem.explanation
-    ? `${problem.explanation.summary} ${problem.explanation.guidance}\n\nValidator: ${problem.message}`
-    : problem.message;
-  const diagnostic = new vscode.Diagnostic(
-    vscodeRangeFor(document, problem.sourceRange),
-    `IP-XACT: ${message}`,
-    compilerDiagnosticSeverity(problem.severity)
-  );
-  diagnostic.source = `${DIAGNOSTIC_SOURCE}.ipxact`;
-  diagnostic.code = "ipxact";
-  const relatedNames = uniqueStrings([
-    problem.explanation?.elementName ?? "",
-    ...(problem.explanation?.expectedElements ?? [])
-  ].filter(Boolean));
-  const related = schema
-    ? relatedNames.flatMap((name) =>
-      schemaElementsNamed(schema, name)
-        .slice(0, 1)
-        .map((element) => schemaLocation(element.location))
-        .filter((location): location is vscode.Location => Boolean(location))
-        .map((location) => new vscode.DiagnosticRelatedInformation(
-          location,
-          `IP-XACT schema declaration for <${name}>`
-        ))
-    )
-    : [];
-  if (related.length > 0) {
-    diagnostic.relatedInformation = related;
-  }
-  return diagnostic;
-}
-
 function compilerDiagnosticSeverity(severity: TxtJetCompilerDiagnosticSeverity): vscode.DiagnosticSeverity {
   switch (severity) {
     case "error":
@@ -3700,16 +3135,6 @@ function generationOutputUri(document: vscode.TextDocument, interactive: boolean
     "generation.outputDirectory",
     "${workspaceFolder}/generated",
     extension,
-    interactive
-  );
-}
-
-function ipxactOutputUri(document: vscode.TextDocument, interactive: boolean): vscode.Uri | undefined {
-  return configuredGeneratedOutputUri(
-    document,
-    "ipxact.outputDirectory",
-    "${workspaceFolder}/generated-ipxact",
-    "xml",
     interactive
   );
 }
@@ -3748,7 +3173,7 @@ function reportUnsafeOutputPath(interactive: boolean, message: string): void {
   }
 }
 
-function validationOutputUri(outputUri: vscode.Uri, kind: "compiler" | "ipxact", generation: number): vscode.Uri {
+function validationOutputUri(outputUri: vscode.Uri, kind: "compiler", generation: number): vscode.Uri {
   return vscode.Uri.file(isolatedValidationOutputPath(outputUri.fsPath, kind, process.pid, generation));
 }
 
@@ -3789,37 +3214,6 @@ async function writeGeneratedOutput(outputUri: vscode.Uri, content: string, inte
     }
     return false;
   }
-}
-
-function isIpxactFeatureEnabled(document?: vscode.TextDocument): boolean {
-  return vscode.workspace.getConfiguration(CONFIG_SECTION, document?.uri).get<boolean>("ipxact.enabled", false);
-}
-
-function isIpxactFeatureEnabledInAnyWorkspaceContext(): boolean {
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  if (folders.some((folder) =>
-    vscode.workspace.getConfiguration(CONFIG_SECTION, folder.uri).get<boolean>("ipxact.enabled", false)
-  )) {
-    return true;
-  }
-  const activeDocument = vscode.window.activeTextEditor?.document;
-  return Boolean(activeDocument && isIpxactFeatureEnabled(activeDocument));
-}
-
-function isIpxactDocument(document: vscode.TextDocument): boolean {
-  const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
-  return isIpxactTemplate(document.fileName, document.getText(), {
-    enabled: config.get<boolean>("ipxact.enabled", false),
-    templateGlobs: config.get<string[]>("ipxact.templateGlobs", [])
-  });
-}
-
-function showIpxactUnavailableMessage(document?: vscode.TextDocument): void {
-  if (!document || !isIpxactFeatureEnabled(document)) {
-    vscode.window.showInformationMessage("Enable txtjet.ipxact.enabled to use IP-XACT commands.");
-    return;
-  }
-  vscode.window.showInformationMessage("This TxtJet template is not matched as IP-XACT. Add @jet ipxact=\"true\" or update txtjet.ipxact.templateGlobs.");
 }
 
 async function setSynchronizedRevealEnabled(document: vscode.TextDocument | undefined, enabled: boolean): Promise<void> {
@@ -3910,9 +3304,7 @@ async function revealSourceFromPreview(): Promise<void> {
 
   const sourceDocument = await vscode.workspace.openTextDocument(source);
   const kind: PreviewKind = previewEditor.document.uri.scheme === JAVA_PREVIEW_SCHEME ? "java" : "output";
-  const preview = previewEditor.document.uri.scheme === IPXACT_PREVIEW_SCHEME
-    ? buildIpxactPreviewForDocument(sourceDocument)
-    : buildPreviewForDocument(sourceDocument, kind);
+  const preview = buildPreviewForDocument(sourceDocument, kind);
   const mappedRange = mapPreviewRangeToSource(preview.mappings, selectionToRange(previewEditor.document, previewEditor.selection));
   const sourceEditor = await vscode.window.showTextDocument(sourceDocument, { preview: false, viewColumn: vscode.ViewColumn.Beside });
   revealMappedPreviewRange(sourceEditor, mappedRange);
@@ -3920,8 +3312,7 @@ async function revealSourceFromPreview(): Promise<void> {
 
 function isPreviewDocument(document: vscode.TextDocument): boolean {
   return document.uri.scheme === OUTPUT_PREVIEW_SCHEME
-    || document.uri.scheme === JAVA_PREVIEW_SCHEME
-    || document.uri.scheme === IPXACT_PREVIEW_SCHEME;
+    || document.uri.scheme === JAVA_PREVIEW_SCHEME;
 }
 
 async function applyDetectedLanguage(
@@ -4030,11 +3421,9 @@ function updateDiagnostics(
   collection: vscode.DiagnosticCollection,
   document: vscode.TextDocument,
   compilerDiagnosticsBySource?: Map<string, vscode.Diagnostic[]>,
-  ipxactDiagnosticsBySource?: Map<string, vscode.Diagnostic[]>
 ): void {
   if (!isTxtJetFile(document)) {
     compilerDiagnosticsBySource?.delete(document.uri.toString());
-    ipxactDiagnosticsBySource?.delete(document.uri.toString());
     collection.delete(document.uri);
     return;
   }
@@ -4042,7 +3431,6 @@ function updateDiagnostics(
   const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
   if (!config.get<boolean>("diagnostics.enabled", true)) {
     compilerDiagnosticsBySource?.delete(document.uri.toString());
-    ipxactDiagnosticsBySource?.delete(document.uri.toString());
     collection.delete(document.uri);
     return;
   }
@@ -4050,7 +3438,6 @@ function updateDiagnostics(
   const maxFileSizeKb = config.get<number>("diagnostics.maxFileSizeKb", DEFAULT_MAX_DIAGNOSTIC_FILE_SIZE_KB);
   if (maxFileSizeKb > 0 && Buffer.byteLength(document.getText(), "utf8") > maxFileSizeKb * 1024) {
     compilerDiagnosticsBySource?.delete(document.uri.toString());
-    ipxactDiagnosticsBySource?.delete(document.uri.toString());
     collection.delete(document.uri);
     return;
   }
@@ -4071,13 +3458,7 @@ function updateDiagnostics(
   if (!config.get<boolean>("diagnostics.compiler.enabled", true)) {
     compilerDiagnosticsBySource?.delete(document.uri.toString());
   }
-  const ipxactDiagnostics = config.get<boolean>("ipxact.enabled", false)
-    ? ipxactDiagnosticsBySource?.get(document.uri.toString()) ?? []
-    : [];
-  if (!config.get<boolean>("ipxact.enabled", false)) {
-    ipxactDiagnosticsBySource?.delete(document.uri.toString());
-  }
-  collection.set(document.uri, diagnostics.concat(compilerDiagnostics, ipxactDiagnostics, mappedGeneratedJavaDiagnostics(document)));
+  collection.set(document.uri, diagnostics.concat(compilerDiagnostics, mappedGeneratedJavaDiagnostics(document)));
 }
 
 function issueToDiagnostic(
@@ -4229,10 +3610,6 @@ function registerDefinitionProvider(): vscode.Disposable {
     Array.from(TXTJET_LANGUAGES).map((language) => ({ language })),
     {
       async provideDefinition(document, position) {
-        const schemaDefinitions = ipxactSchemaDefinitionLocations(document, position);
-        if (schemaDefinitions.length > 0) {
-          return schemaDefinitions;
-        }
         const config = vscode.workspace.getConfiguration(CONFIG_SECTION, document.uri);
         if (!config.get<boolean>("navigation.includeDefinitions.enabled", true)) {
           return javaDefinitions(document, position);
@@ -4282,13 +3659,12 @@ function registerHoverProvider(): vscode.Disposable {
         const model = parseTxtJetTemplate(text);
         const reference = referenceDirectiveAtOffset(model, offset);
         if (!reference) {
-          const schemaHover = ipxactSchemaHover(document, position);
           const javaHover = javaBridgeEnabled(document)
             ? await workspaceJavaHover(document, position)
               ?? await javaBridgeHover(document, position)
               ?? localJavaHover(document, position)
             : undefined;
-          return schemaHover ?? javaHover ?? regionHover(document, text, offset);
+          return javaHover ?? regionHover(document, text, offset);
         }
 
         const resolved = resolveExistingReferencePath(document, reference.file, reference.kind === "include" ? "resolution.includePaths" : "resolution.skeletonPaths")
@@ -4308,85 +3684,10 @@ function registerHoverProvider(): vscode.Disposable {
   );
 }
 
-function ipxactSchemaDefinitionLocations(
-  document: vscode.TextDocument,
-  position: vscode.Position
-): vscode.Location[] {
-  if (!isIpxactGeneratedOutputPosition(document, position)) {
-    return [];
-  }
-  const schema = configuredIpxactSchemaIndex(document);
-  const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
-  if (!schema || !name) {
-    return [];
-  }
-  if (name.kind === "element") {
-    return schemaElementsNamed(schema, name.name)
-      .map((element) => schemaLocation(element.location))
-      .filter((location): location is vscode.Location => Boolean(location));
-  }
-  return schemaAttributesFor(schema, name.element)
-    .filter((attribute) => attribute.name === name.name)
-    .map((attribute) => schemaLocation(attribute.location))
-    .filter((location): location is vscode.Location => Boolean(location));
-}
-
-function ipxactSchemaHover(
-  document: vscode.TextDocument,
-  position: vscode.Position
-): vscode.Hover | undefined {
-  if (!isIpxactGeneratedOutputPosition(document, position)) {
-    return undefined;
-  }
-  const schema = configuredIpxactSchemaIndex(document);
-  const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
-  if (!schema || !name) {
-    return undefined;
-  }
-  const definition = name.kind === "element"
-    ? schemaElementsNamed(schema, name.name)[0]
-    : schemaAttributesFor(schema, name.element).find((attribute) => attribute.name === name.name);
-  if (!definition) {
-    return undefined;
-  }
-  const markdown = new vscode.MarkdownString();
-  markdown.appendMarkdown(`**IP-XACT schema ${name.kind}** \`${escapeMarkdownInline(name.name)}\`\n\n`);
-  if (definition.documentation) {
-    markdown.appendMarkdown(`${definition.documentation}\n\n`);
-  }
-  if ("children" in definition && definition.children.length > 0) {
-    markdown.appendMarkdown(`Permitted children: ${definition.children.map((child) => `\`<${escapeMarkdownInline(child)}>\``).join(", ")}\n\n`);
-  }
-  if ("required" in definition) {
-    markdown.appendMarkdown(definition.required ? "Required attribute.\n\n" : "Optional attribute.\n\n");
-  }
-  markdown.appendMarkdown(`Defined in \`${escapeMarkdownInline(workspaceRelativeLabel(definition.location.fileName))}\`.`);
-  return new vscode.Hover(
-    markdown,
-    new vscode.Range(document.positionAt(name.range.start), document.positionAt(name.range.end))
-  );
-}
-
-function schemaLocation(location: { fileName: string; range: TxtJetRange }): vscode.Location | undefined {
-  let text = openDocumentText(location.fileName);
-  if (text === undefined) {
-    try {
-      text = readFileSync(location.fileName, "utf8");
-    } catch {
-      return undefined;
-    }
-  }
-  return new vscode.Location(
-    vscode.Uri.file(location.fileName),
-    new vscode.Range(positionAtSourceOffset(text, location.range.start), positionAtSourceOffset(text, location.range.end))
-  );
-}
-
 function registerPreviewProvenanceProviders(): vscode.Disposable {
   const selector: vscode.DocumentSelector = [
     { scheme: OUTPUT_PREVIEW_SCHEME },
     { scheme: JAVA_PREVIEW_SCHEME },
-    { scheme: IPXACT_PREVIEW_SCHEME },
     { scheme: "file" }
   ];
   return vscode.Disposable.from(
@@ -4411,151 +3712,6 @@ function registerPreviewProvenanceProviders(): vscode.Disposable {
           .filter((location): location is vscode.Location => Boolean(location));
       }
     })
-  );
-}
-
-function registerIpxactPreviewSchemaProviders(): vscode.Disposable {
-  const selector: vscode.DocumentSelector = [{ scheme: IPXACT_PREVIEW_SCHEME, language: "xml" }];
-  return vscode.Disposable.from(
-    vscode.languages.registerDocumentSymbolProvider(selector, {
-      provideDocumentSymbols(document) {
-        try {
-          return ipxactStructureSymbols(document, ipxactGeneratedStructures(document.getText()));
-        } catch (error) {
-          if (error instanceof ResourceLimitError) {
-            appendOutputLog("error", error.message);
-            return [];
-          }
-          throw error;
-        }
-      }
-    }),
-    vscode.languages.registerHoverProvider(selector, {
-      provideHover(document, position) {
-        const sourceDocument = sourceDocumentForPreview(document);
-        const schema = sourceDocument ? configuredIpxactSchemaIndex(sourceDocument) : undefined;
-        const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
-        if (!sourceDocument || !schema || !name) {
-          return undefined;
-        }
-        return ipxactSchemaHoverForName(document, name, schema);
-      }
-    }),
-    vscode.languages.registerDefinitionProvider(selector, {
-      provideDefinition(document, position) {
-        const sourceDocument = sourceDocumentForPreview(document);
-        const schema = sourceDocument ? configuredIpxactSchemaIndex(sourceDocument) : undefined;
-        const name = schema ? ipxactXmlNameAt(document.getText(), document.offsetAt(position)) : undefined;
-        if (!schema || !name) {
-          return undefined;
-        }
-        return name.kind === "element"
-          ? schemaElementsNamed(schema, name.name)
-            .map((element) => schemaLocation(element.location))
-            .filter((location): location is vscode.Location => Boolean(location))
-          : schemaAttributesFor(schema, name.element)
-            .filter((attribute) => attribute.name === name.name)
-            .map((attribute) => schemaLocation(attribute.location))
-            .filter((location): location is vscode.Location => Boolean(location));
-      }
-    })
-  );
-}
-
-function ipxactStructureSymbols(
-  document: vscode.TextDocument,
-  structures: TxtJetIpxactStructure[]
-): vscode.DocumentSymbol[] {
-  const roots = structures.map((structure) => createIpxactStructureSymbol(document, structure));
-  const work = structures.map((structure, index) => ({ structure, symbol: roots[index] }));
-  while (work.length > 0) {
-    const current = work.pop();
-    if (!current) {
-      break;
-    }
-    current.symbol.children = current.structure.children.map((child) => createIpxactStructureSymbol(document, child));
-    for (let index = current.structure.children.length - 1; index >= 0; index -= 1) {
-      work.push({ structure: current.structure.children[index], symbol: current.symbol.children[index] });
-    }
-  }
-  return roots;
-}
-
-function createIpxactStructureSymbol(
-  document: vscode.TextDocument,
-  structure: TxtJetIpxactStructure
-): vscode.DocumentSymbol {
-  const label = structure.name
-    ? `${ipxactStructureKindLabel(structure.kind)}: ${structure.name}`
-    : ipxactStructureKindLabel(structure.kind);
-  const symbol = new vscode.DocumentSymbol(
-    label,
-    `IP-XACT ${structure.kind}`,
-    ipxactStructureSymbolKind(structure.kind),
-    new vscode.Range(document.positionAt(structure.range.start), document.positionAt(structure.range.end)),
-    new vscode.Range(document.positionAt(structure.selectionRange.start), document.positionAt(structure.selectionRange.end))
-  );
-  return symbol;
-}
-
-function ipxactStructureKindLabel(kind: TxtJetIpxactStructure["kind"]): string {
-  switch (kind) {
-    case "busInterface":
-      return "Bus interface";
-    case "memoryMap":
-      return "Memory map";
-    case "addressBlock":
-      return "Address block";
-    case "register":
-      return "Register";
-    case "field":
-      return "Field";
-    case "component":
-    default:
-      return "Component";
-  }
-}
-
-function ipxactStructureSymbolKind(kind: TxtJetIpxactStructure["kind"]): vscode.SymbolKind {
-  switch (kind) {
-    case "component":
-      return vscode.SymbolKind.Module;
-    case "busInterface":
-      return vscode.SymbolKind.Interface;
-    case "memoryMap":
-      return vscode.SymbolKind.Namespace;
-    case "addressBlock":
-      return vscode.SymbolKind.Object;
-    case "register":
-      return vscode.SymbolKind.Struct;
-    case "field":
-    default:
-      return vscode.SymbolKind.Field;
-  }
-}
-
-function sourceDocumentForPreview(document: vscode.TextDocument): vscode.TextDocument | undefined {
-  const source = sourceUriFromPreview(document.uri);
-  return source
-    ? vscode.workspace.textDocuments.find((candidate) => candidate.uri.toString() === source.toString())
-    : undefined;
-}
-
-function ipxactSchemaHoverForName(
-  document: vscode.TextDocument,
-  name: NonNullable<ReturnType<typeof ipxactXmlNameAt>>,
-  schema: TxtJetIpxactSchemaIndex
-): vscode.Hover | undefined {
-  const definition = name.kind === "element"
-    ? schemaElementsNamed(schema, name.name)[0]
-    : schemaAttributesFor(schema, name.element).find((attribute) => attribute.name === name.name);
-  if (!definition) {
-    return undefined;
-  }
-  const markdown = schemaDocumentation(definition.documentation, definition.location.fileName);
-  return new vscode.Hover(
-    markdown,
-    new vscode.Range(document.positionAt(name.range.start), document.positionAt(name.range.end))
   );
 }
 
@@ -5002,14 +4158,9 @@ function registerCompletionProvider(): vscode.Disposable {
 
         const range = markerCompletionRange(document, position);
         if (range) {
-          const markers = markerCompletions(range);
-          return isIpxactGeneratedOutputPosition(document, position)
-            ? new vscode.CompletionList([...ipxactNodeCompletions(document, position, range).items, ...markers], false)
-            : markers;
+          return markerCompletions(range);
         }
-        return isIpxactGeneratedOutputPosition(document, position)
-          ? ipxactNodeCompletions(document, position, xmlCompletionRange(document, position))
-          : [];
+        return [];
       }
     },
     ...COMPLETION_TRIGGER_CHARACTERS,
@@ -5498,7 +4649,6 @@ function directiveCompletions(document: vscode.TextDocument): vscode.CompletionI
     attribute("package"),
     attribute("class"),
     attribute("imports"),
-    attribute("ipxact"),
     attribute("skeleton"),
     attribute("file"),
     ...configuredDirectiveCompletionItems(document)
@@ -5569,15 +4719,6 @@ function directiveValueCompletions(
     );
   }
 
-  if (context.directiveName === "jet" && context.attributeName === "ipxact") {
-    return staticValueCompletions(
-      ["true", "false"],
-      "TxtJet IP-XACT metadata",
-      vscode.CompletionItemKind.Value,
-      new vscode.Range(document.positionAt(context.valueRange.start), position)
-    );
-  }
-
   return new vscode.CompletionList([], false);
 }
 
@@ -5586,112 +4727,6 @@ function configuredDirectiveCompletionItems(document: vscode.TextDocument): vsco
   return Object.values(attributes)
     .flat()
     .map((name) => attribute(name));
-}
-
-function isIpxactGeneratedOutputPosition(document: vscode.TextDocument, position: vscode.Position): boolean {
-  if (!isIpxactDocument(document)) {
-    return false;
-  }
-  const region = classifyTxtJetRegionAt(document.getText(), document.offsetAt(position), "txtjet-xml");
-  return region?.kind === "generated-output";
-}
-
-function ipxactNodeCompletions(
-  document: vscode.TextDocument,
-  position: vscode.Position,
-  range: vscode.Range
-): vscode.CompletionList {
-  const schema = configuredIpxactSchemaIndex(document);
-  const context = schema
-    ? ipxactXmlContextAt(document.getText(), document.offsetAt(position))
-    : undefined;
-  if (schema && context?.kind === "element") {
-    const candidates = schemaChildrenFor(schema, context.parentElement)
-      .filter((element) => !context.prefix || element.name.toLowerCase().startsWith(context.prefix.toLowerCase()));
-    if (!context.parentElement || schemaElementsNamed(schema, context.parentElement).length > 0) {
-      return new vscode.CompletionList(
-        candidates.map((element) => ipxactSchemaElementCompletion(element, range, context.namespacePrefix)),
-        false
-      );
-    }
-  }
-  if (schema && context?.kind === "attribute") {
-    const candidates = schemaAttributesFor(schema, context.element)
-      .filter((attribute) => !context.prefix || attribute.name.toLowerCase().startsWith(context.prefix.toLowerCase()));
-    if (context.element && schemaElementsNamed(schema, context.element).length > 0) {
-      return new vscode.CompletionList(
-        candidates.map((attribute) => ipxactSchemaAttributeCompletion(attribute, range)),
-        false
-      );
-    }
-  }
-
-  const items = IPXACT_NODE_COMPLETIONS.map((nodeName) => {
-    const item = new vscode.CompletionItem(nodeName, vscode.CompletionItemKind.Snippet);
-    item.detail = "TxtJet IP-XACT node";
-    item.insertText = new vscode.SnippetString(`<${nodeName}>\n\t$0\n</${nodeName}>`);
-    item.range = range;
-    return item;
-  });
-  return new vscode.CompletionList(items, false);
-}
-
-function ipxactSchemaElementCompletion(
-  element: TxtJetIpxactSchemaElement,
-  range: vscode.Range,
-  namespacePrefix?: string
-): vscode.CompletionItem {
-  const qualifiedName = namespacePrefix ? `${namespacePrefix}:${element.name}` : element.name;
-  const item = new vscode.CompletionItem(element.name, vscode.CompletionItemKind.Snippet);
-  item.detail = element.type
-    ? `IP-XACT schema element · ${element.type}`
-    : "IP-XACT schema element";
-  item.documentation = schemaDocumentation(element.documentation, element.location.fileName);
-  item.insertText = new vscode.SnippetString(`<${qualifiedName}>\n\t$0\n</${qualifiedName}>`);
-  item.range = range;
-  item.sortText = `0_${element.name}`;
-  return item;
-}
-
-function ipxactSchemaAttributeCompletion(
-  attribute: TxtJetIpxactSchemaAttribute,
-  range: vscode.Range
-): vscode.CompletionItem {
-  const item = new vscode.CompletionItem(attribute.name, vscode.CompletionItemKind.Property);
-  item.detail = [
-    "IP-XACT schema attribute",
-    attribute.type,
-    attribute.required ? "required" : undefined
-  ].filter(Boolean).join(" · ");
-  item.documentation = schemaDocumentation(attribute.documentation, attribute.location.fileName);
-  item.insertText = new vscode.SnippetString(`${attribute.name}="$1"`);
-  item.range = range;
-  item.sortText = `${attribute.required ? "0" : "1"}_${attribute.name}`;
-  return item;
-}
-
-function schemaDocumentation(
-  documentation: string | undefined,
-  fileName: string
-): vscode.MarkdownString {
-  const markdown = new vscode.MarkdownString();
-  if (documentation) {
-    markdown.appendMarkdown(`${documentation}\n\n`);
-  }
-  markdown.appendMarkdown(`Schema: \`${escapeMarkdownInline(workspaceRelativeLabel(fileName))}\``);
-  return markdown;
-}
-
-function xmlCompletionRange(document: vscode.TextDocument, position: vscode.Position): vscode.Range {
-  const line = document.lineAt(position.line).text;
-  let start = position.character;
-  while (start > 0 && /[A-Za-z0-9_:-]/.test(line[start - 1])) {
-    start -= 1;
-  }
-  if (start > 0 && line[start - 1] === "<") {
-    start -= 1;
-  }
-  return new vscode.Range(new vscode.Position(position.line, start), position);
 }
 
 function referencePathCompletions(

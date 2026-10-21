@@ -15,7 +15,7 @@ Use **TxtJet: Open Synchronized Preview** for cursor following between visible s
 
 ## Resolve dependencies and assess an edit
 
-Open **JetForge Workspace** in Explorer. Applicable groups show templates, includes, skeletons, unresolved references, generated targets, and enabled IP-XACT templates. An unresolved entry opens its directive value so the path can be corrected.
+Open **JetForge Workspace** in Explorer. Applicable groups show templates, includes, skeletons, unresolved references, generated targets. An unresolved entry opens its directive value so the path can be corrected.
 
 For a missing reference, confirm the file's relative location and configured search roots. A missing-file Quick Fix can create the file within allowed roots. After creation or a path edit, refresh the model if necessary with **TxtJet: Refresh Workspace Model**. Unsaved include/skeleton changes should already refresh root previews.
 
@@ -81,31 +81,6 @@ Configured cases also appear in VS Code's Testing view under the corresponding w
 
 **TxtJet: Diff Current Output Against Last Generation** compares current approximate output with a retained local snapshot. **TxtJet: Clear Generated Output Snapshots** removes retained snapshots. Snapshot diffs help local inspection; golden cases provide repeatable checked-in expected output.
 
-## Author and validate IP-XACT
-
-Enable the feature and configure a local schema directory:
-
-```json
-{
-  "txtjet.ipxact.enabled": true,
-  "txtjet.ipxact.schemaPaths": ["${workspaceFolder}/schemas/ieee-1685"]
-}
-```
-
-Use a matching configured template glob or opt in a template with:
-
-```jsp
-<%@ jet class="ComponentTemplate" ipxact="true" %>
-```
-
-Completion and hover in generated XML regions use local schema declarations. Go to Definition can open the XSD declaration, and the IP-XACT preview Outline exposes named structures such as registers and fields. Schemas are supplied locally; JetForge does not download them.
-
-Run **TxtJet: Open IP-XACT Preview** for approximate XML and **TxtJet: Generate IP-XACT Output** for persistent approximate XML. For full validation, configure `txtjet.ipxact.validation.command` with a project-owned validator wrapper and run **TxtJet: Validate IP-XACT Output**. It uses `${file}`, `${workspaceFolder}`, and `${outputFile}` with the same shell-free editor command syntax. The validator reads an isolated temporary XML output.
-
-`txtjet.ipxact.validation.problemMatcher` parses tool messages; recognized schema problems gain explanatory guidance while retaining the original message. A local schema index is not full XSD validation. When embedded expressions need evaluation to produce valid XML, obtain evaluated output from the real project compiler as part of the project's validation pipeline.
-
-In a multi-root workspace, configure the toggle, schema roots, output paths, and validator against the affected folder. A setting on another resource need not enable the current template's workflow.
-
 ## Troubleshooting
 
 | Symptom | Check and next action |
@@ -123,7 +98,6 @@ In a multi-root workspace, configure the toggle, schema roots, output paths, and
 | A command golden case reports no output file | Ensure the evaluator writes to `${outputFile}` and exits successfully; stdout alone is not the generated artifact. |
 | A golden case differs only at a line ending or final line | CRLF/LF are normalized; other whitespace and the final newline remain significant. Inspect expected and actual text before updating. |
 | `test` succeeds unexpectedly with no coverage | Inspect the case count and the selected root/config; an empty tests list can succeed. |
-| IP-XACT commands or suggestions are missing | Check the resource-scoped enable flag, template match, configured local XSD paths, and applicable trust restrictions. |
 | A refactor refuses to proceed | Resolve ambiguous references or narrow the selection. The command aborts when it cannot prove every required edit. |
 
 For a reproducible report, include the command/workflow, selected target mode, relevant sanitized configuration, expected behavior, and exact observed error. Use a small sanitized template/include/skeleton set rather than proprietary project content. See [SUPPORT.md](../SUPPORT.md) for reporting channels.

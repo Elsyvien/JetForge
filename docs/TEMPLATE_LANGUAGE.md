@@ -41,7 +41,6 @@ For a template containing a Java loop, the output projection shows the loop's te
 | `class` | Generated preview class name and cross-template class index. |
 | `imports` | Imports in the Java preview and local Java assistance. |
 | `skeleton` | Relative reference to a preview class layout. |
-| `ipxact="true"` | Per-template IP-XACT match when the feature is enabled. |
 
 Directive attributes use single- or double-quoted values. Duplicate attributes and malformed attribute text are diagnosable. Only one root `jet` directive is expected; duplicate directives are reported. Project-specific completion attributes can be configured through `txtjet.completions.directiveMetadata`; the target compiler still decides what custom metadata means.
 

@@ -26,6 +26,9 @@ const expectedLanguages = [
 ];
 
 assert.deepEqual(languages, expectedLanguages);
+assert.doesNotMatch(JSON.stringify(contributes), /ip.?xact/i, "removed domain features must not remain in public contributions");
+assert.doesNotMatch(JSON.stringify(manifest.activationEvents), /ipxact/i);
+assert.doesNotMatch(readFileSync("snippets/txtjet.code-snippets", "utf8"), /ip.?xact/i);
 assert.deepEqual(editorContextCommands, [
   "txtjet.selectTargetLanguage",
   "txtjet.openGeneratedOutputPreview"
@@ -37,17 +40,12 @@ assert.deepEqual(untrustedWorkspaces?.restrictedConfigurations, [
   "txtjet.resolution.includePaths",
   "txtjet.resolution.skeletonPaths",
   "txtjet.generation.outputDirectory",
-  "txtjet.ipxact.validation.command",
-  "txtjet.ipxact.validation.runOnSave",
-  "txtjet.ipxact.outputDirectory",
-  "txtjet.ipxact.schemaPaths",
   "txtjet.compiler.javaHome"
 ]);
 for (const command of [
   "txtjet.compileTemplate",
   "txtjet.validateWithCompiler",
   "txtjet.validateWorkspaceTemplates",
-  "txtjet.validateIpxact"
 ]) {
   assert.equal(commandContributions.get(command)?.enablement, "isWorkspaceTrusted", `${command} must require Workspace Trust`);
 }
@@ -112,15 +110,6 @@ assert.ok(contributes.configuration.properties["txtjet.generation.outputDirector
 assert.ok(contributes.configuration.properties["txtjet.compiler.command"]);
 assert.ok(contributes.configuration.properties["txtjet.compiler.timeoutMs"]);
 assert.ok(contributes.configuration.properties["txtjet.completions.directiveMetadata"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.enabled"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.templateGlobs"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.schemaPaths"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.outputDirectory"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.generation.autoOpen"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.command"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.problemMatcher"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.runOnSave"]);
-assert.ok(contributes.configuration.properties["txtjet.ipxact.validation.timeoutMs"]);
 assert.equal(manifest.displayName, "JetForge — TxtJet & Eclipse JET");
 assert.ok(contributes.views.explorer.some((view: { id: string; name: string }) => view.id === "txtjetWorkspace" && view.name === "JetForge Workspace"));
 assert.ok(contributes.viewsWelcome.some((welcome: { view: string; contents: string }) =>
@@ -140,11 +129,6 @@ for (const setting of [
   "txtjet.generation.outputDirectory",
   "txtjet.compiler.command",
   "txtjet.diagnostics.compiler.problemMatcher",
-  "txtjet.ipxact.enabled",
-  "txtjet.ipxact.templateGlobs",
-  "txtjet.ipxact.schemaPaths",
-  "txtjet.ipxact.outputDirectory",
-  "txtjet.ipxact.validation.command"
 ]) {
   assert.equal(contributes.configuration.properties[setting]?.scope, "resource", `${setting} must support folder-scoped configuration`);
 }
@@ -189,11 +173,6 @@ for (const command of [
   "txtjet.showImpactGraph",
   "txtjet.extractSelectionToInclude",
   "txtjet.renameWorkspaceReference",
-  "txtjet.openIpxactPreview",
-  "txtjet.generateIpxactOutput",
-  "txtjet.diffIpxactOutput",
-  "txtjet.validateIpxact",
-  "txtjet.openIpxactTemplate",
   "txtjet.openSynchronizedPreview",
   "txtjet.togglePreviewSynchronization",
   "txtjet.openGettingStarted",
@@ -204,21 +183,6 @@ for (const command of [
   assert.ok(commandPaletteCommands.has(command), `${command} palette entry missing`);
   assert.ok(activationEvents.has(`onCommand:${command}`), `${command} activation missing`);
 }
-for (const command of [
-  "txtjet.openIpxactPreview",
-  "txtjet.generateIpxactOutput",
-  "txtjet.diffIpxactOutput",
-  "txtjet.validateIpxact"
-]) {
-  const paletteEntry = (contributes.menus.commandPalette as Array<{ command: string; when?: string }>).find((item) => item.command === command);
-  assert.ok(paletteEntry?.when?.includes("config.txtjet.ipxact.enabled"), `${command} must be hidden unless IP-XACT is enabled`);
-}
-const ipxactTemplatePaletteEntry = (contributes.menus.commandPalette as Array<{ command: string; when?: string }>)
-  .find((item) => item.command === "txtjet.openIpxactTemplate");
-assert.equal(ipxactTemplatePaletteEntry?.when, undefined, "workspace-wide IP-XACT navigation must not use unscoped configuration gating");
-const ipxactTemplateViewEntry = (contributes.menus["view/title"] as Array<{ command: string; when?: string }>)
-  .find((item) => item.command === "txtjet.openIpxactTemplate");
-assert.equal(ipxactTemplateViewEntry?.when, "view == txtjetWorkspace", "IP-XACT workspace navigation must remain available in multi-root views");
 assert.ok(activationEvents.has("onView:txtjetWorkspace"));
 
 console.log("manifest tests ok");

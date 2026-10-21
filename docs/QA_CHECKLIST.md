@@ -7,8 +7,8 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `npm ci` to reproduce the locked dependency tree.
 - Run `npm run check:release-metadata` and confirm package, lockfile, changelog, README, QA, tag, and VSIX version references agree.
 - Run `VSCODE_TEST_VERSION=1.85.2 npm run verify:release` and confirm the full gate, source Extension Host smoke test, packaging, and clean-profile installed-VSIX smoke test pass at the declared VS Code floor.
-- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.2.0.vsix --force`.
-- Confirm VSCode reports `elsyvien.txtjet-syntax@0.2.0`.
+- Install the generated `.vsix` with `code --install-extension txtjet-syntax-0.3.0.vsix --force`.
+- Confirm VSCode reports `elsyvien.txtjet-syntax@0.3.0`.
 - Reload VSCode after install.
 
 ## First-Run Experience
@@ -88,7 +88,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Run `TxtJet: Open Generated Java Template Preview` and confirm the preview uses `@jet package`, `class`, and `imports` metadata.
 - Run `TxtJet: Open Preview Beside Source` and confirm the preview opens beside the template.
 - Place the cursor in generated XML/HTML/Python/C/Java/LaTeX output and run `TxtJet: Open Region In Generated Preview`; confirm the mapped generated-output preview region is selected.
-- Open generated-output, generated-Java, and IP-XACT previews and confirm every line shows a provenance marker: `R` root, `I` include, `E` expression, `S` skeleton, or `?` unmapped.
+- Open generated-output, generated-Java, and generated-Java previews and confirm every line shows a provenance marker: `R` root, `I` include, `E` expression, `S` skeleton, or `?` unmapped.
 - Hover root, include, expression, and skeleton preview lines and confirm the origin and contributing file are explained; run Go to Definition and confirm deterministic origins open at their source range.
 - Run `TxtJet: Show Source for This Output Line` and `TxtJet: Show All Contributions for This Output Line`; confirm the primary source opens and composite origins remain individually inspectable.
 - Compile a sanitized template with an external tool and confirm uniquely matching output lines inherit provenance while evaluated, repeated, and compiler-only lines show `?` instead of a speculative source.
@@ -130,7 +130,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 ## Workspace Intelligence
 
-- Open the `JetForge Workspace` Explorer view and confirm only applicable Templates, Includes, Skeletons, Unresolved References, IP-XACT, and Generated Output groups are shown for sanitized examples.
+- Open the `JetForge Workspace` Explorer view and confirm only applicable Templates, Includes, Skeletons, Unresolved References, and Generated Output groups are shown for sanitized examples.
 - Run `TxtJet: Refresh Workspace Model` and confirm the tree refreshes without changing files.
 - Open an include fragment and run `TxtJet: Open Including Template`; confirm the referencing template opens.
 - Open a Generated Output Target in the tree and confirm the target-language generated output opens rather than the generated Java template.
@@ -159,26 +159,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 - Start a slow target, then change root/include/configuration or start a newer run. Confirm the previous run aborts or is marked stale and cannot publish.
 - Test explicit invalid JDK selection, malformed JSON, duplicate keys, absent model classes, runtime exceptions, timeout and cancellation; verify distinct error codes.
 - In Restricted Mode, invoke builtin commands and golden/fixture handlers programmatically and through Testing. Confirm no template JVM starts.
-- Enable IP-XACT and configure a local validator. Confirm it receives evaluated XML and unmapped XSD errors appear on that read-only result.
 - Install the exact VSIX in a fresh profile, evaluate the demo and confirm the runner loads from the installed extension, not the development checkout.
-
-## IP-XACT
-
-- Set `txtjet.ipxact.enabled` to true.
-- Open `examples/ipxact-component.txtjet` and confirm the `JetForge Workspace` Explorer shows it under IP-XACT Templates.
-- In a multi-root workspace, enable IP-XACT only for one folder and confirm workspace navigation indexes and opens templates from that folder without requiring the global setting.
-- In generated-output XML text, type `<` and confirm IP-XACT node completions appear for `component`, `busInterface`, `memoryMap`, `addressBlock`, `register`, and `field`.
-- Configure `txtjet.ipxact.schemaPaths` with a sanitized local XSD, then confirm completions narrow to schema-permitted children and attributes, mark required attributes, preserve a typed namespace prefix, and show XSD documentation.
-- Hover a schema-declared element or attribute and run Go to Definition from both the mixed template and IP-XACT preview; confirm the local XSD declaration opens.
-- Open the IP-XACT preview Outline and confirm named components, bus interfaces, memory maps, address blocks, registers, and fields form a navigable hierarchy.
-- Run `TxtJet: Open IP-XACT Preview` and confirm a read-only XML preview opens beside the template.
-- Run `TxtJet: Generate IP-XACT Output` and confirm output is written under `txtjet.ipxact.outputDirectory`.
-- Run `TxtJet: Diff Current IP-XACT Output Against Last Generation` after changing the template and confirm the diff opens.
-- Configure `txtjet.ipxact.validation.command` with a sanitized wrapper executable that emits `${outputFile}:line:column: error: message`, run `TxtJet: Validate IP-XACT Output`, and confirm deterministic generated-output diagnostics map back to the template.
-- Emit an unexpected-child, disallowed-attribute, invalid-value, or missing-declaration validator message and confirm the mapped diagnostic includes concise guidance, retains the original validator text, and links a configured schema declaration when available.
-- Start a slow IP-XACT validation, edit/save the template, and start another validation; confirm the superseded process is aborted and cannot restore stale diagnostics.
-- Confirm overlapping IP-XACT validations use isolated temporary output files and clean them after completion instead of overwriting the canonical generated XML.
-- Disable `txtjet.ipxact.enabled` and confirm IP-XACT commands are hidden/guarded.
 
 ## Workspace Doctor, Golden Tests, And Headless CI
 
@@ -194,8 +175,7 @@ Use sanitized files only. Private workplace templates may be opened locally for 
 
 ## Settings And Privacy
 
-- Open the workspace in Restricted Mode and confirm compiler and IP-XACT validator commands do not execute while highlighting, workspace-local previews, generation, and navigation remain available.
-- Configure a schema path outside the workspace and confirm Restricted Mode ignores it while workspace-local XSD intelligence remains available.
+- Open the workspace in Restricted Mode and confirm compiler commands do not execute while highlighting, workspace-local previews, generation, and navigation remain available.
 - Add `../` and symlink-escape include/skeleton references and confirm previews never read outside the workspace or explicitly configured trusted roots.
 - Configure external include/skeleton or output directories from workspace settings and confirm Restricted Mode blocks them until the workspace is trusted.
 - Point an output subdirectory through a symlink outside the workspace and confirm generation fails closed; then confirm an explicit external output root works only after the workspace is trusted.

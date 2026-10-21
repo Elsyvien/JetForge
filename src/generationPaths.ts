@@ -27,7 +27,7 @@ export function generatedOutputPath(
 
 export function isolatedValidationOutputPath(
   outputPath: string,
-  kind: "compiler" | "ipxact",
+  kind: "compiler",
   processId: number,
   generation: number
 ): string {
