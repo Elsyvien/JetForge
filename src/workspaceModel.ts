@@ -1,7 +1,6 @@
 import { normalize } from "node:path";
 import { detectTargetLanguageFromFileName, TxtJetTargetLanguage } from "./detector";
 import { isTxtJetPath } from "./extensionSupport";
-import { isIpxactTemplate } from "./ipxact";
 import {
   parseTxtJetTemplate,
   resolveReferenceCandidates,
@@ -41,7 +40,6 @@ export interface TxtJetWorkspaceModel {
   templates: TxtJetWorkspaceEntry[];
   includes: TxtJetWorkspaceEntry[];
   skeletons: TxtJetWorkspaceEntry[];
-  ipxactTemplates: TxtJetWorkspaceEntry[];
   unresolvedReferences: TxtJetWorkspaceReference[];
   entry(fileName: string): TxtJetWorkspaceEntry | undefined;
   referencesFrom(fileName: string, kind?: TxtJetWorkspaceReferenceKind): TxtJetWorkspaceReference[];
@@ -62,9 +60,6 @@ export interface TxtJetWorkspaceImpact {
 export interface TxtJetWorkspaceModelOptions {
   includePathsForFile?: (fileName: string) => string[];
   skeletonPathsForFile?: (fileName: string) => string[];
-  ipxactOptionsForFile?: (fileName: string) => { enabled: boolean; templateGlobs: string[] };
-  ipxactEnabled?: boolean;
-  ipxactTemplateGlobs?: string[];
 }
 
 export const TXTJET_WORKSPACE_GLOB = "**/*.{txtjet,jet,javajet,htmljet,xmljet,cjet,pythonjet,texjet,latexjet,propertiesjet,jetinc,skeleton}";
@@ -144,25 +139,12 @@ export function createTxtJetWorkspaceModel(
     .flatMap((entry) => entry.references)
     .filter((reference) => !reference.resolvedFileName)
     .sort(compareReference);
-  const ipxactTemplates = entries
-    .filter((entry) => {
-      if (entry.kind !== "template") {
-        return false;
-      }
-      const fileOptions = options.ipxactOptionsForFile?.(entry.fileName);
-      return isIpxactTemplate(entry.fileName, entry.text, fileOptions ?? {
-        enabled: options.ipxactEnabled ?? false,
-        templateGlobs: options.ipxactTemplateGlobs ?? []
-      });
-    })
-    .sort(compareEntry);
 
   return {
     entries,
     templates: entries.filter((entry) => entry.kind === "template"),
     includes: entries.filter((entry) => entry.kind === "include"),
     skeletons: entries.filter((entry) => entry.kind === "skeleton"),
-    ipxactTemplates,
     unresolvedReferences,
     entry(fileName) {
       return entriesByFile.get(normalize(fileName));

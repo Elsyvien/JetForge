@@ -129,28 +129,6 @@ export async function handleBuiltinDocument(
   return true;
 }
 
-export async function evaluateBuiltinDocument(
-  document: vscode.TextDocument,
-  interactive: boolean,
-): Promise<{ handled: boolean; result?: BuiltinTargetResult }> {
-  const selection = await adapter?.documentSelection(document, interactive);
-  if (!selection) {
-    return { handled: false };
-  }
-  const result = await adapter!.execute("evaluate", {
-    root: selection.project.root,
-    target: selection.target,
-    quiet: !interactive,
-  });
-  return { handled: true, result };
-}
-
-export async function openBuiltinResult(
-  result: BuiltinTargetResult,
-): Promise<vscode.TextDocument | undefined> {
-  return adapter?.showResult(result);
-}
-
 export function isBuiltinDocument(document: vscode.TextDocument): boolean {
   return adapter?.configuredDocument(document) ?? false;
 }

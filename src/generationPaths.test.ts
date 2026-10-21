@@ -33,10 +33,6 @@ assert.throws(
   () => generatedRelativePath(join(workspaceRoot, "component.txtjet"), workspaceRoot, "../xml"),
   /Invalid generated output extension/
 );
-assert.equal(
-  isolatedValidationOutputPath(join(workspaceRoot, "generated", "component.txtjet.xml"), "ipxact", 42, 3),
-  join(workspaceRoot, "generated", "component.txtjet.ipxact-validation-42-3.xml")
-);
 assert.notEqual(
   isolatedValidationOutputPath("component.java", "compiler", 42, 1),
   isolatedValidationOutputPath("component.java", "compiler", 42, 2)

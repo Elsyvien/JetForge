@@ -13,7 +13,7 @@ const main = join(root, "templates", "main.javajet");
 const fragment = join(root, "templates", "partials", "header.jetinc");
 const shared = join(root, "shared", "footer.txtjet");
 const skeleton = join(root, "templates", "base.skeleton");
-const ipxact = join(root, "ipxact", "component.propertiesjet");
+const properties = join(root, "properties", "component.propertiesjet");
 const model = createTxtJetWorkspaceModel(
   [
     {
@@ -38,8 +38,8 @@ const model = createTxtJetWorkspaceModel(
       text: "${packageDeclaration}\npublic class ${class} {\n${generateMethod}\n}"
     },
     {
-      fileName: ipxact,
-      text: '<%@ jet ipxact="true" %>\ncomponent.name=value'
+      fileName: properties,
+      text: 'component.name=value'
     }
   ],
   {
@@ -48,8 +48,7 @@ const model = createTxtJetWorkspaceModel(
     },
     skeletonPathsForFile(fileName) {
       return fileName === main ? [join(root, "templates")] : [];
-    },
-    ipxactEnabled: true
+    }
   }
 );
 
@@ -60,7 +59,6 @@ assert.equal(workspaceEntryKind("base.skeleton"), "skeleton");
 assert.equal(model.templates.length, 3);
 assert.equal(model.includes.length, 1);
 assert.equal(model.skeletons.length, 1);
-assert.deepEqual(model.ipxactTemplates.map((entry) => entry.fileName), [ipxact]);
 assert.equal(model.entry(main)?.targetLanguage, "txtjet-java");
 
 const includeReferences = model.referencesFrom(main, "include");
@@ -120,25 +118,6 @@ assert.equal(isExcludedTxtJetWorkspacePath(join(root, "visible.txtjet")), false)
 assert.equal(ignored.entry(privateTemplate), undefined);
 assert.equal(ignored.entry(localToolTemplate), undefined);
 assert.equal(ignored.templates.length, 1);
-assert.equal(ignored.ipxactTemplates.length, 0);
-
-const firstRootIpxact = join(root, "first", "component.txtjet");
-const secondRootIpxact = join(root, "second", "component.txtjet");
-const perResourceIpxact = createTxtJetWorkspaceModel(
-  [
-    { fileName: firstRootIpxact, text: "component.name=first" },
-    { fileName: secondRootIpxact, text: "component.name=second" }
-  ],
-  {
-    ipxactOptionsForFile(fileName) {
-      return {
-        enabled: fileName === secondRootIpxact,
-        templateGlobs: ["**/*.txtjet"]
-      };
-    }
-  }
-);
-assert.deepEqual(perResourceIpxact.ipxactTemplates.map((entry) => entry.fileName), [secondRootIpxact]);
 
 const topologyParent = join(root, "topology", "parent.txtjet");
 const topologyInclude = join(root, "topology", "partial.jetinc");

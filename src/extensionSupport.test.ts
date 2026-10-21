@@ -116,8 +116,8 @@ assert.equal(
   join(configuredWorkspaceRoot, "generated")
 );
 assert.equal(
-  resolveWorkspaceConfiguredPath("generated-ipxact", configuredWorkspaceRoot),
-  join(configuredWorkspaceRoot, "generated-ipxact")
+  resolveWorkspaceConfiguredPath("generated-xml", configuredWorkspaceRoot),
+  join(configuredWorkspaceRoot, "generated-xml")
 );
 assert.equal(
   resolveContainedWorkspacePath("generated", configuredWorkspaceRoot),

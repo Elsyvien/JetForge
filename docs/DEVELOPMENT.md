@@ -17,7 +17,6 @@ The extension and CLI share template and project logic. Keep VS Code document, c
 | Compiler execution, diagnostics, cancellation | `src/externalCommand.ts`, `src/compilerToolchain.ts`, `src/compilerDiagnostics.ts`, `src/validationRuns.ts`; execution in `src/extension.ts` | Matching tests; trust, timeout, superseded-run scenarios |
 | Builtin compiler, models, snapshots and targets | `src/txtjetCompiler.ts`, `src/compilerSourceMap.ts`, `src/builtinCompiler.ts`, `src/builtinProject.ts`, `runtime/java/`; editor adapter in `src/builtinEditor.ts` | Compiler/JVM/CLI tests, pinned Eclipse reference, installed-VSIX execution |
 | Path containment, output naming, resource limits | `src/extensionSupport.ts`, `src/generationPaths.ts`, `src/resourceBudget.ts` | Matching tests; traversal, symlink, collision, and limit cases |
-| IP-XACT and local schema intelligence | `src/ipxact.ts`, `src/ipxactSchema.ts`, `src/schemaDiscovery.ts` | Matching tests; enabled/disabled and multi-root scenarios |
 | Commands, providers, settings, walkthrough | `src/extension.ts`, `package.json`, `walkthrough/` | `manifest` tests, source Extension Host smoke test, relevant QA scenarios |
 | Packaging and release | `.vscodeignore`, `scripts/`, `.github/workflows/verify-vsix.yml`, `.github/workflows/publish.yml` | Package hygiene, metadata, installed-VSIX smoke tests |
 
@@ -35,11 +34,11 @@ For editor previews and refactor plans, read current open buffers before disk co
 
 ### Files, configuration, and trust
 
-Resolve editor settings against the affected resource so multi-root folders retain independent resolution, compiler, generation, and IP-XACT settings. Use the canonical containment helpers in `extensionSupport.ts` for workspace/configured-root checks, including existing symlink ancestors. The headless project contract keeps configured reads and writes inside its project root.
+Resolve editor settings against the affected resource so multi-root folders retain independent resolution, compiler and generation settings. Use the canonical containment helpers in `extensionSupport.ts` for workspace/configured-root checks, including existing symlink ancestors. The headless project contract keeps configured reads and writes inside its project root.
 
 Keep output names collision-free across source directories and template suffixes through `generationPaths.ts`. Validation runs use isolated temporary outputs and clean them after completion; canonical generated files are reserved for explicit generation.
 
-Compiler and validator execution in the editor requires Workspace Trust. IP-XACT remains gated by `txtjet.ipxact.enabled`; local XSD intelligence aids authoring while external validators provide full validation. Preserve resource budgets and cancellation when extending scans or projections.
+Compiler execution in the editor requires Workspace Trust. Preserve resource budgets and cancellation when extending scans or projections.
 
 ### External commands: two execution paths
 
@@ -47,7 +46,7 @@ The paths currently have different command semantics. Preserve and document the 
 
 | Path | Current behavior | Placeholders |
 | --- | --- | --- |
-| Editor compiler and IP-XACT validator in `src/extension.ts` | `parseExternalCommand` parses an executable and arguments, then `execFile` runs without a shell. Quotes group arguments; wrapper scripts handle shell workflows. | `${file}`, `${workspaceFolder}`, `${outputFile}` |
+| Editor compiler in `src/extension.ts` | `parseExternalCommand` parses an executable and arguments, then `execFile` runs without a shell. Quotes group arguments; wrapper scripts handle shell workflows. | `${file}`, `${workspaceFolder}`, `${outputFile}` |
 | Command-mode golden cases in `src/headlessProject.ts`, including the editor's golden runner | `substituteCommand` shell-quotes replacement paths, then Node's `exec` runs the configured command through a shell. Treat the command as trusted project code. | The same paths plus `${fixture}` |
 
 The terminal has no VS Code trust dialog. Running command-mode cases executes the configured project command. Inspect unfamiliar project commands before running their golden cases.
@@ -89,7 +88,7 @@ The source smoke runner uses an installed VS Code when available unless `VSCODE_
 
 - Installation and feature overview belong in the [main README](../README.md). Detailed architecture, language, headless configuration, and editor workflows belong in the corresponding chapters linked from the [documentation index](README.md). Setting types, defaults, scopes, command IDs, and scripts are authoritative in [package.json](../package.json); consult that manifest instead of maintaining a second inventory.
 - Repeatable manual acceptance scenarios belong in [QA_CHECKLIST.md](QA_CHECKLIST.md). Select the branches affected by the change.
-- IntelliSense and IP-XACT scope/future direction belong in [INTELLISENSE_ROADMAP.md](INTELLISENSE_ROADMAP.md) and [IPXACT_ROADMAP.md](IPXACT_ROADMAP.md). A roadmap claim needs confirmation in source before being described as shipped.
+- IntelliSense scope/future direction belongs in [INTELLISENSE_ROADMAP.md](INTELLISENSE_ROADMAP.md). A roadmap claim needs confirmation in source before being described as shipped.
 - Public behavior changes belong in [CHANGELOG.md](../CHANGELOG.md). Documentation cleanup alone does not need a release entry.
 
 Before handoff, review the diff for unrelated changes and distinguish local checks from CI or published-artifact verification. Contribution completion criteria are in [CONTRIBUTING.md](../CONTRIBUTING.md).

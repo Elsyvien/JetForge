@@ -17,10 +17,7 @@ const EXPECTED_LANGUAGE_IDS = [
 
 export async function run(): Promise<void> {
   let topologyRoot: vscode.Uri | undefined;
-  let workspaceConfiguration: vscode.WorkspaceConfiguration | undefined;
   let compilerConfiguration: vscode.WorkspaceConfiguration | undefined;
-  let previousIpxactEnabled: unknown;
-  let previousSchemaPaths: unknown;
   let previousCompilerCommand: unknown;
   let previousGenerationOutputDirectory: unknown;
   try {
@@ -29,6 +26,8 @@ export async function run(): Promise<void> {
 
     await extension.activate();
     assert.equal(extension.isActive, true, `${EXTENSION_ID} must activate successfully`);
+    assert.ok(!(await vscode.commands.getCommands(true)).some((command) => /^txtjet\..*ipxact/i.test(command)),
+      "removed domain commands must not be registered in the extension host");
 
     const contributedCommands = extension.packageJSON.contributes?.commands as Array<{ command: string }> | undefined;
     assert.ok(Array.isArray(contributedCommands), "the extension must contribute commands");
@@ -223,106 +222,6 @@ export async function run(): Promise<void> {
     assert.ok(compilerDefinitions.some((location) => location.uri.fsPath === compilerSource.fsPath),
       "mapped compiler output must navigate back to its template");
 
-    const ipxactSchema = vscode.Uri.joinPath(topologyRoot, "ieee1685-mini.xsd");
-    const ipxactTemplate = vscode.Uri.joinPath(topologyRoot, "component.ipxact.txtjet");
-    const ipxactAttributeTemplate = vscode.Uri.joinPath(topologyRoot, "component-attribute.ipxact.txtjet");
-    const ipxactForbiddenTemplate = vscode.Uri.joinPath(topologyRoot, "component-forbidden.ipxact.txtjet");
-    await vscode.workspace.fs.writeFile(ipxactSchema, Buffer.from(minimalIpxactSchema(), "utf8"));
-    await vscode.workspace.fs.writeFile(
-      ipxactTemplate,
-      Buffer.from('<%@ jet ipxact="true" %>\n<component>\n  <name>demo.component</name>\n  <mem\n</component>\n', "utf8")
-    );
-    await vscode.workspace.fs.writeFile(
-      ipxactAttributeTemplate,
-      Buffer.from('<%@ jet ipxact="true" %>\n<component ver', "utf8")
-    );
-    await vscode.workspace.fs.writeFile(
-      ipxactForbiddenTemplate,
-      Buffer.from('<%@ jet ipxact="true" %>\n<component>\n  <bus', "utf8")
-    );
-    workspaceConfiguration = vscode.workspace.getConfiguration("txtjet", ipxactTemplate);
-    previousIpxactEnabled = workspaceConfiguration.inspect("ipxact.enabled")?.workspaceFolderValue;
-    previousSchemaPaths = workspaceConfiguration.inspect("ipxact.schemaPaths")?.workspaceFolderValue;
-    await workspaceConfiguration.update("ipxact.enabled", true, vscode.ConfigurationTarget.WorkspaceFolder);
-    await workspaceConfiguration.update("ipxact.schemaPaths", [ipxactSchema.fsPath], vscode.ConfigurationTarget.WorkspaceFolder);
-
-    const ipxactDocument = await vscode.workspace.openTextDocument(ipxactTemplate);
-    await vscode.window.showTextDocument(ipxactDocument);
-    const memoryPrefixOffset = ipxactDocument.getText().indexOf("<mem") + "<mem".length;
-    const schemaCompletions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      "vscode.executeCompletionItemProvider",
-      ipxactDocument.uri,
-      ipxactDocument.positionAt(memoryPrefixOffset)
-    );
-    assert.ok(schemaCompletions.items.some((item) =>
-      completionLabel(item) === "memoryMaps" && item.detail?.includes("IP-XACT schema element")
-    ), "IP-XACT completion must use permitted children from the configured schema");
-
-    const attributeDocument = await vscode.workspace.openTextDocument(ipxactAttributeTemplate);
-    await vscode.window.showTextDocument(attributeDocument);
-    const attributeCompletions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      "vscode.executeCompletionItemProvider",
-      attributeDocument.uri,
-      attributeDocument.positionAt(attributeDocument.getText().length)
-    );
-    assert.ok(attributeCompletions.items.some((item) =>
-      completionLabel(item) === "version" && item.detail?.includes("required")
-    ), "IP-XACT completion must offer schema-declared attributes");
-
-    const forbiddenDocument = await vscode.workspace.openTextDocument(ipxactForbiddenTemplate);
-    await vscode.window.showTextDocument(forbiddenDocument);
-    const forbiddenCompletions = await vscode.commands.executeCommand<vscode.CompletionList>(
-      "vscode.executeCompletionItemProvider",
-      forbiddenDocument.uri,
-      forbiddenDocument.positionAt(forbiddenDocument.getText().length)
-    );
-    assert.equal(forbiddenCompletions.items.some((item) => completionLabel(item) === "busInterface"), false,
-      "configured schema completions must not fall back to children forbidden by the parent type");
-
-    await vscode.window.showTextDocument(ipxactDocument);
-    const componentOffset = ipxactDocument.getText().indexOf("<component") + 2;
-    const schemaDefinitions = await vscode.commands.executeCommand<vscode.Location[]>(
-      "vscode.executeDefinitionProvider",
-      ipxactDocument.uri,
-      ipxactDocument.positionAt(componentOffset)
-    );
-    assert.ok(schemaDefinitions.some((location) => location.uri.fsPath === ipxactSchema.fsPath),
-      "IP-XACT Go to Definition must open the configured XSD declaration");
-    const schemaHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-      "vscode.executeHoverProvider",
-      ipxactDocument.uri,
-      ipxactDocument.positionAt(componentOffset)
-    );
-    assert.ok(schemaHovers.some((hover) => hoverText(hover).includes("Top-level IP-XACT component")),
-      "IP-XACT hover must show schema documentation");
-
-    await vscode.commands.executeCommand("txtjet.openIpxactPreview");
-    const ipxactPreview = vscode.window.activeTextEditor?.document;
-    assert.ok(ipxactPreview, "the IP-XACT preview command must open an editor");
-    assert.equal(ipxactPreview.uri.scheme, "txtjet-preview-ipxact");
-    const previewComponentOffset = ipxactPreview.getText().indexOf("<component") + 2;
-    assert.ok(previewComponentOffset >= 2, "IP-XACT preview must contain the component element");
-    const previewSchemaDefinitions = await vscode.commands.executeCommand<vscode.Location[]>(
-      "vscode.executeDefinitionProvider",
-      ipxactPreview.uri,
-      ipxactPreview.positionAt(previewComponentOffset)
-    );
-    assert.ok(previewSchemaDefinitions.some((location) => location.uri.fsPath === ipxactSchema.fsPath),
-      "IP-XACT preview Go to Definition must open the configured XSD declaration");
-    const previewSchemaHovers = await vscode.commands.executeCommand<vscode.Hover[]>(
-      "vscode.executeHoverProvider",
-      ipxactPreview.uri,
-      ipxactPreview.positionAt(previewComponentOffset)
-    );
-    assert.ok(previewSchemaHovers.some((hover) => hoverText(hover).includes("Top-level IP-XACT component")),
-      "IP-XACT preview hover must show schema documentation");
-    const structureSymbols = await vscode.commands.executeCommand<Array<vscode.DocumentSymbol | vscode.SymbolInformation>>(
-      "vscode.executeDocumentSymbolProvider",
-      ipxactPreview.uri
-    );
-    assert.ok(structureSymbols.some((symbol) => symbol.name === "Component: demo.component"),
-      "IP-XACT preview outline must expose named generated structures");
-
     await vscode.workspace.fs.writeFile(
       workspaceService,
       Buffer.from('<%@ jet package="host" class="WorkspaceService" %>\n<%! public String render(String value) { return value; } %>\n', "utf8")
@@ -415,10 +314,6 @@ export async function run(): Promise<void> {
     assert.equal(compilerDiagnostics().length, 0, "no diagnostics may remain after the last target removes the include");
     if (process.env.TXTJET_EXTENSION_TEST_SUCCESS_PATH) { writeFileSync(process.env.TXTJET_EXTENSION_TEST_SUCCESS_PATH, JSON.stringify({ complete: true, builtin: true })); }
   } finally {
-    if (workspaceConfiguration) {
-      await workspaceConfiguration.update("ipxact.enabled", previousIpxactEnabled, vscode.ConfigurationTarget.WorkspaceFolder);
-      await workspaceConfiguration.update("ipxact.schemaPaths", previousSchemaPaths, vscode.ConfigurationTarget.WorkspaceFolder);
-    }
     if (compilerConfiguration) {
       await compilerConfiguration.update("compiler.command", previousCompilerCommand, vscode.ConfigurationTarget.WorkspaceFolder);
       await compilerConfiguration.update("generation.outputDirectory", previousGenerationOutputDirectory, vscode.ConfigurationTarget.WorkspaceFolder);
@@ -440,20 +335,6 @@ function completionLabel(item: vscode.CompletionItem): string {
 
 function hoverText(hover: vscode.Hover): string {
   return hover.contents.map((content) => typeof content === "string" ? content : content.value).join("\n");
-}
-
-function minimalIpxactSchema(): string {
-  return `<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
-  <xs:element name="component" type="componentType">
-    <xs:annotation><xs:documentation>Top-level IP-XACT component.</xs:documentation></xs:annotation>
-  </xs:element>
-  <xs:complexType name="componentType">
-    <xs:sequence>
-      <xs:element name="memoryMaps" type="xs:string"/>
-    </xs:sequence>
-    <xs:attribute name="version" type="xs:string" use="required"/>
-  </xs:complexType>
-</xs:schema>`;
 }
 
 async function waitFor(predicate: () => boolean, message: string, timeoutMs = 5_000): Promise<void> {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#eee9dc">
-    <meta name="description" content="The JetForge 0.1 delivery map: golden tests, Workspace Doctor, interactive dependencies, safe refactors, headless CI, fixtures, provenance, and IP-XACT intelligence.">
+    <meta name="description" content="The JetForge 0.1 delivery map: golden tests, Workspace Doctor, interactive dependencies, safe refactors, headless CI, fixtures, provenance.">
     <title>JetForge 0.1 — Delivery Map</title>
     <link rel="icon" href="assets/icon.png" type="image/png">
     <script>document.documentElement.classList.add("js")</script>
@@ -1145,15 +1145,15 @@
 
       <section class="roadmap-shell" id="roadmap" aria-labelledby="roadmap-title">
         <header class="section-head reveal">
-          <h2 id="roadmap-title">Eight moves. One working system.</h2>
+          <h2 id="roadmap-title">Seven moves. One working system.</h2>
           <p>This page preserves the original impact/effort map and implementation intent, then marks what the 0.1 release delivered. “Core delivered” is deliberate: follow-on refinements remain possible without hiding the usable behavior that ships now.</p>
         </header>
 
         <div class="controls" role="group" aria-label="Filter roadmap by phase">
-          <button class="filter" type="button" data-filter="all" aria-pressed="true">All deliveries <span aria-hidden="true">· 8</span></button>
+          <button class="filter" type="button" data-filter="all" aria-pressed="true">All deliveries <span aria-hidden="true">· 7</span></button>
           <button class="filter" type="button" data-filter="now" aria-pressed="false">Confidence <span aria-hidden="true">· 3</span></button>
           <button class="filter" type="button" data-filter="next" aria-pressed="false">Scale <span aria-hidden="true">· 3</span></button>
-          <button class="filter" type="button" data-filter="later" aria-pressed="false">Specialist <span aria-hidden="true">· 2</span></button>
+          <button class="filter" type="button" data-filter="later" aria-pressed="false">Specialist <span aria-hidden="true">· 1</span></button>
         </div>
 
         <div class="map reveal" aria-labelledby="map-title">
@@ -1167,7 +1167,6 @@
             <button class="map-dot" style="left: 64%; bottom: 56%" data-target="feature-refactor" data-phase="next" aria-label="Open feature 05, Refactor Preview">05</button>
             <button class="map-dot" style="left: 71%; bottom: 80%" data-target="feature-cli" data-phase="next" aria-label="Open feature 06, Headless JetForge">06</button>
             <button class="map-dot" style="left: 83%; bottom: 88%" data-target="feature-fixtures" data-phase="later" aria-label="Open feature 07, Fixture-Driven Live Evaluation">07</button>
-            <button class="map-dot" style="left: 87%; bottom: 58%" data-target="feature-ipxact" data-phase="later" aria-label="Open feature 08, IP-XACT Schema Intelligence">08</button>
           </div>
           <div class="map-legend">
             <p id="map-title" class="map-label">Impact / effort map</p>
@@ -1178,13 +1177,12 @@
             <a class="map-key" href="#feature-refactor"><b>05</b><span>Refactor preview</span></a>
             <a class="map-key" href="#feature-cli"><b>06</b><span>Headless JetForge</span></a>
             <a class="map-key" href="#feature-fixtures"><b>07</b><span>Live evaluation</span></a>
-            <a class="map-key" href="#feature-ipxact"><b>08</b><span>IP-XACT intelligence</span></a>
           </div>
         </div>
 
         <div class="feature-list" aria-live="polite">
           <article class="feature reveal" id="feature-tests" data-phase="now">
-            <div class="feature-no">01 / 08</div>
+            <div class="feature-no">01 / 07</div>
             <header class="feature-title">
               <h3>Golden Output Test Runner</h3>
               <p>Save an approved generated file as the expected result, then rerun and diff it after every template change.</p>
@@ -1210,7 +1208,7 @@
           </article>
 
           <article class="feature reveal" id="feature-provenance" data-phase="now">
-            <div class="feature-no">02 / 08</div>
+            <div class="feature-no">02 / 07</div>
             <header class="feature-title">
               <h3>Generated Output Provenance Lens</h3>
               <p>Show where every preview line came from: root template, include, expression, skeleton token, or unmapped compiler output.</p>
@@ -1236,14 +1234,14 @@
           </article>
 
           <article class="feature reveal" id="feature-doctor" data-phase="now">
-            <div class="feature-no">03 / 08</div>
+            <div class="feature-no">03 / 07</div>
             <header class="feature-title">
               <h3>Workspace Doctor</h3>
               <p>One command that explains what JetForge understands, what is missing, and the exact next action to improve the workspace.</p>
               <div class="tags"><span class="tag phase-now">Core delivered 0.1.0</span><span class="tag">Medium impact</span><span class="tag">Small effort</span></div>
             </header>
             <div class="feature-body">
-              <p class="why"><strong>Why it belongs</strong><span>JetForge has powerful settings for resolution paths, compiler commands, language modes, trust, and optional IP-XACT behavior. A project can be “mostly working” without making the missing piece obvious.</span></p>
+              <p class="why"><strong>Why it belongs</strong><span>JetForge has powerful settings for resolution paths, compiler commands, language modes, trust. A project can be “mostly working” without making the missing piece obvious.</span></p>
               <details>
                 <summary>Original four-step implementation plan</summary>
                 <ol class="plan">
@@ -1262,7 +1260,7 @@
           </article>
 
           <article class="feature reveal" id="feature-graph" data-phase="next">
-            <div class="feature-no">04 / 08</div>
+            <div class="feature-no">04 / 07</div>
             <header class="feature-title">
               <h3>Interactive Dependency Map</h3>
               <p>A navigable local map of templates, includes, skeletons, classes, generated outputs, and unresolved edges.</p>
@@ -1288,7 +1286,7 @@
           </article>
 
           <article class="feature reveal" id="feature-refactor" data-phase="next">
-            <div class="feature-no">05 / 08</div>
+            <div class="feature-no">05 / 07</div>
             <header class="feature-title">
               <h3>Refactor Preview &amp; Safe Recipes</h3>
               <p>Show the exact files, references, and generated outputs a refactor will change before applying it.</p>
@@ -1314,7 +1312,7 @@
           </article>
 
           <article class="feature reveal" id="feature-cli" data-phase="next">
-            <div class="feature-no">06 / 08</div>
+            <div class="feature-no">06 / 07</div>
             <header class="feature-title">
               <h3>Headless JetForge</h3>
               <p>A small CLI that runs workspace checks, compiler validation, and golden tests without launching VS Code.</p>
@@ -1340,7 +1338,7 @@
           </article>
 
           <article class="feature reveal" id="feature-fixtures" data-phase="later">
-            <div class="feature-no">07 / 08</div>
+            <div class="feature-no">07 / 07</div>
             <header class="feature-title">
               <h3>Fixture-Driven Live Evaluation</h3>
               <p>Choose a named model fixture and see the real rendered artifact—not only placeholder expressions—in the side-by-side preview.</p>
@@ -1365,31 +1363,6 @@
             </div>
           </article>
 
-          <article class="feature reveal" id="feature-ipxact" data-phase="later">
-            <div class="feature-no">08 / 08</div>
-            <header class="feature-title">
-              <h3>IP-XACT Schema Intelligence</h3>
-              <p>Optional schema-aware completions, validation explanations, and navigation for generated IP-XACT structures.</p>
-              <div class="tags"><span class="tag phase-now">Delivered 0.0.22</span><span class="tag">Medium impact</span><span class="tag">Very large effort</span></div>
-            </header>
-            <div class="feature-body">
-              <p class="why"><strong>Why it belongs</strong><span>JetForge already owns the template-to-XML boundary. Schema intelligence would create a strong specialist advantage for hardware teams while remaining safely opt-in for everyone else.</span></p>
-              <details>
-                <summary>Original four-step implementation plan</summary>
-                <ol class="plan">
-                  <li>Support a user-selected local IEEE 1685 schema bundle; do not download schemas at runtime.</li>
-                  <li>Parse generated XML into a lightweight structural index and map reliable nodes back through template provenance.</li>
-                  <li>Offer context-aware element and attribute suggestions in matched generated-output regions.</li>
-                  <li>Add semantic navigation for components, bus interfaces, address blocks, registers, and referenced definitions.</li>
-                </ol>
-              </details>
-              <div class="feature-foot">
-                <div class="detail"><span class="detail-label">MVP proof</span><b>Schema error mapped to source</b></div>
-                <div class="detail"><span class="detail-label">Depends on</span><b>Provenance lens + opt-in IP-XACT</b></div>
-                <div class="detail"><span class="detail-label">Guardrail</span><b>Disabled means zero extra work</b></div>
-              </div>
-            </div>
-          </article>
         </div>
       </section>
 
@@ -1422,7 +1395,6 @@
             <h3>Do what editors cannot</h3>
             <ol>
               <li>Fixture-driven evaluation</li>
-              <li>Schema-aware IP-XACT tooling</li>
             </ol>
           </article>
         </div>

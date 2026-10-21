@@ -1,4 +1,4 @@
-<%@ jet package="demo.templates" class="ComponentTemplate" imports="java.util.Map;java.util.List" skeleton="skeletons/component.skeleton" ipxact="true" %><% Map<?, ?> model = (Map<?, ?>) argument; %><component>
+<%@ jet package="demo.templates" class="ComponentTemplate" imports="java.util.Map;java.util.List" skeleton="skeletons/component.skeleton" %><% Map<?, ?> model = (Map<?, ?>) argument; %><component>
   <name><%= model.get("name") %></name>
   <version><%= model.get("version") %></version>
   <registers><%@ include file="partials/registers.jetinc" %>

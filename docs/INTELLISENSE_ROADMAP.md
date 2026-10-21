@@ -1,6 +1,6 @@
 # IntelliSense Roadmap
 
-JetForge currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, guided external-compiler setup and compiler-backed diagnostics, Quick Fixes, completions for TxtJet constructs and configured project metadata, generated-output language modes, read-only generated previews, per-line preview provenance, synchronized reveal for deterministic preview mappings, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, workspace-aware cross-class method completion/navigation/signatures, local generated-output fallback suggestions for Java, Python, and C/C++, optional local-XSD IP-XACT intelligence, and workspace-wide TxtJet indexing for templates, includes, skeletons, IP-XACT templates, unresolved references, and generated targets. It does not implement a full Java parser/type checker or provide full generated target-language language-server behavior inside `.txtjet` files.
+JetForge currently provides highlighting, parser-backed visual region differentiation, snippets, lightweight diagnostics, guided external-compiler setup and compiler-backed diagnostics, Quick Fixes, completions for TxtJet constructs and configured project metadata, generated-output language modes, read-only generated previews, per-line preview provenance, synchronized reveal for deterministic preview mappings, outline symbols, include navigation, conservative Java IntelliSense forwarding for template Java blocks, local helper References/Rename/Signature Help, workspace-aware cross-class method completion/navigation/signatures, local generated-output fallback suggestions for Java, Python, and C/C++, and workspace-wide TxtJet indexing for templates, includes, skeletons, unresolved references, and generated targets. It does not implement a full Java parser/type checker or provide full generated target-language language-server behavior inside `.txtjet` files.
 
 ## Eclipse JET Reference Points
 
@@ -31,7 +31,7 @@ VSCode language servers generally operate on one coherent language document. A `
 
 - Source mapping foundation
   - The transformation layer returns source-to-preview ranges for generated output and generated Java previews.
-  - Current mappings support tests, preview refresh behavior, region-aware preview commands, reveal commands between source and preview, synchronized reveal between visible source/preview editors, compiler/IP-XACT diagnostic mapping, and optional generated-Java diagnostic mapping.
+  - Current mappings support tests, preview refresh behavior, region-aware preview commands, reveal commands between source and preview, synchronized reveal between visible source/preview editors, compiler diagnostic mapping, and optional generated-Java diagnostic mapping.
   - Every preview line also carries provenance for root-template text, expanded includes, expressions, skeleton tokens/layout, or intentionally unmapped compiler output.
   - The preview lens renders those origins as `R`, `I`, `E`, `S`, and `?`; hover explains direct, include-expanded, skeleton-rendered, approximate, and unmapped confidence, while dedicated source/contribution commands navigate composite lines.
   - Real external-compiler output inherits provenance only when a non-empty line has one unique exact match in the approximation; repeated, evaluated, and compiler-only lines remain visibly unmapped.
@@ -39,7 +39,7 @@ VSCode language servers generally operate on one coherent language document. A `
 - IntelliSense-adjacent editor support
   - Outline symbols summarize directives, declarations, scriptlets, expressions, and generated-output regions.
   - Include `file="..."` references support Go to Definition for relative paths.
-  - Directive completions include `skeleton`, `ipxact`, and configured project-specific metadata attributes alongside the existing directive names and attributes.
+  - Directive completions include `skeleton` and configured project-specific metadata attributes alongside the existing directive names and attributes.
   - Scriptlet, expression, and declaration blocks can forward completion, hover, and Go to Definition requests through the generated Java preview when installed Java tooling can answer them.
   - Local helper methods declared in `<%! ... %>` blocks support Go to Definition, Find All References, conservative Rename Symbol, Hover fallback signatures, and Signature Help for direct and `this.` call sites.
   - Workspace `@jet class` templates are indexed locally so fields, locals, parameters, constructor expressions, static class calls, and simple return-value chains can complete and navigate to accessible methods declared by other templates.
@@ -48,12 +48,12 @@ VSCode language servers generally operate on one coherent language document. A `
   - Parser-backed region classification distinguishes generated output, TxtJet markers, directives, and embedded template Java for editor decorations and fallback hover text.
 
 - Workspace resolution, formatting, and generation helpers
-  - The `JetForge Workspace` Explorer view indexes root templates, `.jetinc` include fragments, `.skeleton` files, opt-in IP-XACT templates, unresolved references, generated target entries, and include backlinks.
+  - The `JetForge Workspace` Explorer view indexes root templates, `.jetinc` include fragments, `.skeleton` files, unresolved references, generated target entries, and include backlinks.
   - Include and skeleton references can resolve through configured workspace search paths and extensionless `.txtjet`, `.jetinc`, and `.skeleton` candidates.
   - Rendered impact reports trace direct and transitive reverse dependencies to affected templates and generated targets.
   - Conservative include/skeleton refactors rebuild from open buffers, reject unsafe paths, and update only deterministically mapped references.
   - Generated output and Java previews prefer unsaved open include/skeleton buffers over stale on-disk content and refresh already-open root previews when those dependencies change.
-  - Resource-scoped resolution, compiler, generation, and IP-XACT settings keep folders independent in multi-root workspaces.
+  - Resource-scoped resolution, compiler and generation settings keep folders independent in multi-root workspaces.
   - Reverse-reference indexes, coalesced refreshes, impacted-preview invalidation, and bounded mapping caches avoid repeated whole-workspace work during event bursts.
   - Include/skeleton reads are contained to the workspace or explicit configured roots, including canonical `..` and symlink checks.
   - Document formatting and format selection normalize directive attributes, expressions, and template Java block indentation.
@@ -65,19 +65,12 @@ VSCode language servers generally operate on one coherent language document. A `
   - `TxtJet: Validate Template With External Compiler` runs the configured compiler command, parses stdout/stderr with a configurable problem matcher, and maps generated Java/output locations back into `.txtjet` ranges where the preview source map is deterministic.
   - Workspace validation is cancellable and emits a structured processed/clean/failed/diagnostic/skipped/remaining summary.
   - Optional on-save validation is available but disabled by default so compiler cost stays under workspace control.
-  - Per-document run generations abort superseded compiler/IP-XACT validations and discard results if the document changed or closed.
-  - Compiler and IP-XACT validation runs use isolated temporary outputs so overlapping runs cannot overwrite each other's inputs or canonical generated files.
+  - Per-document run generations abort superseded compiler validations and discard results if the document changed or closed.
+  - Compiler validation runs use isolated temporary outputs so overlapping runs cannot overwrite each other's inputs or canonical generated files.
 
 - Release verification
   - A real Extension Host smoke test activates the compiled extension in an isolated VS Code Extension Host, checks every contributed command and language, opens a sanitized template, and executes a generated-preview command.
   - The packaged VSIX is installed into clean profiles and smoke-tested on Linux and Windows against VS Code 1.85.2 and current stable before that exact checksummed artifact can publish.
-
-- Opt-in IP-XACT workflows
-  - `txtjet.ipxact.enabled` gates IP-XACT preview, generation, diff, validation, snippets, completions, and workspace indexing.
-  - Templates can opt in through `@jet ipxact="true"` or configured globs.
-  - Validation runs an external command and maps generated XML diagnostics back to source only where generated-output mappings are deterministic.
-  - Optional resource-scoped `txtjet.ipxact.schemaPaths` index local XSD files and directories for permitted-child and attribute completions, XSD documentation hovers, and Go to Definition from templates and previews.
-  - Recognized validator messages gain a short schema-focused explanation and corrective guidance while preserving the original validator output.
 
 - Team-scale verification and safe change workflows
   - `.jetforge.json` is a checked-in project contract for source roots, resolution paths, generated output, and named golden cases.
@@ -117,7 +110,7 @@ VSCode language servers generally operate on one coherent language document. A `
 
 - Directive-aware content assist
   - Eclipse content assist exposes JET directive syntax and attributes.
-  - VSCode equivalent: directive completions for `@jet`, `@include`, `package`, `class`, `imports`, `skeleton`, `ipxact`, `file`, and configured project-specific directive metadata.
+  - VSCode equivalent: directive completions for `@jet`, `@include`, `package`, `class`, `imports`, `skeleton`, `file`, and configured project-specific directive metadata.
 
 - Skeleton support
   - Eclipse supports a `skeleton` attribute in the `@jet` directive to customize the compiled Java class shape.
