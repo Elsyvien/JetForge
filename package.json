@@ -1085,7 +1085,7 @@
     "test:eclipse": "npm run compile && node scripts/test-eclipse-reference.js"
   },
   "devDependencies": {
-    "@types/node": "^20.12.12",
+    "@types/node": "^25.9.9",
     "@types/vscode": "1.85.0",
     "@typescript-eslint/eslint-plugin": "^8.71.0",
     "@typescript-eslint/parser": "^8.68.0",
